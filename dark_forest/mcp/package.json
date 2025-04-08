@@ -1,0 +1,38 @@
+{
+  "name": "@darkforest/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Dark Forest game interactions",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "darkforest-mcp": "./build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.9.0",
+    "@darkforest_eth/network": "6.7.29",
+    "@darkforest_eth/types": "6.7.29",
+    "@darkforest_eth/constants": "6.7.29",
+    "@darkforest_eth/contracts": "6.7.29",
+    "@darkforest_eth/serde": "6.7.29",
+    "@darkforest_eth/hashing": "6.7.29",
+    "@darkforest_eth/gamelogic": "6.7.29",
+    "@darkforest_eth/procedural": "6.7.29",
+    "@darkforest_eth/events": "6.7.29",
+    "ethers": "^5.7.2",
+    "big-integer": "^1.6.51",
+    "delay": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  }
+}
