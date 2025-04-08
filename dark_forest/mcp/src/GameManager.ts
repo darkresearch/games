@@ -10,6 +10,7 @@ import {
   EthTxStatus,
   TxIntent,
   TransactionId,
+  PlanetType,
 } from "@darkforest_eth/types";
 import { providers, BigNumber, BigNumberish, Contract } from "ethers";
 import { EventEmitter } from "events";
@@ -43,6 +44,9 @@ export class GameManager extends EventEmitter {
   private readonly account: EthAddress;
   private readonly contract: DarkForest;
   private txIdCounter: number = 0;
+  private discoveredPlanets: Set<LocationId> = new Set();
+  private planets: Map<LocationId, Planet> = new Map();
+  private players: Map<string, { claimedShips: boolean }> = new Map();
 
   private constructor(
     ethConnection: EthConnection,
@@ -162,10 +166,15 @@ export class GameManager extends EventEmitter {
   }
 
   private async locationIdToCoords(locationId: LocationId): Promise<WorldCoords> {
-    // This is a placeholder - you'll need to implement the actual conversion logic
+    // Get the planet data from the contract
+    const planet = await this.contract.planets(locationId);
+    if (!planet) {
+      throw new Error(`Planet ${locationId} not found`);
+    }
+    
     return {
-      x: 0,
-      y: 0
+      x: BigNumber.from(planet[2]).toNumber(),
+      y: BigNumber.from(planet[3]).toNumber()
     };
   }
 
@@ -264,7 +273,8 @@ export class GameManager extends EventEmitter {
     y: number,
     r: number
   ): Promise<ZKProof> {
-    // Placeholder for actual ZK proof generation
+    // This would need to be implemented to generate actual ZK proofs
+    // For now return dummy values that match the expected types
     return {
       a: [0, 0],
       b: [[0, 0], [0, 0]],
@@ -292,12 +302,26 @@ export class GameManager extends EventEmitter {
       proof.c,
       input
     );
-
+    
+    // Track the discovered planet
+    this.discoveredPlanets.add(planetId);
+    
     const intent = this.createTxIntent('revealLocation', [planetId, x, y, r]);
     const transaction = this.createTransaction(intent);
     transaction.hash = tx.hash;
 
     return transaction;
+  }
+
+  public async getDiscoveredPlanets(): Promise<Planet[]> {
+    const planets: Planet[] = [];
+    for (const planetId of this.discoveredPlanets) {
+      const planet = await this.getPlanet(planetId);
+      if (planet) {
+        planets.push(planet);
+      }
+    }
+    return planets;
   }
 
   public async upgrade(
@@ -368,5 +392,24 @@ export class GameManager extends EventEmitter {
     const transaction = this.createTransaction(intent);
     transaction.hash = tx.hash;
     return transaction;
+  }
+
+  private coordsToLocationId(coords: WorldCoords): LocationId {
+    // Implementation here - this should return a LocationId string
+    return '0000000000000000000000000000000000000000000000000000000000000000' as LocationId;
+  }
+
+  public async getCoords(locationId: LocationId): Promise<WorldCoords> {
+    const planet = await this.contract.planets(locationId);
+    if (!planet) {
+      throw new Error(`Planet ${locationId} not found`);
+    }
+    
+    // Assuming the contract returns an array where x and y coordinates are at specific indices
+    // You'll need to verify these indices match your contract's return type
+    return {
+      x: BigNumber.from(planet[2]).toNumber(), // Adjust index based on your contract
+      y: BigNumber.from(planet[3]).toNumber()  // Adjust index based on your contract
+    };
   }
 } 

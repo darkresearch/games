@@ -1,29 +1,33 @@
-# Dark Forest MCP MCP Server
+# Dark Forest MCP Server
 
 MCP server for Dark Forest game interactions
 
-This is a TypeScript-based MCP server that implements a simple notes system. It demonstrates core MCP concepts by providing:
+This is a TypeScript-based MCP server that implements Dark Forest game functionality through the Model Context Protocol.
 
-- Resources representing text notes with URIs and metadata
-- Tools for creating new notes
-- Prompts for generating summaries of notes
+## Environment Variables
+
+- `DARK_FOREST_CONTRACT_ADDRESS` - The address of the Dark Forest game contract
+- `DARK_FOREST_JSON_RPC_URL` - JSON RPC URL for Ethereum node connection (defaults to "http://localhost:8545")
+- `DARK_FOREST_NETWORK_ID` - Ethereum network ID (defaults to "1" for mainnet)
 
 ## Features
 
 ### Resources
-- List and access notes via `note://` URIs
-- Each note has a title, content and metadata
-- Plain text mime type for simple content access
+- `darkforest://players` - List of all players in the game
+- `darkforest://planets` - List of planets discovered by a specific player
 
 ### Tools
-- `create_note` - Create new text notes
-  - Takes title and content as required parameters
-  - Stores note in server state
-
-### Prompts
-- `summarize_notes` - Generate a summary of all stored notes
-  - Includes all note contents as embedded resources
-  - Returns structured prompt for LLM summarization
+- `init_player` - Initialize a new player
+- `move` - Move forces between planets
+- `get_planet` - Get planet details
+- `get_player` - Get player details
+- `reveal_location` - Reveal a planet's location
+- `upgrade_planet` - Upgrade a planet
+- `buy_hat` - Buy a hat for a planet
+- `deposit_artifact` - Deposit an artifact on a planet
+- `withdraw_artifact` - Withdraw an artifact from a planet
+- `activate_artifact` - Activate an artifact
+- `withdraw_silver` - Withdraw silver from a planet
 
 ## Development
 
