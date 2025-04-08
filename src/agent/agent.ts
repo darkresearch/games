@@ -50,12 +50,12 @@ export class AgentService {
                 let subscription;
                 subscription = responseSubject.subscribe({
                     next: (value) => {
-                        if (value.message) {
-                            this.lastResponse = value.message;
+                        if (value.output) {
+                            this.lastResponse = value.output;
                             if (subscription && typeof subscription.unsubscribe === 'function') {
                                 subscription.unsubscribe();
                             }
-                            resolve(value.message);
+                            resolve(value.output);
                         }
                     },
                     error: (error) => {
