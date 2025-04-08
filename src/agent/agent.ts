@@ -47,16 +47,21 @@ export class AgentService {
             });
             
             return new Promise((resolve, reject) => {
-                const subscription = responseSubject.subscribe({
+                let subscription;
+                subscription = responseSubject.subscribe({
                     next: (value) => {
                         if (value.message) {
                             this.lastResponse = value.message;
-                            subscription.unsubscribe();
+                            if (subscription && typeof subscription.unsubscribe === 'function') {
+                                subscription.unsubscribe();
+                            }
                             resolve(value.message);
                         }
                     },
                     error: (error) => {
-                        subscription.unsubscribe();
+                        if (subscription && typeof subscription.unsubscribe === 'function') {
+                            subscription.unsubscribe();
+                        }
                         reject(error);
                     }
                 });
