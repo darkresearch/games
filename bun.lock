@@ -5,7 +5,8 @@
       "name": "ai-agent-service",
       "dependencies": {
         "@solana/web3.js": "latest",
-        "@spacemangaming/daemon": "0.2.0-beta.1",
+        "@spacemangaming/daemon": "=0.2.0-beta.2",
+        "@types/bun": "^1.2.8",
         "ioredis": "^5.3.2",
       },
       "devDependencies": {
@@ -31,9 +32,11 @@
 
     "@solana/web3.js": ["@solana/web3.js@1.98.0", "", { "dependencies": { "@babel/runtime": "^7.25.0", "@noble/curves": "^1.4.2", "@noble/hashes": "^1.4.0", "@solana/buffer-layout": "^4.0.1", "agentkeepalive": "^4.5.0", "bigint-buffer": "^1.1.5", "bn.js": "^5.2.1", "borsh": "^0.7.0", "bs58": "^4.0.1", "buffer": "6.0.3", "fast-stable-stringify": "^1.0.0", "jayson": "^4.1.1", "node-fetch": "^2.7.0", "rpc-websockets": "^9.0.2", "superstruct": "^2.0.2" } }, "sha512-nz3Q5OeyGFpFCR+erX2f6JPt3sKhzhYcSycBCSPkWjzSVDh/Rr1FqTVMRe58FKO16/ivTUcuJjeS5MyBvpkbzA=="],
 
-    "@spacemangaming/daemon": ["@spacemangaming/daemon@0.2.0-beta.1", "", { "dependencies": { "@anthropic-ai/sdk": "^0.33.1", "@modelcontextprotocol/sdk": "^1.1.1", "@solana/web3.js": "^1.98.0", "buffer": "^6.0.3", "eventsource": "^3.0.2", "nanoid": "^5.0.9", "openai": "^4.78.1", "rxjs": "^7.8.1", "tweetnacl": "^1.0.3", "tweetnacl-util": "^0.15.1" }, "peerDependencies": { "typescript": "^5.0.0" } }, "sha512-Q/4QU+kn9oIflhvAgKqtHbS0cWLxRepHZ4L46gWO6G3HIe33hYPiOQXTaaGQuIWcaPOYfAFbX1JYPaBj8M7Ksg=="],
+    "@spacemangaming/daemon": ["@spacemangaming/daemon@0.2.0-beta.2", "", { "dependencies": { "@anthropic-ai/sdk": "^0.33.1", "@modelcontextprotocol/sdk": "^1.1.1", "@solana/web3.js": "^1.98.0", "buffer": "^6.0.3", "eventsource": "^3.0.2", "nanoid": "^5.0.9", "openai": "^4.78.1", "rxjs": "^7.8.1", "tweetnacl": "^1.0.3", "tweetnacl-util": "^0.15.1" }, "peerDependencies": { "typescript": "^5.0.0" } }, "sha512-WuezD0KeY4aZCfbZz9foPiUElXG+gjOh23A3vCB1R9JD8mr0Vgky00/4N1Dx/dx5yx/ejZaIjhSvvLuqFW5VWg=="],
 
     "@swc/helpers": ["@swc/helpers@0.5.15", "", { "dependencies": { "tslib": "^2.8.0" } }, "sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g=="],
+
+    "@types/bun": ["@types/bun@1.2.8", "", { "dependencies": { "bun-types": "1.2.7" } }, "sha512-t8L1RvJVUghW5V+M/fL3Thbxcs0HwNsXsnTEBEfEVqGteiJToOlZ/fyOEaR1kZsNqnu+3XA4RI/qmnX4w6+S+w=="],
 
     "@types/connect": ["@types/connect@3.4.38", "", { "dependencies": { "@types/node": "*" } }, "sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug=="],
 
@@ -74,6 +77,8 @@
     "buffer": ["buffer@6.0.3", "", { "dependencies": { "base64-js": "^1.3.1", "ieee754": "^1.2.1" } }, "sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA=="],
 
     "bufferutil": ["bufferutil@4.0.9", "", { "dependencies": { "node-gyp-build": "^4.3.0" } }, "sha512-WDtdLmJvAuNNPzByAYpRo2rF1Mmradw6gvWsQKf63476DDXmomT9zUiGypLcG4ibIM67vhAj8jJRdbmEws2Aqw=="],
+
+    "bun-types": ["bun-types@1.2.7", "", { "dependencies": { "@types/node": "*", "@types/ws": "*" } }, "sha512-P4hHhk7kjF99acXqKvltyuMQ2kf/rzIw3ylEDpCxDS9Xa0X0Yp/gJu/vDCucmWpiur5qJ0lwB2bWzOXa2GlHqA=="],
 
     "bytes": ["bytes@3.1.2", "", {}, "sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg=="],
 
@@ -338,6 +343,8 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.24.5", "", { "peerDependencies": { "zod": "^3.24.1" } }, "sha512-/AuWwMP+YqiPbsJx5D6TfgRTc4kTLjsh5SOcd4bLsfUg2RcEXrFMJl1DGgdHy2aCfsIA/cr/1JM0xcB2GZji8g=="],
 
     "@anthropic-ai/sdk/@types/node": ["@types/node@18.19.86", "", { "dependencies": { "undici-types": "~5.26.4" } }, "sha512-fifKayi175wLyKyc5qUfyENhQ1dCNI1UNjp653d8kuYcPQN5JhX3dGuP/XmvPTg/xRBn1VTLpbmi+H/Mr7tLfQ=="],
+
+    "bun-types/@types/ws": ["@types/ws@8.18.1", "", { "dependencies": { "@types/node": "*" } }, "sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg=="],
 
     "form-data/mime-types": ["mime-types@2.1.35", "", { "dependencies": { "mime-db": "1.52.0" } }, "sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw=="],
 

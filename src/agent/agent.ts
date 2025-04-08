@@ -24,11 +24,10 @@ export class AgentService {
         }
 
         this.daemon.addModelProvider({
-            openai: {
-                endpoint: "https://api.openai.com/v1",
-                models: ["gpt-4o"],
-                apiKey,
-            },
+            provider: 'openai',
+            endpoint: "https://api.openai.com/v1",
+            models: ["gpt-4o"],
+            apiKey,
         });
     }
 
@@ -38,7 +37,14 @@ export class AgentService {
                 ? `Based on your previous response: "${this.lastResponse}", what follow-up question would you like to explore further?`
                 : "What interesting topic would you like to explore today?";
 
-            const responseSubject = await this.daemon.message(prompt);
+            const responseSubject = await this.daemon.message(prompt, {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-4o',
+                    endpoint: "https://api.openai.com/v1",
+                    apiKey: process.env.OPENAI_API_KEY,
+                },
+            });
             
             return new Promise((resolve, reject) => {
                 const subscription = responseSubject.subscribe({
