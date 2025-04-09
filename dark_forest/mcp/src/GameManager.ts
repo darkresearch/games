@@ -62,6 +62,46 @@ const CONTRACT_METHOD = {
 
 type ContractMethodName = typeof CONTRACT_METHOD[keyof typeof CONTRACT_METHOD];
 
+// Add contract return type for artifacts
+interface ContractArtifact {
+  isInitialized: boolean;
+  id: BigNumberish;
+  planetDiscoveredOn: BigNumberish;
+  rarity: BigNumberish;
+  planetBiome: BigNumberish;
+  mintedAtTimestamp: BigNumberish;
+  discoverer: string;
+  artifactType: BigNumberish;
+  activations: BigNumberish;
+  lastActivated: BigNumberish;
+  lastDeactivated: BigNumberish;
+  wormholeTo: BigNumberish;
+  controller: string;
+  currentOwner: string;
+  onPlanetId: BigNumberish;
+}
+
+interface ArtifactWithoutId {
+  planetDiscoveredOn: LocationId;
+  rarity: number;
+  planetBiome: number;
+  mintedAtTimestamp: number;
+  discoverer: EthAddress;
+  artifactType: number;
+  controller: EthAddress;
+  currentOwner: EthAddress;
+  activations: number;
+  lastActivated: number;
+  lastDeactivated: number;
+  isInititalized: boolean;
+  wormholeTo: LocationId;
+  onPlanetId: LocationId;
+}
+
+interface ArtifactWithId extends ArtifactWithoutId {
+  id: ArtifactId;
+}
+
 export class GameManager extends EventEmitter {
   private readonly ethConnection: EthConnection;
   private readonly contractAddress: EthAddress;
@@ -511,5 +551,86 @@ export class GameManager extends EventEmitter {
       return 'Unknown Planet';
     }
     return getPlanetName(planet);
+  }
+
+  public async bulkGetArtifactsOnPlanets(planetIds: LocationId[]): Promise<ArtifactWithId[][]> {
+    const result: ArtifactWithId[][] = [];
+    
+    const batchSize = 10;
+    for (let i = 0; i < planetIds.length; i += batchSize) {
+      const batch = planetIds.slice(i, i + batchSize);
+      const artifactPromises = batch.map(async (planetId) => {
+        const planet = await this.contract.planets(planetId);
+        if (!planet) return [];
+        
+        const artifactIds = await this.contract.getArtifactsOnPlanet(planetId);
+        const artifacts = await Promise.all(
+          artifactIds.map(id => this.getArtifactById(id.toString() as ArtifactId))
+        );
+        
+        return artifacts.filter((a): a is ArtifactWithId => a !== undefined);
+      });
+      
+      const batchResults = await Promise.all(artifactPromises);
+      result.push(...batchResults);
+    }
+    
+    return result;
+  }
+
+  public async getArtifactById(artifactId: ArtifactId): Promise<ArtifactWithId | undefined> {
+    try {
+      const result = await this.contract.getArtifact(artifactId.toString());
+      if (!result || !Array.isArray(result) || result.length < 15) return undefined;
+
+      const [
+        isInitialized,
+        id,
+        planetDiscoveredOn,
+        rarity,
+        planetBiome,
+        mintedAtTimestamp,
+        discoverer,
+        artifactType,
+        activations,
+        lastActivated,
+        lastDeactivated,
+        wormholeTo,
+        controller,
+        currentOwner,
+        onPlanetId
+      ] = result;
+
+      if (!isInitialized) return undefined;
+
+      return {
+        id: artifactId,
+        planetDiscoveredOn: planetDiscoveredOn.toString() as LocationId,
+        rarity: Number(rarity),
+        planetBiome: Number(planetBiome),
+        mintedAtTimestamp: BigNumber.from(mintedAtTimestamp).toNumber(),
+        discoverer: discoverer as EthAddress,
+        artifactType: Number(artifactType),
+        controller: controller as EthAddress,
+        currentOwner: currentOwner as EthAddress,
+        activations: BigNumber.from(activations).toNumber(),
+        lastActivated: BigNumber.from(lastActivated).toNumber(),
+        lastDeactivated: BigNumber.from(lastDeactivated).toNumber(),
+        isInititalized: isInitialized,
+        wormholeTo: wormholeTo.toString() as LocationId,
+        onPlanetId: onPlanetId.toString() as LocationId,
+      };
+    } catch (e) {
+      console.error('Error getting artifact:', e);
+      return undefined;
+    }
+  }
+
+  public async hardRefreshArtifact(artifactId: ArtifactId): Promise<void> {
+    const artifact = await this.getArtifactById(artifactId);
+    if (!artifact) {
+      throw new Error('Artifact not found');
+    }
+    // No need to do anything else since we're already getting fresh data from the contract
   }
 } 
