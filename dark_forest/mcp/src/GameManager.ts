@@ -57,7 +57,10 @@ const CONTRACT_METHOD = {
   WITHDRAW_ARTIFACT: 'withdrawArtifact',
   ACTIVATE_ARTIFACT: 'activateArtifact',
   DEACTIVATE_ARTIFACT: 'deactivateArtifact',
-  WITHDRAW_SILVER: 'withdrawSilver'
+  WITHDRAW_SILVER: 'withdrawSilver',
+  INVADE_PLANET: 'invadePlanet',
+  CAPTURE_PLANET: 'capturePlanet',
+  CLAIM_VICTORY: 'claimVictory'
 } as const;
 
 type ContractMethodName = typeof CONTRACT_METHOD[keyof typeof CONTRACT_METHOD];
@@ -102,6 +105,14 @@ interface ArtifactWithId extends ArtifactWithoutId {
   id: ArtifactId;
 }
 
+export enum GameManagerEvent {
+  PlanetUpdate = 'PlanetUpdate',
+  ArtifactUpdate = 'ArtifactUpdate',
+  PlayerUpdate = 'PlayerUpdate',
+  TransactionUpdate = 'TransactionUpdate',
+  DiscoveredNewChunk = 'DiscoveredNewChunk'
+}
+
 export class GameManager extends EventEmitter {
   private readonly ethConnection: EthConnection;
   private readonly contractAddress: EthAddress;
@@ -111,6 +122,9 @@ export class GameManager extends EventEmitter {
   private discoveredPlanets: Set<LocationId> = new Set();
   private planets: Map<LocationId, LocatablePlanet> = new Map();
   private players: Map<string, Player> = new Map();
+  private transactions: Map<TransactionId, Transaction> = new Map();
+  private planetTransactions: Map<LocationId, Set<TransactionId>> = new Map();
+  private eventSubscriptions: Map<string, Set<(data: any) => void>> = new Map();
 
   private constructor(
     ethConnection: EthConnection,
@@ -276,6 +290,53 @@ export class GameManager extends EventEmitter {
       console.error('Error getting player:', e);
       return undefined;
     }
+  }
+
+  public getAllPlayers(): Player[] {
+    return Array.from(this.players.values());
+  }
+
+  public async getTwitter(address: EthAddress): Promise<string | undefined> {
+    const player = await this.getPlayer(address);
+    return player?.twitter;
+  }
+
+  public getAccount(): EthAddress | undefined {
+    return this.account === EMPTY_ADDRESS ? undefined : this.account;
+  }
+
+  public async isAdmin(address: EthAddress): Promise<boolean> {
+    try {
+      return await this.contract.isWhitelisted(address);
+    } catch (e) {
+      console.error('Error checking admin status:', e);
+      return false;
+    }
+  }
+
+  public async getEndTimeSeconds(): Promise<number | undefined> {
+    try {
+      // Try different possible contract methods/properties
+      const contract = this.contract as any;
+      if (typeof contract.END_TIMESTAMP === 'function') {
+        const endTime = await contract.END_TIMESTAMP();
+        return endTime.toNumber();
+      } else if (typeof contract.endTimestamp === 'function') {
+        const endTime = await contract.endTimestamp();
+        return endTime.toNumber();
+      } else if (typeof contract.END_TIMESTAMP !== 'undefined') {
+        return contract.END_TIMESTAMP.toNumber();
+      }
+      return undefined;
+    } catch (e) {
+      console.error('Error getting end time:', e);
+      return undefined;
+    }
+  }
+
+  public async getTokenMintEndTimeSeconds(): Promise<number> {
+    const endTime = await this.contract.TOKEN_MINT_END_TIMESTAMP();
+    return endTime.toNumber();
   }
 
   public async getPlanet(planetId: LocationId): Promise<Planet | undefined> {
@@ -632,5 +693,212 @@ export class GameManager extends EventEmitter {
       throw new Error('Artifact not found');
     }
     // No need to do anything else since we're already getting fresh data from the contract
+  }
+
+  public on(event: GameManagerEvent, callback: (data: any) => void): this {
+    if (!this.eventSubscriptions.has(event)) {
+      this.eventSubscriptions.set(event, new Set());
+    }
+    this.eventSubscriptions.get(event)?.add(callback);
+    return super.on(event, callback);
+  }
+
+  public off(event: GameManagerEvent, callback: (data: any) => void): this {
+    this.eventSubscriptions.get(event)?.delete(callback);
+    return super.off(event, callback);
+  }
+
+  public subscribeToEvents(): void {
+    // Subscribe to contract events
+    this.contract.on('PlanetUpdate', (planetId: LocationId) => {
+      this.emit(GameManagerEvent.PlanetUpdate, planetId);
+    });
+
+    this.contract.on('ArtifactUpdate', (artifactId: ArtifactId) => {
+      this.emit(GameManagerEvent.ArtifactUpdate, artifactId);
+    });
+
+    this.contract.on('PlayerUpdate', (player: EthAddress) => {
+      this.emit(GameManagerEvent.PlayerUpdate, player);
+    });
+
+    // Subscribe to transaction updates
+    this.on(GameManagerEvent.TransactionUpdate, (tx: Transaction) => {
+      const callbacks = this.eventSubscriptions.get(GameManagerEvent.TransactionUpdate);
+      callbacks?.forEach(callback => callback(tx));
+    });
+  }
+
+  public unsubscribeFromEvents(): void {
+    // Remove all contract event listeners
+    this.contract.removeAllListeners('PlanetUpdate');
+    this.contract.removeAllListeners('ArtifactUpdate');
+    this.contract.removeAllListeners('PlayerUpdate');
+
+    // Remove all local event listeners
+    this.eventSubscriptions.clear();
+    this.removeAllListeners();
+  }
+
+  // Helper method to emit transaction updates
+  private emitTransactionUpdate(tx: Transaction): void {
+    this.emit(GameManagerEvent.TransactionUpdate, tx);
+  }
+
+  // Update submitTransaction to emit events
+  public async submitTransaction<T extends TxIntent>(tx: Transaction<T>): Promise<void> {
+    try {
+      // Store the transaction
+      this.transactions.set(tx.id, tx);
+
+      // If this transaction is related to a planet, track it
+      if ('locationId' in tx.intent) {
+        const locationId = tx.intent.locationId as LocationId;
+        if (!this.planetTransactions.has(locationId)) {
+          this.planetTransactions.set(locationId, new Set());
+        }
+        this.planetTransactions.get(locationId)?.add(tx.id);
+      }
+
+      // Emit transaction updates
+      this.emitTransactionUpdate(tx);
+      
+      const contract = this.contract as Contract;
+      const response = await contract[tx.intent.methodName](...(await tx.intent.args));
+      tx.hash = response.hash;
+      tx.state = 'Submit' as EthTxStatus;
+      tx.lastUpdatedAt = Date.now();
+      this.emitTransactionUpdate(tx);
+
+      const receipt = await response.wait();
+      tx.state = (receipt.status === 1 ? 'Complete' : 'Fail') as EthTxStatus;
+      tx.lastUpdatedAt = Date.now();
+      this.emitTransactionUpdate(tx);
+    } catch (e) {
+      tx.state = 'Fail' as EthTxStatus;
+      tx.lastUpdatedAt = Date.now();
+      this.emitTransactionUpdate(tx);
+      throw e;
+    }
+  }
+
+  public async cancelTransaction(txId: TransactionId): Promise<void> {
+    const tx = this.transactions.get(txId);
+    if (!tx) {
+      throw new Error('Transaction not found');
+    }
+
+    // Only allow canceling transactions that haven't been submitted yet
+    if (tx.state !== ('Init' as EthTxStatus)) {
+      throw new Error('Cannot cancel transaction that has already been submitted');
+    }
+
+    tx.state = 'Cancel' as EthTxStatus;
+    tx.lastUpdatedAt = Date.now();
+
+    // Remove from planet tracking if it's a planet-related transaction
+    if ('locationId' in tx.intent) {
+      const locationId = tx.intent.locationId as LocationId;
+      this.planetTransactions.get(locationId)?.delete(txId);
+    }
+  }
+
+  public getTransactionById(txId: TransactionId): Transaction | undefined {
+    return this.transactions.get(txId);
+  }
+
+  public getTransactionsForPlanet(planetId: LocationId): Transaction[] {
+    const txIds = this.planetTransactions.get(planetId);
+    if (!txIds) return [];
+    
+    return Array.from(txIds)
+      .map(id => this.transactions.get(id))
+      .filter((tx): tx is Transaction => tx !== undefined);
+  }
+
+  public async invadePlanet(planetId: LocationId): Promise<Transaction> {
+    const planet = await this.getPlanet(planetId);
+    if (!planet) {
+      throw new Error('Planet not found');
+    }
+
+    const coords = await this.getCoords(planetId);
+    const proof = await this.generateMoveProof(
+      coords,
+      { x: 0, y: 0 },
+      0,
+      0
+    );
+
+    const tx = await this.contract.invadePlanet(
+      proof.a,
+      proof.b,
+      proof.c,
+      [
+        planetId,
+        0, // Additional required parameters
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    );
+
+    const intent = this.createTxIntent(CONTRACT_METHOD.INVADE_PLANET, [planetId]);
+    const transaction = this.createTransaction(intent);
+    transaction.hash = tx.hash;
+    return transaction;
+  }
+
+  public async capturePlanet(planetId: LocationId): Promise<Transaction> {
+    const planet = await this.getPlanet(planetId);
+    if (!planet) {
+      throw new Error('Planet not found');
+    }
+
+    const tx = await this.contract.capturePlanet(planetId);
+    const intent = this.createTxIntent(CONTRACT_METHOD.CAPTURE_PLANET, [planetId]);
+    const transaction = this.createTransaction(intent);
+    transaction.hash = tx.hash;
+    return transaction;
+  }
+
+  public async claimVictory(): Promise<Transaction> {
+    // Check if victory conditions are met
+    const contract = this.contract as Contract;
+    const tx = await contract[CONTRACT_METHOD.CLAIM_VICTORY]();
+    const intent = this.createTxIntent(CONTRACT_METHOD.CLAIM_VICTORY, []);
+    const transaction = this.createTransaction(intent);
+    transaction.hash = tx.hash;
+    return transaction;
+  }
+
+  public async getEnergyOfPlayer(player: EthAddress): Promise<number> {
+    let totalEnergy = 0;
+    const planets = await this.getDiscoveredPlanets();
+    
+    for (const planet of planets) {
+      if (planet.owner === player) {
+        totalEnergy += planet.energy;
+      }
+    }
+    
+    return totalEnergy;
+  }
+
+  public async getSilverOfPlayer(player: EthAddress): Promise<number> {
+    let totalSilver = 0;
+    const planets = await this.getDiscoveredPlanets();
+    
+    for (const planet of planets) {
+      if (planet.owner === player) {
+        totalSilver += planet.silver;
+      }
+    }
+    
+    return totalSilver;
   }
 } 
