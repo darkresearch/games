@@ -15,7 +15,8 @@ import {
   UnconfirmedProspectPlanet,
   UnconfirmedFindArtifact,
   ArtifactType,
-  PlanetLevel
+  PlanetLevel,
+  SpaceType
 } from "@darkforest_eth/types";
 import { providers, BigNumber, BigNumberish, Contract, Overrides } from "ethers";
 import { EventEmitter } from "events";
@@ -23,6 +24,7 @@ import { DarkForest } from "@darkforest_eth/contracts/typechain";
 import { EMPTY_ADDRESS } from "@darkforest_eth/constants";
 import { isLocatable, isSpaceShip, getRange } from '@darkforest_eth/gamelogic';
 import { getPlanetName } from '@darkforest_eth/procedural';
+import { perlin } from "@darkforest_eth/hashing";
 
 type ZKProof = {
   a: [BigNumberish, BigNumberish];
@@ -113,6 +115,15 @@ export enum GameManagerEvent {
   DiscoveredNewChunk = 'DiscoveredNewChunk'
 }
 
+interface HashConfig {
+  planetHashKey: number;
+  spaceTypeKey: number;
+  biomeBaseKey: number;
+  perlinLengthScale: number;
+  perlinMirrorX: boolean;
+  perlinMirrorY: boolean;
+}
+
 export class GameManager extends EventEmitter {
   private readonly ethConnection: EthConnection;
   private readonly contractAddress: EthAddress;
@@ -125,18 +136,24 @@ export class GameManager extends EventEmitter {
   private transactions: Map<TransactionId, Transaction> = new Map();
   private planetTransactions: Map<LocationId, Set<TransactionId>> = new Map();
   private eventSubscriptions: Map<string, Set<(data: any) => void>> = new Map();
+  private readonly worldRadius: number;
+  private readonly hashConfig: HashConfig;
 
   private constructor(
     ethConnection: EthConnection,
     contractAddress: EthAddress,
     account: EthAddress,
-    contract: DarkForest
+    contract: DarkForest,
+    worldRadius: number,
+    hashConfig: HashConfig
   ) {
     super();
     this.ethConnection = ethConnection;
     this.contractAddress = contractAddress;
     this.account = account;
     this.contract = contract;
+    this.worldRadius = worldRadius;
+    this.hashConfig = hashConfig;
   }
 
   static async create({
@@ -149,7 +166,28 @@ export class GameManager extends EventEmitter {
     account?: EthAddress;
   }): Promise<GameManager> {
     const contract = connection.getContract<DarkForest>(contractAddress);
-    return new GameManager(connection, contractAddress, account, contract);
+    
+    // Get world radius from contract
+    const worldRadius = await contract.worldRadius();
+
+    // Default hash config values - in practice these would come from the contract
+    const hashConfig: HashConfig = {
+      planetHashKey: 1,
+      spaceTypeKey: 2,
+      biomeBaseKey: 3,
+      perlinLengthScale: 16,
+      perlinMirrorX: true,
+      perlinMirrorY: true
+    };
+
+    return new GameManager(
+      connection,
+      contractAddress,
+      account,
+      contract,
+      worldRadius.toNumber(),
+      hashConfig
+    );
   }
 
   public destroy(): void {
@@ -900,5 +938,29 @@ export class GameManager extends EventEmitter {
     }
     
     return totalSilver;
+  }
+
+  public getWorldRadius(): number {
+    return this.worldRadius;
+  }
+
+  public getHashConfig(): HashConfig {
+    return { ...this.hashConfig };
+  }
+
+  public spaceTypeFromPerlin(perlinValue: number): SpaceType {
+    if (perlinValue < 20) {
+      return SpaceType.NEBULA;
+    } else if (perlinValue < 40) {
+      return SpaceType.SPACE;
+    } else if (perlinValue < 60) {
+      return SpaceType.DEEP_SPACE;
+    } else {
+      return SpaceType.DEAD_SPACE;
+    }
+  }
+
+  public biomebasePerlin(coords: WorldCoords, floor: boolean): number {
+    return perlin({ x: Math.floor(coords.x), y: Math.floor(coords.y) }, { key: 3, scale: 1, mirrorX: false, mirrorY: false, floor });
   }
 } 
