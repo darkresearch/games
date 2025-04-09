@@ -11,11 +11,18 @@ import {
   TxIntent,
   TransactionId,
   PlanetType,
+  LocatablePlanet,
+  UnconfirmedProspectPlanet,
+  UnconfirmedFindArtifact,
+  ArtifactType,
+  PlanetLevel
 } from "@darkforest_eth/types";
-import { providers, BigNumber, BigNumberish, Contract } from "ethers";
+import { providers, BigNumber, BigNumberish, Contract, Overrides } from "ethers";
 import { EventEmitter } from "events";
 import { DarkForest } from "@darkforest_eth/contracts/typechain";
 import { EMPTY_ADDRESS } from "@darkforest_eth/constants";
+import { isLocatable, isSpaceShip, getRange } from '@darkforest_eth/gamelogic';
+import { getPlanetName } from '@darkforest_eth/procedural';
 
 type ZKProof = {
   a: [BigNumberish, BigNumberish];
@@ -38,6 +45,23 @@ interface Transaction<T extends TxIntent = TxIntent> {
   confirmedPromise: Promise<providers.TransactionReceipt>;
 }
 
+const CONTRACT_METHOD = {
+  MOVE: 'move',
+  UPGRADE_PLANET: 'upgradePlanet',
+  PROSPECT_PLANET: 'prospectPlanet',
+  FIND_ARTIFACT: 'findArtifact',
+  INITIALIZE_PLAYER: 'initializePlayer',
+  REVEAL_LOCATION: 'revealLocation',
+  BUY_HAT: 'buyHat',
+  DEPOSIT_ARTIFACT: 'depositArtifact',
+  WITHDRAW_ARTIFACT: 'withdrawArtifact',
+  ACTIVATE_ARTIFACT: 'activateArtifact',
+  DEACTIVATE_ARTIFACT: 'deactivateArtifact',
+  WITHDRAW_SILVER: 'withdrawSilver'
+} as const;
+
+type ContractMethodName = typeof CONTRACT_METHOD[keyof typeof CONTRACT_METHOD];
+
 export class GameManager extends EventEmitter {
   private readonly ethConnection: EthConnection;
   private readonly contractAddress: EthAddress;
@@ -45,8 +69,8 @@ export class GameManager extends EventEmitter {
   private readonly contract: DarkForest;
   private txIdCounter: number = 0;
   private discoveredPlanets: Set<LocationId> = new Set();
-  private planets: Map<LocationId, Planet> = new Map();
-  private players: Map<string, { claimedShips: boolean }> = new Map();
+  private planets: Map<LocationId, LocatablePlanet> = new Map();
+  private players: Map<string, Player> = new Map();
 
   private constructor(
     ethConnection: EthConnection,
@@ -78,11 +102,11 @@ export class GameManager extends EventEmitter {
     this.removeAllListeners();
   }
 
-  private createTxIntent(methodName: string, args: unknown[]): TxIntent {
+  private createTxIntent(methodName: ContractMethodName, args: unknown[]): TxIntent {
     return {
       methodName,
-      contract: this.contract as Contract,
-      args: Promise.resolve(args),
+      contract: this.contract,
+      args: Promise.resolve(args)
     };
   }
 
@@ -120,62 +144,62 @@ export class GameManager extends EventEmitter {
     };
   }
 
-  public async move(
-    fromId: LocationId,
-    toId: LocationId,
-    forces: number,
-    silver: number = 0,
-    artifactId?: ArtifactId
-  ): Promise<Transaction> {
-    const fromCoords = await this.locationIdToCoords(fromId);
-    const toCoords = await this.locationIdToCoords(toId);
+  public async move(from: LocationId, to: LocationId, forces: number, silver: number, artifactId?: ArtifactId): Promise<Transaction<TxIntent>> {
+    const fromCoords = await this.locationIdToCoords(from);
+    const toCoords = await this.locationIdToCoords(to);
     
-    const proof = await this.generateMoveProof(fromCoords, toCoords, forces, silver, artifactId);
-
-    const input: [BigNumberish, BigNumberish, BigNumberish, BigNumberish, BigNumberish, 
-                 BigNumberish, BigNumberish, BigNumberish, BigNumberish, BigNumberish,
-                 BigNumberish, BigNumberish, BigNumberish, BigNumberish] = [
-      fromId,
-      toId,
-      0, // perlin value
-      1000, // radius
-      1000, // maxDist
-      0, // snarkF1
-      0, // snarkF2
-      0, // snarkF3
-      0, // snarkF4
-      0, // snarkF5
-      BigNumber.from(forces),
-      BigNumber.from(silver),
-      artifactId || 0,
-      0 // abandoning
-    ];
-
+    // Generate the proof
+    const proof = await this.generateMoveProof(
+      fromCoords,
+      toCoords,
+      forces,
+      silver,
+      artifactId
+    );
+    
+    // Create the move arguments
     const tx = await this.contract.move(
       proof.a,
       proof.b,
       proof.c,
-      input
+      [
+        BigNumber.from(fromCoords.x),
+        BigNumber.from(fromCoords.y),
+        BigNumber.from(toCoords.x),
+        BigNumber.from(toCoords.y),
+        BigNumber.from(forces),
+        BigNumber.from(silver),
+        artifactId ? BigNumber.from(artifactId) : BigNumber.from(0),
+        BigNumber.from(0), // Additional required parameters
+        BigNumber.from(0),
+        BigNumber.from(0),
+        BigNumber.from(0),
+        BigNumber.from(0),
+        BigNumber.from(0),
+        BigNumber.from(0)
+      ]
     );
 
-    const intent = this.createTxIntent('move', [fromId, toId, forces, silver, artifactId]);
+    // Create the intent with the same arguments
+    const intent = this.createTxIntent(CONTRACT_METHOD.MOVE, [
+      fromCoords,
+      toCoords,
+      forces,
+      silver,
+      artifactId || 0
+    ]);
+    
     const transaction = this.createTransaction(intent);
     transaction.hash = tx.hash;
-
     return transaction;
   }
 
-  private async locationIdToCoords(locationId: LocationId): Promise<WorldCoords> {
-    // Get the planet data from the contract
-    const planet = await this.contract.planets(locationId);
-    if (!planet) {
-      throw new Error(`Planet ${locationId} not found`);
+  public async locationIdToCoords(locationId: LocationId): Promise<WorldCoords> {
+    const planet = this.planets.get(locationId);
+    if (!planet || !planet.location) {
+      throw new Error('Planet not found');
     }
-    
-    return {
-      x: BigNumber.from(planet[2]).toNumber(),
-      y: BigNumber.from(planet[3]).toNumber()
-    };
+    return planet.location.coords;
   }
 
   public async getPlayer(address: EthAddress = this.account): Promise<Player | undefined> {
@@ -225,27 +249,8 @@ export class GameManager extends EventEmitter {
     }
   }
 
-  private async generateInitProof(
-    x: number,
-    y: number,
-    r: number,
-    distFromOrigin: number
-  ): Promise<ZKProof> {
-    // Placeholder for actual ZK proof generation
-    return {
-      a: [0, 0],
-      b: [[0, 0], [0, 0]],
-      c: [0, 0]
-    };
-  }
-
-  public async initializePlayer(
-    x: number,
-    y: number,
-    r: number,
-    distFromOrigin: number
-  ): Promise<Transaction> {
-    const proof = await this.generateInitProof(x, y, r, distFromOrigin);
+  public async initializePlayer(x: number, y: number, r: number, distFromOrigin: number): Promise<Transaction> {
+    const proof = await this.generateMoveProof({ x, y }, { x: 0, y: 0 }, 0, 0);
     
     const input: [BigNumberish, BigNumberish, BigNumberish, BigNumberish,
                  BigNumberish, BigNumberish, BigNumberish, BigNumberish] = [
@@ -260,35 +265,15 @@ export class GameManager extends EventEmitter {
       input
     );
 
-    const intent = this.createTxIntent('initializePlayer', [x, y, r, distFromOrigin]);
+    const intent = this.createTxIntent(CONTRACT_METHOD.INITIALIZE_PLAYER, [x, y, r, distFromOrigin]);
     const transaction = this.createTransaction(intent);
     transaction.hash = tx.hash;
 
     return transaction;
   }
 
-  private async generateRevealProof(
-    planetId: LocationId,
-    x: number,
-    y: number,
-    r: number
-  ): Promise<ZKProof> {
-    // This would need to be implemented to generate actual ZK proofs
-    // For now return dummy values that match the expected types
-    return {
-      a: [0, 0],
-      b: [[0, 0], [0, 0]],
-      c: [0, 0]
-    };
-  }
-
-  public async revealLocation(
-    planetId: LocationId,
-    x: number,
-    y: number,
-    r: number
-  ): Promise<Transaction> {
-    const proof = await this.generateRevealProof(planetId, x, y, r);
+  public async revealLocation(planetId: LocationId, x: number, y: number, r: number): Promise<Transaction> {
+    const proof = await this.generateMoveProof({ x, y }, { x: 0, y: 0 }, 0, 0);
     
     const input: [BigNumberish, BigNumberish, BigNumberish, BigNumberish,
                  BigNumberish, BigNumberish, BigNumberish, BigNumberish, BigNumberish] = [
@@ -306,7 +291,7 @@ export class GameManager extends EventEmitter {
     // Track the discovered planet
     this.discoveredPlanets.add(planetId);
     
-    const intent = this.createTxIntent('revealLocation', [planetId, x, y, r]);
+    const intent = this.createTxIntent(CONTRACT_METHOD.REVEAL_LOCATION, [planetId, x, y, r]);
     const transaction = this.createTransaction(intent);
     transaction.hash = tx.hash;
 
@@ -324,79 +309,64 @@ export class GameManager extends EventEmitter {
     return planets;
   }
 
-  public async upgrade(
-    planetId: LocationId,
-    branch: number
-  ): Promise<Transaction> {
-    const tx = await this.contract.upgradePlanet(planetId, branch);
-    const intent = this.createTxIntent('upgrade', [planetId, branch]);
-    const transaction = this.createTransaction(intent);
-    transaction.hash = tx.hash;
-    return transaction;
-  }
-
-  public async buyHat(
-    planetId: LocationId
-  ): Promise<Transaction> {
-    const tx = await this.contract.buyHat(planetId);
-    const intent = this.createTxIntent('buyHat', [planetId]);
-    const transaction = this.createTransaction(intent);
-    transaction.hash = tx.hash;
-    return transaction;
-  }
-
-  public async depositArtifact(
-    locationId: LocationId,
-    artifactId: ArtifactId
-  ): Promise<Transaction> {
-    const tx = await this.contract.depositArtifact(locationId, artifactId);
-    const intent = this.createTxIntent('depositArtifact', [locationId, artifactId]);
-    const transaction = this.createTransaction(intent);
-    transaction.hash = tx.hash;
-    return transaction;
-  }
-
-  public async withdrawArtifact(
-    locationId: LocationId,
-    artifactId: ArtifactId
-  ): Promise<Transaction> {
-    const tx = await this.contract.withdrawArtifact(locationId, artifactId);
-    const intent = this.createTxIntent('withdrawArtifact', [locationId, artifactId]);
-    const transaction = this.createTransaction(intent);
-    transaction.hash = tx.hash;
-    return transaction;
-  }
-
-  public async activateArtifact(
-    locationId: LocationId,
-    artifactId: ArtifactId,
-    wormholeTo?: LocationId
-  ): Promise<Transaction> {
-    const tx = await this.contract.activateArtifact(
-      locationId,
-      artifactId,
-      wormholeTo || '0'
+  public async upgradePlanet(locationId: LocationId, branch: number): Promise<Transaction<TxIntent>> {
+    const tx = await this.contract.upgradePlanet(
+      BigNumber.from(locationId),
+      BigNumber.from(branch)
     );
-    const intent = this.createTxIntent('activateArtifact', [locationId, artifactId, wormholeTo]);
+    
+    const intent = this.createTxIntent(CONTRACT_METHOD.UPGRADE_PLANET, [locationId, branch]);
     const transaction = this.createTransaction(intent);
     transaction.hash = tx.hash;
     return transaction;
   }
 
-  public async withdrawSilver(
-    locationId: LocationId,
-    amount: number
-  ): Promise<Transaction> {
+  public async buyHat(locationId: LocationId): Promise<Transaction> {
+    const tx = await this.contract.buyHat(locationId);
+    const intent = this.createTxIntent(CONTRACT_METHOD.BUY_HAT, [locationId]);
+    const transaction = this.createTransaction(intent);
+    transaction.hash = tx.hash;
+    return transaction;
+  }
+
+  public async depositArtifact(locationId: LocationId, artifactId: ArtifactId): Promise<Transaction> {
+    const tx = await this.contract.depositArtifact(locationId, artifactId);
+    const intent = this.createTxIntent(CONTRACT_METHOD.DEPOSIT_ARTIFACT, [locationId, artifactId]);
+    const transaction = this.createTransaction(intent);
+    transaction.hash = tx.hash;
+    return transaction;
+  }
+
+  public async withdrawArtifact(locationId: LocationId, artifactId: ArtifactId): Promise<Transaction> {
+    const tx = await this.contract.withdrawArtifact(locationId, artifactId);
+    const intent = this.createTxIntent(CONTRACT_METHOD.WITHDRAW_ARTIFACT, [locationId, artifactId]);
+    const transaction = this.createTransaction(intent);
+    transaction.hash = tx.hash;
+    return transaction;
+  }
+
+  public async activateArtifact(locationId: LocationId, artifactId: ArtifactId, wormholeTo?: LocationId): Promise<Transaction> {
+    const tx = await this.contract.activateArtifact(locationId, artifactId, wormholeTo || '0');
+    const intent = this.createTxIntent(CONTRACT_METHOD.ACTIVATE_ARTIFACT, [locationId, artifactId, wormholeTo || '0']);
+    const transaction = this.createTransaction(intent);
+    transaction.hash = tx.hash;
+    return transaction;
+  }
+
+  public async deactivateArtifact(locationId: LocationId): Promise<Transaction> {
+    const tx = await this.contract.deactivateArtifact(locationId);
+    const intent = this.createTxIntent(CONTRACT_METHOD.DEACTIVATE_ARTIFACT, [locationId]);
+    const transaction = this.createTransaction(intent);
+    transaction.hash = tx.hash;
+    return transaction;
+  }
+
+  public async withdrawSilver(locationId: LocationId, amount: number): Promise<Transaction> {
     const tx = await this.contract.withdrawSilver(locationId, amount);
-    const intent = this.createTxIntent('withdrawSilver', [locationId, amount]);
+    const intent = this.createTxIntent(CONTRACT_METHOD.WITHDRAW_SILVER, [locationId, amount]);
     const transaction = this.createTransaction(intent);
     transaction.hash = tx.hash;
     return transaction;
-  }
-
-  private coordsToLocationId(coords: WorldCoords): LocationId {
-    // Implementation here - this should return a LocationId string
-    return '0000000000000000000000000000000000000000000000000000000000000000' as LocationId;
   }
 
   public async getCoords(locationId: LocationId): Promise<WorldCoords> {
@@ -405,11 +375,141 @@ export class GameManager extends EventEmitter {
       throw new Error(`Planet ${locationId} not found`);
     }
     
-    // Assuming the contract returns an array where x and y coordinates are at specific indices
-    // You'll need to verify these indices match your contract's return type
     return {
-      x: BigNumber.from(planet[2]).toNumber(), // Adjust index based on your contract
-      y: BigNumber.from(planet[3]).toNumber()  // Adjust index based on your contract
+      x: BigNumber.from(planet[2]).toNumber(),
+      y: BigNumber.from(planet[3]).toNumber()
     };
+  }
+
+  public async bulkGetPlanets(planetIds: LocationId[]): Promise<Map<LocationId, Planet>> {
+    const result = new Map<LocationId, Planet>();
+    
+    const batchSize = 10;
+    for (let i = 0; i < planetIds.length; i += batchSize) {
+      const batch = planetIds.slice(i, i + batchSize);
+      const planets = await Promise.all(
+        batch.map(id => this.contract.planets(id))
+      );
+      
+      planets.forEach((planet, index) => {
+        if (planet) {
+          result.set(batch[index], planet as unknown as Planet);
+        }
+      });
+    }
+    
+    return result;
+  }
+
+  public async bulkHardRefreshPlanets(planetIds: LocationId[]): Promise<void> {
+    const planets = await this.bulkGetPlanets(planetIds);
+    planets.forEach((planet, id) => {
+      this.planets.set(id, planet as unknown as LocatablePlanet);
+    });
+  }
+
+  public getEnergyCurveAtPercent(planet: Planet, percent: number): number {
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const energyPercentage = (planet.energy / planet.energyCap) * 100;
+    
+    if (energyPercentage >= percent) {
+      return currentTimestamp;
+    }
+
+    const energyNeeded = (percent / 100) * planet.energyCap - planet.energy;
+    const timeNeeded = energyNeeded / planet.energyGrowth;
+    
+    return currentTimestamp + timeNeeded;
+  }
+
+  public getSilverCurveAtPercent(planet: Planet, percent: number): number | undefined {
+    if (planet.silverGrowth <= 0) return undefined;
+
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const silverPercentage = (planet.silver / planet.silverCap) * 100;
+    
+    if (silverPercentage >= percent) {
+      return undefined;
+    }
+
+    const silverNeeded = (percent / 100) * planet.silverCap - planet.silver;
+    const timeNeeded = silverNeeded / planet.silverGrowth;
+    
+    return currentTimestamp + timeNeeded;
+  }
+
+  public async prospectPlanet(planetId: LocationId): Promise<Transaction<TxIntent>> {
+    const planet = this.planets.get(planetId);
+    if (!planet) {
+      throw new Error('Planet not found');
+    }
+
+    const tx = await this.contract.prospectPlanet(BigNumber.from(planetId));
+    const intent = this.createTxIntent(CONTRACT_METHOD.PROSPECT_PLANET, [planetId]);
+    const transaction = this.createTransaction(intent);
+    transaction.hash = tx.hash;
+    return transaction;
+  }
+
+  public async findArtifact(planetId: LocationId): Promise<Transaction<TxIntent>> {
+    const planet = this.planets.get(planetId);
+    if (!planet) {
+      throw new Error('Planet not found');
+    }
+
+    const proof = await this.generateMoveProof(
+      { x: 0, y: 0 },
+      { x: 0, y: 0 },
+      0,
+      0
+    );
+
+    const input: [BigNumberish, BigNumberish, BigNumberish, BigNumberish, BigNumberish, BigNumberish, BigNumberish] = [
+      planetId,
+      0, // Additional required parameters
+      0,
+      0,
+      0,
+      0,
+      0
+    ];
+
+    const tx = await this.contract.findArtifact(
+      proof.a,
+      proof.b,
+      proof.c,
+      input
+    );
+
+    const intent = this.createTxIntent(CONTRACT_METHOD.FIND_ARTIFACT, [planetId]);
+    const transaction = this.createTransaction(intent);
+    transaction.hash = tx.hash;
+    return transaction;
+  }
+
+  public getRange(planetId: LocationId): number {
+    const planet = this.planets.get(planetId);
+    if (!planet) return 0;
+    return getRange(planet);
+  }
+
+  public isLocatable(planetId: LocationId): boolean {
+    const planet = this.planets.get(planetId);
+    if (!planet) return false;
+    return isLocatable(planet);
+  }
+
+  public isSpaceShip(planetId: LocationId): boolean {
+    const planet = this.planets.get(planetId);
+    if (!planet) return false;
+    return planet.planetType === PlanetType.TRADING_POST;
+  }
+
+  public getPlanetName(planetId: LocationId): string {
+    const planet = this.planets.get(planetId);
+    if (!planet) {
+      return 'Unknown Planet';
+    }
+    return getPlanetName(planet);
   }
 } 

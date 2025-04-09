@@ -4,6 +4,39 @@ import { EthAddress, LocationId, ArtifactId } from "@darkforest_eth/types";
 import { EMPTY_ADDRESS } from "@darkforest_eth/constants";
 import { PlayerRegistry } from "../registry/PlayerRegistry";
 import { toolSchemas } from "../types/toolSchemas";
+import { z } from "zod";
+
+// Request schemas
+const AddressAndPlanetIdsSchema = z.object({
+  method: z.literal("bulk_get_planets"),
+  params: z.object({
+    arguments: z.object({
+      address: z.string(),
+      planetIds: z.array(z.string())
+    })
+  })
+});
+
+const AddressPlanetAndPercentSchema = z.object({
+  method: z.literal("get_energy_curve"),
+  params: z.object({
+    arguments: z.object({
+      address: z.string(),
+      planetId: z.string(),
+      percent: z.number()
+    })
+  })
+});
+
+const AddressAndPlanetSchema = z.object({
+  method: z.literal("prospect_planet"),
+  params: z.object({
+    arguments: z.object({
+      address: z.string(),
+      planetId: z.string()
+    })
+  })
+});
 
 export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry) {
   /**
@@ -142,7 +175,7 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
         }
 
         const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const tx = await gameManager.upgrade(planetId as LocationId, branch);
+        const tx = await gameManager.upgradePlanet(planetId as LocationId, branch);
 
         return {
           content: [{
@@ -264,5 +297,179 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
       default:
         throw new Error("Unknown tool");
     }
+  });
+
+  server.setRequestHandler(AddressAndPlanetIdsSchema, async (request) => {
+    const args = request.params.arguments;
+    const address = args.address;
+    const planetIds = args.planetIds;
+
+    const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    const planets = await gameManager.bulkGetPlanets(planetIds as LocationId[]);
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify(Array.from(planets.entries()))
+      }]
+    };
+  });
+
+  server.setRequestHandler(AddressAndPlanetIdsSchema.extend({ method: z.literal("bulk_refresh_planets") }), async (request) => {
+    const args = request.params.arguments;
+    const address = args.address;
+    const planetIds = args.planetIds;
+
+    const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    await gameManager.bulkHardRefreshPlanets(planetIds as LocationId[]);
+
+    return {
+      content: [{
+        type: "text",
+        text: "Planets refreshed successfully"
+      }]
+    };
+  });
+
+  server.setRequestHandler(AddressPlanetAndPercentSchema, async (request) => {
+    const args = request.params.arguments;
+    const address = args.address;
+    const planetId = args.planetId;
+    const percent = args.percent;
+
+    const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    const planet = await gameManager.getPlanet(planetId as LocationId);
+    
+    if (!planet) {
+      throw new Error("Planet not found");
+    }
+
+    const timestamp = gameManager.getEnergyCurveAtPercent(planet, percent);
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ timestamp })
+      }]
+    };
+  });
+
+  server.setRequestHandler(AddressPlanetAndPercentSchema.extend({ method: z.literal("get_silver_curve") }), async (request) => {
+    const args = request.params.arguments;
+    const address = args.address;
+    const planetId = args.planetId;
+    const percent = args.percent;
+
+    const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    const planet = await gameManager.getPlanet(planetId as LocationId);
+    
+    if (!planet) {
+      throw new Error("Planet not found");
+    }
+
+    const timestamp = gameManager.getSilverCurveAtPercent(planet, percent);
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ timestamp })
+      }]
+    };
+  });
+
+  server.setRequestHandler(AddressAndPlanetSchema, async (request) => {
+    const args = request.params.arguments;
+    const address = args.address;
+    const planetId = args.planetId;
+
+    const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    const transaction = await gameManager.prospectPlanet(planetId as LocationId);
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify(transaction)
+      }]
+    };
+  });
+
+  server.setRequestHandler(AddressAndPlanetSchema.extend({ method: z.literal("find_artifact") }), async (request) => {
+    const args = request.params.arguments;
+    const address = args.address;
+    const planetId = args.planetId;
+
+    const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    const transaction = await gameManager.findArtifact(planetId as LocationId);
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify(transaction)
+      }]
+    };
+  });
+
+  server.setRequestHandler(AddressAndPlanetSchema.extend({ method: z.literal("get_planet_range") }), async (request) => {
+    const args = request.params.arguments;
+    const address = args.address;
+    const planetId = args.planetId;
+
+    const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    const range = gameManager.getRange(planetId as LocationId);
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ range })
+      }]
+    };
+  });
+
+  server.setRequestHandler(AddressAndPlanetSchema.extend({ method: z.literal("is_planet_locatable") }), async (request) => {
+    const args = request.params.arguments;
+    const address = args.address;
+    const planetId = args.planetId;
+
+    const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    const locatable = gameManager.isLocatable(planetId as LocationId);
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ locatable })
+      }]
+    };
+  });
+
+  server.setRequestHandler(AddressAndPlanetSchema.extend({ method: z.literal("is_space_ship") }), async (request) => {
+    const args = request.params.arguments;
+    const address = args.address;
+    const planetId = args.planetId;
+
+    const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    const isSpaceShip = gameManager.isSpaceShip(planetId as LocationId);
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ isSpaceShip })
+      }]
+    };
+  });
+
+  server.setRequestHandler(AddressAndPlanetSchema.extend({ method: z.literal("get_planet_name") }), async (request) => {
+    const args = request.params.arguments;
+    const address = args.address;
+    const planetId = args.planetId;
+
+    const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    const name = gameManager.getPlanetName(planetId as LocationId);
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ name })
+      }]
+    };
   });
 } 
