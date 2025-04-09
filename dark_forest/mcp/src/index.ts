@@ -12,15 +12,19 @@ import { PlayerRegistry } from "./registry/PlayerRegistry";
 import { setupResourceHandlers } from "./handlers/resourceHandlers";
 import { setupToolHandlers } from "./handlers/toolHandlers";
 import { EthAddress } from "@darkforest_eth/types";
+import { CONTRACT_ADDRESS, NETWORK_ID } from "@darkforest_eth/contracts";
 
-// Get contract address from environment variable
-const contractAddress = (process.env.DARK_FOREST_CONTRACT_ADDRESS || EMPTY_ADDRESS) as EthAddress;
+// Get contract address from environment variable or contracts package
+const contractAddress = (process.env.DARK_FOREST_CONTRACT_ADDRESS || CONTRACT_ADDRESS || EMPTY_ADDRESS) as EthAddress;
 if (contractAddress === EMPTY_ADDRESS) {
-  console.warn("Warning: Using empty address for Dark Forest contract. Set DARK_FOREST_CONTRACT_ADDRESS environment variable.");
+  console.warn("Warning: Using empty address for Dark Forest contract. Set DARK_FOREST_CONTRACT_ADDRESS environment variable or ensure contracts package is properly configured.");
 }
 
-// Create registry instance
-const playerRegistry = new PlayerRegistry(contractAddress);
+// Get network ID from environment variable or contracts package
+const networkId = parseInt(process.env.DARK_FOREST_NETWORK_ID || NETWORK_ID.toString() || "1", 10);
+
+// Create registry instance with contract address and network ID
+const playerRegistry = new PlayerRegistry(contractAddress, networkId);
 
 /**
  * Create MCP server with capabilities for resources and tools

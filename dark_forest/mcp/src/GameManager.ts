@@ -401,7 +401,8 @@ export class GameManager extends EventEmitter {
       proof.a,
       proof.b,
       proof.c,
-      input
+      input,
+      0 // team parameter
     );
 
     const intent = this.createTxIntent(CONTRACT_METHOD.INITIALIZE_PLAYER, [x, y, r, distFromOrigin]);

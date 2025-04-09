@@ -11,15 +11,14 @@ export class PlayerRegistry {
   private ethConnection: EthConnection;
   private contractAddress: EthAddress;
 
-  constructor(contractAddress: EthAddress) {
+  constructor(contractAddress: EthAddress, networkId: number) {
     this.contractAddress = contractAddress;
     
     // Get JSON RPC URL from environment variable, default to localhost if not set
     const jsonRpcUrl = process.env.DARK_FOREST_JSON_RPC_URL || "http://localhost:8545";
     const provider = new providers.JsonRpcProvider(jsonRpcUrl);
     
-    // Get network ID from environment variable, default to mainnet (1) if not set
-    const networkId = parseInt(process.env.DARK_FOREST_NETWORK_ID || "1", 10);
+    // Use provided network ID
     this.ethConnection = new EthConnection(provider, networkId);
   }
 
