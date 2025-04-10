@@ -11,29 +11,30 @@
     "build"
   ],
   "scripts": {
-    "build": "mkdir -p build && tsc && node -e \"const fs=require('fs'); if(fs.existsSync('build/index.js')) fs.chmodSync('build/index.js', '755')\"",
+    "build": "node build.js",
     "prepare": "npm run build",
     "watch": "tsc --watch",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.9.0",
-    "@darkforest_eth/network": "6.7.29",
-    "@darkforest_eth/types": "6.7.29",
     "@darkforest_eth/constants": "6.7.29",
     "@darkforest_eth/contracts": "file:../contracts",
-    "@darkforest_eth/serde": "6.7.29",
-    "@darkforest_eth/hashing": "6.7.29",
-    "@darkforest_eth/gamelogic": "6.7.29",
-    "@darkforest_eth/procedural": "6.7.29",
     "@darkforest_eth/events": "6.7.29",
-    "ethers": "^5.7.2",
+    "@darkforest_eth/gamelogic": "6.7.29",
+    "@darkforest_eth/hashing": "6.7.29",
+    "@darkforest_eth/network": "6.7.29",
+    "@darkforest_eth/procedural": "6.7.29",
+    "@darkforest_eth/serde": "6.7.29",
+    "@darkforest_eth/types": "6.7.29",
+    "@modelcontextprotocol/sdk": "^1.9.0",
     "big-integer": "^1.6.51",
-    "delay": "^5.0.0"
+    "delay": "^5.0.0",
+    "ethers": "^5.7.2"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
-    "typescript": "^5.3.3"
+    "esbuild": "^0.25.2",
+    "typescript": "^5.8.3"
   },
   "engines": {
     "node": "18.x"

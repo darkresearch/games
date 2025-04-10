@@ -16,9 +16,10 @@
       "@darkforest_eth/*": ["node_modules/@darkforest_eth/*"],
       "*": ["node_modules/*"]
     },
+    "allowImportingTsExtensions": true,
     "jsx": "react",
     "skipLibCheck": true,
-    "noEmit": false
+    "noEmit": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "build"]
