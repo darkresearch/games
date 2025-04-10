@@ -124,6 +124,122 @@ interface HashConfig {
   perlinMirrorY: boolean;
 }
 
+// Add interfaces for chunk management
+interface Chunk {
+  chunkFootprint: Rectangle;
+  planetLocations: LocationId[];
+  perlin: number;
+}
+
+interface Rectangle {
+  bottomLeft: WorldCoords;
+  sideLength: number;
+}
+
+interface WorldLocation {
+  hash: LocationId;
+  coords: WorldCoords;
+  perlin: number;
+  biomebase: number;
+}
+
+interface RevealedLocation {
+  hash: LocationId;
+  location: WorldLocation;
+}
+
+interface ClaimedLocation {
+  hash: LocationId;
+  location: WorldLocation;
+}
+
+// Add interfaces for voyage management
+interface QueuedArrival {
+  eventId: string;
+  fromPlanet: LocationId;
+  toPlanet: LocationId;
+  arrivalTime: number;
+  departureTime: number;
+  fleetOwner: EthAddress;
+  numSpaceships: number;
+  silverMoved: number;
+  artifactId?: ArtifactId;
+}
+
+interface UnconfirmedMove {
+  from: LocationId;
+  to: LocationId;
+  forces: number;
+  silver: number;
+  artifactId?: ArtifactId;
+}
+
+interface UnconfirmedUpgrade {
+  locationId: LocationId;
+  branch: number;
+}
+
+interface UnconfirmedActivateArtifact {
+  locationId: LocationId;
+  artifactId: ArtifactId;
+  wormholeTo?: LocationId;
+}
+
+// Mining Manager related interfaces
+interface MiningPattern {
+  type: string;
+  chunkSideLength: number;
+}
+
+class MinerManager {
+  constructor(
+    private homeCoords: WorldCoords,
+    private worldRadius: number,
+    private cores: number = 1
+  ) {}
+
+  public setMiningPattern(pattern: MiningPattern): void {
+    // In a real implementation, this would set the mining pattern
+    console.log(`Setting mining pattern: ${pattern.type}`);
+  }
+
+  public getMiningPattern(): MiningPattern | undefined {
+    // In a real implementation, this would return the current mining pattern
+    return {
+      type: 'spiral',
+      chunkSideLength: 256
+    };
+  }
+
+  public setMinerCores(nCores: number): void {
+    this.cores = nCores;
+    console.log(`Set miner cores to ${nCores}`);
+  }
+
+  public startExplore(): void {
+    // In a real implementation, this would start mining
+    console.log('Starting exploration');
+  }
+
+  public stopExplore(): void {
+    // In a real implementation, this would stop mining
+    console.log('Stopping exploration');
+  }
+
+  public isMining(): boolean {
+    // In a real implementation, this would check if mining is in progress
+    return false;
+  }
+
+  public getCurrentlyExploringChunk(): Rectangle | undefined {
+    // In a real implementation, this would return the current chunk
+    return {
+      bottomLeft: { x: 0, y: 0 },
+      sideLength: 256
+    };
+  }
+}
+
 export class GameManager extends EventEmitter {
   private readonly ethConnection: EthConnection;
   private readonly contractAddress: EthAddress;
@@ -138,6 +254,20 @@ export class GameManager extends EventEmitter {
   private eventSubscriptions: Map<string, Set<(data: any) => void>> = new Map();
   private readonly worldRadius: number;
   private readonly hashConfig: HashConfig;
+
+  // Add the following properties to the GameManager class
+  private homeLocation: WorldLocation | undefined;
+  private minerManager: MinerManager | undefined;
+  private exploredChunks: Map<string, Chunk> = new Map();
+  private revealedLocations: Map<LocationId, RevealedLocation> = new Map();
+  private claimedLocations: Map<LocationId, ClaimedLocation> = new Map();
+  private voyages: Map<string, QueuedArrival> = new Map();
+  private unconfirmedMoves: Map<string, UnconfirmedMove> = new Map();
+  private unconfirmedUpgrades: Map<string, UnconfirmedUpgrade> = new Map();
+  private unconfirmedWormholeActivations: Map<string, UnconfirmedActivateArtifact> = new Map();
+  private winners: EthAddress[] = [];
+  private gameover: boolean = false;
+  private spectator: boolean = false;
 
   private constructor(
     ethConnection: EthConnection,
@@ -963,5 +1093,364 @@ export class GameManager extends EventEmitter {
 
   public biomebasePerlin(coords: WorldCoords, floor: boolean): number {
     return perlin({ x: Math.floor(coords.x), y: Math.floor(coords.y) }, { key: 3, scale: 1, mirrorX: false, mirrorY: false, floor });
+  }
+
+  public getDist(fromId: LocationId, toId: LocationId): number {
+    const fromPlanet = this.planets.get(fromId);
+    const toPlanet = this.planets.get(toId);
+    
+    if (!fromPlanet || !toPlanet || !fromPlanet.location || !toPlanet.location) {
+      return Infinity;
+    }
+    
+    const fromCoords = fromPlanet.location.coords;
+    const toCoords = toPlanet.location.coords;
+    
+    return Math.sqrt(
+      Math.pow(fromCoords.x - toCoords.x, 2) + 
+      Math.pow(fromCoords.y - toCoords.y, 2)
+    );
+  }
+
+  public getDistCoords(fromCoords: WorldCoords, toCoords: WorldCoords): number {
+    return Math.sqrt(
+      Math.pow(fromCoords.x - toCoords.x, 2) + 
+      Math.pow(fromCoords.y - toCoords.y, 2)
+    );
+  }
+
+  public getMaxMoveDist(planetId: LocationId, sendingPercent: number, abandoning: boolean = false): number {
+    const planet = this.planets.get(planetId);
+    if (!planet) return 0;
+    
+    // Base range calculation from the planet's range
+    let range = getRange(planet);
+    
+    // Apply any range buffs if the planet is being abandoned
+    if (abandoning) {
+      range *= this.getRangeBuff(abandoning);
+    }
+    
+    return range;
+  }
+
+  public getRangeBuff(abandoning: boolean): number {
+    // Default range buff is 1x
+    return abandoning ? 1.5 : 1.0;
+  }
+
+  public getSpeedBuff(abandoning: boolean): number {
+    // Default speed buff is 1x
+    return abandoning ? 1.5 : 1.0;
+  }
+
+  public getEnergyNeededForMove(
+    fromId: LocationId, 
+    toId: LocationId, 
+    arrivingEnergy: number,
+    abandoning: boolean = false
+  ): number {
+    const fromPlanet = this.planets.get(fromId);
+    const toPlanet = this.planets.get(toId);
+    
+    if (!fromPlanet || !toPlanet) {
+      return Infinity;
+    }
+    
+    const dist = this.getDist(fromId, toId);
+    
+    // Calculate energy loss based on distance
+    const energyLoss = 0.05 * dist; // 5% loss per distance unit
+    
+    // The energy needed at the source is the energy you want to arrive with,
+    // plus the energy that will be lost during transit
+    const energyNeeded = arrivingEnergy / (1 - energyLoss);
+    
+    return energyNeeded;
+  }
+
+  public getTimeForMove(fromId: LocationId, toId: LocationId, abandoning: boolean = false): number {
+    const fromPlanet = this.planets.get(fromId);
+    
+    if (!fromPlanet) {
+      return Infinity;
+    }
+    
+    const dist = this.getDist(fromId, toId);
+    
+    // Base speed calculation - higher level planets move faster
+    let speed = 50 - fromPlanet.planetLevel * 5; // Example formula: 50 - level*5 seconds per unit distance
+    
+    // Apply any speed buffs if the planet is being abandoned
+    if (abandoning) {
+      speed /= this.getSpeedBuff(abandoning);
+    }
+    
+    // Calculate total time
+    return dist * speed;
+  }
+
+  public getPlanetsInRange(planetId: LocationId, sendingPercent: number, abandoning: boolean = false): Planet[] {
+    const sourcePlanet = this.planets.get(planetId);
+    if (!sourcePlanet) return [];
+    
+    const maxDist = this.getMaxMoveDist(planetId, sendingPercent, abandoning);
+    const inRangePlanets: Planet[] = [];
+    
+    // Check all planets
+    for (const [id, planet] of this.planets.entries()) {
+      if (id === planetId) continue; // Skip the source planet
+      
+      // Calculate distance
+      const dist = this.getDist(planetId, id);
+      
+      // Check if in range
+      if (dist <= maxDist) {
+        inRangePlanets.push(planet);
+      }
+    }
+    
+    return inRangePlanets;
+  }
+
+  // Add mining and exploration methods
+  public initMiningManager(homeCoords: WorldCoords, cores?: number): void {
+    this.minerManager = new MinerManager(homeCoords, this.worldRadius, cores);
+  }
+
+  public setMiningPattern(pattern: MiningPattern): void {
+    if (!this.minerManager) {
+      this.initMiningManager({ x: 0, y: 0 });
+    }
+    this.minerManager?.setMiningPattern(pattern);
+  }
+
+  public getMiningPattern(): MiningPattern | undefined {
+    return this.minerManager?.getMiningPattern();
+  }
+
+  public setMinerCores(nCores: number): void {
+    if (!this.minerManager) {
+      this.initMiningManager({ x: 0, y: 0 }, nCores);
+      return;
+    }
+    this.minerManager.setMinerCores(nCores);
+  }
+
+  public isMining(): boolean {
+    return this.minerManager?.isMining() || false;
+  }
+
+  public startExplore(): void {
+    if (!this.minerManager) {
+      this.initMiningManager({ x: 0, y: 0 });
+    }
+    this.minerManager?.startExplore();
+  }
+
+  public stopExplore(): void {
+    this.minerManager?.stopExplore();
+  }
+
+  public getCurrentlyExploringChunk(): Rectangle | undefined {
+    return this.minerManager?.getCurrentlyExploringChunk();
+  }
+
+  // Add chunk management methods
+  public getExploredChunks(): Iterable<Chunk> {
+    return this.exploredChunks.values();
+  }
+
+  public hasMinedChunk(chunkLocation: Rectangle): boolean {
+    const key = `${chunkLocation.bottomLeft.x},${chunkLocation.bottomLeft.y},${chunkLocation.sideLength}`;
+    return this.exploredChunks.has(key);
+  }
+
+  public getChunk(chunkFootprint: Rectangle): Chunk | undefined {
+    const key = `${chunkFootprint.bottomLeft.x},${chunkFootprint.bottomLeft.y},${chunkFootprint.sideLength}`;
+    return this.exploredChunks.get(key);
+  }
+
+  public addNewChunk(chunk: Chunk): GameManager {
+    const key = `${chunk.chunkFootprint.bottomLeft.x},${chunk.chunkFootprint.bottomLeft.y},${chunk.chunkFootprint.sideLength}`;
+    this.exploredChunks.set(key, chunk);
+    return this;
+  }
+
+  public async bulkAddNewChunks(chunks: Chunk[]): Promise<void> {
+    for (const chunk of chunks) {
+      this.addNewChunk(chunk);
+    }
+  }
+
+  // Add specialized planet query methods
+  public getPlanetsInWorldRectangle(
+    worldX: number,
+    worldY: number,
+    worldWidth: number,
+    worldHeight: number,
+    levels: number[] = []
+  ): LocatablePlanet[] {
+    const result: LocatablePlanet[] = [];
+
+    for (const planet of this.planets.values()) {
+      if (!planet.location) continue;
+      
+      const { x, y } = planet.location.coords;
+      
+      // Check if planet is in the specified rectangle
+      if (x >= worldX && x < worldX + worldWidth && y >= worldY && y < worldY + worldHeight) {
+        // If levels array is provided, only include planets of those levels
+        if (levels.length === 0 || levels.includes(planet.planetLevel)) {
+          result.push(planet);
+        }
+      }
+    }
+    
+    return result;
+  }
+
+  public getMyPlanets(): Planet[] {
+    const result: Planet[] = [];
+    
+    for (const planet of this.planets.values()) {
+      if (planet.owner === this.account) {
+        result.push(planet);
+      }
+    }
+    
+    return result;
+  }
+
+  public getAllTargetPlanets(): Planet[] {
+    const result: Planet[] = [];
+    
+    for (const planet of this.planets.values()) {
+      // In a real implementation, this would check if the planet is a target
+      // For this stub implementation, we'll just assume planets with level > 5 are targets
+      if (planet.planetLevel > 5) {
+        result.push(planet);
+      }
+    }
+    
+    return result;
+  }
+
+  public getPlayerTargetPlanets(account?: EthAddress): Planet[] {
+    const playerAddr = account || this.account;
+    const result: Planet[] = [];
+    
+    for (const planet of this.planets.values()) {
+      // Check if planet is owned by the specified player and is a target
+      if (planet.owner === playerAddr && planet.planetLevel > 5) {
+        result.push(planet);
+      }
+    }
+    
+    return result;
+  }
+
+  public getAllBlocks(): { [dest: LocationId]: LocationId[] } {
+    // In a real implementation, this would return all blocks from the contract
+    return {};
+  }
+
+  // Add voyage management methods
+  public getAllVoyages(): QueuedArrival[] {
+    return Array.from(this.voyages.values());
+  }
+
+  public getUnconfirmedMoves(): Array<Transaction<UnconfirmedMove>> {
+    const result: Array<Transaction<UnconfirmedMove>> = [];
+    
+    for (const transaction of this.transactions.values()) {
+      if (transaction.intent.methodName === CONTRACT_METHOD.MOVE) {
+        result.push(transaction as Transaction<UnconfirmedMove>);
+      }
+    }
+    
+    return result;
+  }
+
+  public getUnconfirmedUpgrades(): Array<Transaction<UnconfirmedUpgrade>> {
+    const result: Array<Transaction<UnconfirmedUpgrade>> = [];
+    
+    for (const transaction of this.transactions.values()) {
+      if (transaction.intent.methodName === CONTRACT_METHOD.UPGRADE_PLANET) {
+        result.push(transaction as Transaction<UnconfirmedUpgrade>);
+      }
+    }
+    
+    return result;
+  }
+
+  public getUnconfirmedWormholeActivations(): Array<Transaction<UnconfirmedActivateArtifact>> {
+    const result: Array<Transaction<UnconfirmedActivateArtifact>> = [];
+    
+    for (const transaction of this.transactions.values()) {
+      if (transaction.intent.methodName === CONTRACT_METHOD.ACTIVATE_ARTIFACT) {
+        result.push(transaction as Transaction<UnconfirmedActivateArtifact>);
+      }
+    }
+    
+    return result;
+  }
+
+  // Add location and coordinates methods
+  public getHomeCoords(): WorldCoords | undefined {
+    return this.homeLocation?.coords;
+  }
+
+  public getHomeHash(): LocationId | undefined {
+    return this.homeLocation?.hash;
+  }
+
+  public getRevealedLocations(): Map<LocationId, RevealedLocation> {
+    return new Map(this.revealedLocations);
+  }
+
+  public getClaimedLocations(): Map<LocationId, ClaimedLocation> {
+    return new Map(this.claimedLocations);
+  }
+
+  // Add social and messaging methods
+  public async submitVerifyTwitter(twitter: string): Promise<boolean> {
+    console.log(`Verifying Twitter handle: ${twitter}`);
+    return true;
+  }
+
+  public setPlanetEmoji(locationId: LocationId, emojiStr: string): void {
+    console.log(`Setting emoji ${emojiStr} for planet ${locationId}`);
+  }
+
+  public async clearEmoji(locationId: LocationId): Promise<void> {
+    console.log(`Clearing emoji for planet ${locationId}`);
+  }
+
+  // Add game lifecycle methods
+  public checkGameHasEnded(): boolean {
+    return this.gameover;
+  }
+
+  public getGameover(): boolean {
+    return this.gameover;
+  }
+
+  public getWinners(): EthAddress[] {
+    return [...this.winners];
+  }
+
+  public isCompetitive(): boolean {
+    // In a real implementation, this would check if the game is competitive
+    return true;
+  }
+
+  public getTeamsEnabled(): boolean {
+    // In a real implementation, this would check if teams are enabled
+    return false;
+  }
+
+  public getIsSpectator(): boolean {
+    return this.spectator;
   }
 } 
