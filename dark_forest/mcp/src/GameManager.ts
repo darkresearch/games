@@ -24,7 +24,9 @@ import {
   UnconfirmedPlanetTransfer,
   Wormhole,
   Biome,
-  UpgradeState
+  UpgradeState,
+  Chunk,
+  Rectangle
 } from "@darkforest_eth/types";
 import { providers, BigNumber, Contract, Overrides } from "ethers";
 import { EventEmitter } from "events";
@@ -40,7 +42,7 @@ import { dirname } from 'path';
 // import DarkForestABI from "@darkforest_eth/contracts/abis/DarkForest.json" with { type: 'json' };
 // We'll use a dynamic approach to load the ABI
 let DarkForestABI: any;
-import { MiningService } from "./MiningService";
+import { MiningService } from "./miner/MiningService";
 import { CaptureZoneGenerator, CaptureZonesGeneratedEvent } from "./CaptureZoneGenerator";
 import { SnarkArgsHelper } from "./helpers/SnarkArgsHelper";
 
@@ -115,18 +117,6 @@ export enum GameManagerEvent {
   TransactionUpdate = 'TransactionUpdate',
   DiscoveredNewChunk = 'DiscoveredNewChunk',
   PlayersUpdated = 'PlayersUpdated'
-}
-
-// Interfaces for chunk management
-interface Chunk {
-  chunkFootprint: Rectangle;
-  planetLocations: LocationId[];
-  perlin: number;
-}
-
-interface Rectangle {
-  bottomLeft: WorldCoords;
-  sideLength: number;
 }
 
 interface RevealedLocation {
@@ -1594,24 +1584,26 @@ export class GameManager extends EventEmitter {
   }
 
   /**
-   * Initialize the mining service for this GameManager
+   * Initialize the MiningService if it doesn't exist
    */
   private initializeMiningService(): void {
-    this.miningService = new MiningService(this);
+    if (!this.miningService) {
+      this.miningService = new MiningService(this, (global as any).playerRegistry);
+    }
   }
 
   /**
-   * Get the mining service for this GameManager
+   * Get the MiningService, initializing if necessary
    */
   public getMiningService(): MiningService {
     if (!this.miningService) {
-      this.miningService = new MiningService(this);
+      this.initializeMiningService();
     }
-    return this.miningService;
+    return this.miningService as MiningService;
   }
 
   /**
-   * Initialize the CaptureZoneGenerator if capture zones are enabled
+   * Initialize the CaptureZoneGenerator if it doesn't exist
    */
   private initializeCaptureZoneGenerator(): void {
     try {
@@ -2383,5 +2375,12 @@ export class GameManager extends EventEmitter {
     return this.contract.getAllArrivals ? 
       this.contract.getAllArrivals() : 
       [];
+  }
+
+  /**
+   * Get all planets discovered by this player through mining
+   */
+  public async getDiscoveredPlanets(): Promise<LocationId[]> {
+    return (global.playerRegistry).getDiscoveredPlanets(this.account);
   }
 } 

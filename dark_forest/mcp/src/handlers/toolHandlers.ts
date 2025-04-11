@@ -7,6 +7,8 @@ import { toolSchemas } from "../types/toolSchemas";
 import { z } from "zod";
 import { perlin } from '@darkforest_eth/hashing';
 import * as logger from '../helpers/logger';
+import { setupMinerHandlers } from './minerHandlers';
+import { MineChunkSchema } from '../types/minerSchemas';
 
 // Request schemas
 const AddressAndPlanetIdsSchema = z.object({
@@ -41,6 +43,9 @@ const AddressAndPlanetSchema = z.object({
 });
 
 export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry) {
+  // Setup mining-related handlers
+  setupMinerHandlers(server, playerRegistry);
+
   /**
    * List available game tools
    */
@@ -53,6 +58,56 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
    */
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (request.params.name) {
+      case "mine_chunk": {
+        const args = request.params.arguments || {};
+        
+        // Validate input using our Zod schema
+        const validatedArgs = MineChunkSchema.parse(args);
+        const { address, x, y } = validatedArgs;
+        const sideLength = 16; // Fixed chunk size
+        
+        logger.debug(`Mining chunk at (${x}, ${y}) with side length ${sideLength}`);
+        
+        try {
+          const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+          const miningService = gameManager.getMiningService();
+          
+          // Mine the chunk at the specified coordinates
+          const chunk = await miningService.mineChunk(
+            address as EthAddress,
+            { x, y },
+            sideLength
+          );
+          
+          // Return the results
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                chunk: {
+                  x,
+                  y,
+                  sideLength
+                },
+                planetLocations: chunk ? chunk.planetLocations : []
+              })
+            }]
+          };
+        } catch (error) {
+          logger.error(`Error mining chunk: ${error instanceof Error ? error.message : String(error)}`);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                success: false,
+                error: error instanceof Error ? error.message : String(error)
+              })
+            }]
+          };
+        }
+      }
+
       case "generatePubkey": {
         // Generate a new Ethereum address for the agent
         const address = playerRegistry.generatePubkey();
@@ -762,35 +817,6 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
         };
       }
 
-      case "get_discovered_planets": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const miningService = gameManager.getMiningService();
-        
-        const planetIds = miningService.getDiscoveredPlanets(address as EthAddress);
-        
-        // Optionally fetch planet details
-        const planetDetails = args.includeDetails ? 
-          await Promise.all(planetIds.map(id => gameManager.getPlanet(id))) :
-          [];
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              planetIds,
-              planetDetails: args.includeDetails ? planetDetails : undefined
-            })
-          }]
-        };
-      }
-
       case "get_world_radius": {
         const args = request.params.arguments || {};
         const address = args.address as string;
@@ -1116,363 +1142,74 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
         };
       }
 
-      // Mining & Exploration
-      case "start_explore": {
+      // Capture Zone Related Tools
+      
+      case "get_capture_zones": {
         const args = request.params.arguments || {};
         const address = args.address as string;
 
         if (!address) {
-          throw new Error("Player address is required");
+          throw new Error("Address is required");
         }
 
         const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        gameManager.startExplore();
-
+        const captureZones = gameManager.getCaptureZones();
+        
         return {
           content: [{
             type: "text",
-            text: "Exploration started"
+            text: JSON.stringify({
+              zones: Array.from(captureZones)
+            })
           }]
         };
       }
+      
+      case "is_planet_in_capture_zone": {
+        const args = request.params.arguments || {};
+        const address = args.address as string;
+        const planetId = args.planetId as string;
 
-      case "stop_explore": {
+        if (!address || !planetId) {
+          throw new Error("Address and planetId are required");
+        }
+
+        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+        const isInZone = await gameManager.isPlanetInCaptureZone(planetId as LocationId);
+        
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              planetId,
+              isInCaptureZone: isInZone
+            })
+          }]
+        };
+      }
+      
+      case "get_next_capture_zone_change": {
         const args = request.params.arguments || {};
         const address = args.address as string;
 
         if (!address) {
-          throw new Error("Player address is required");
+          throw new Error("Address is required");
         }
 
         const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        gameManager.stopExplore();
-
+        const nextChangeBlock = await gameManager.getNextCaptureZoneChangeBlock();
+        
+        // Get current block for context
+        const currentBlock = await gameManager.getEthConnection().getBlockNumber();
+        
         return {
           content: [{
             type: "text",
-            text: "Exploration stopped"
-          }]
-        };
-      }
-
-      case "set_miner_cores": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-        const cores = args.cores as number;
-
-        if (!address || typeof cores !== 'number') {
-          throw new Error("Missing required parameters");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        gameManager.setMinerCores(cores);
-
-        return {
-          content: [{
-            type: "text",
-            text: `Miner cores set to ${cores}`
-          }]
-        };
-      }
-
-      case "is_mining": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const isMining = gameManager.isMining();
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({ isMining })
-          }]
-        };
-      }
-
-      case "get_current_exploring_chunk": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const chunk = gameManager.getCurrentlyExploringChunk();
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(chunk)
-          }]
-        };
-      }
-
-      // Chunk Management
-      case "get_explored_chunks": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const chunks = Array.from(gameManager.getExploredChunks());
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(chunks)
-          }]
-        };
-      }
-
-      case "has_mined_chunk": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-        const chunkX = args.chunkX as number;
-        const chunkY = args.chunkY as number;
-        const sideLength = args.sideLength as number;
-
-        if (!address || typeof chunkX !== 'number' || typeof chunkY !== 'number' || typeof sideLength !== 'number') {
-          throw new Error("Missing required parameters");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const hasMinedChunk = gameManager.hasMinedChunk({
-          bottomLeft: { x: chunkX, y: chunkY },
-          sideLength
-        });
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({ hasMinedChunk })
-          }]
-        };
-      }
-
-      // Specialized Planet Queries
-      case "get_planets_in_world_rectangle": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-        const worldX = args.worldX as number;
-        const worldY = args.worldY as number;
-        const worldWidth = args.worldWidth as number;
-        const worldHeight = args.worldHeight as number;
-        const levels = args.levels as number[] || [];
-
-        if (!address || typeof worldX !== 'number' || typeof worldY !== 'number' || 
-            typeof worldWidth !== 'number' || typeof worldHeight !== 'number') {
-          throw new Error("Missing required parameters");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const planets = gameManager.getPlanetsInWorldRectangle(worldX, worldY, worldWidth, worldHeight, levels);
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(planets)
-          }]
-        };
-      }
-
-      case "get_my_planets": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const planets = gameManager.getMyPlanets();
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(planets)
-          }]
-        };
-      }
-
-      case "get_all_target_planets": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const planets = gameManager.getAllTargetPlanets();
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(planets)
-          }]
-        };
-      }
-
-      case "get_player_target_planets": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-        const playerAddress = args.playerAddress as string || address;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const planets = gameManager.getPlayerTargetPlanets(playerAddress as EthAddress);
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(planets)
-          }]
-        };
-      }
-
-      case "get_all_blocks": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const blocks = gameManager.getAllBlocks();
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(blocks)
-          }]
-        };
-      }
-
-      // Voyage Management
-      case "get_all_voyages": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const voyages = gameManager.getAllVoyages();
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(voyages)
-          }]
-        };
-      }
-
-      case "get_unconfirmed_moves": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const moves = gameManager.getUnconfirmedMoves();
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(moves)
-          }]
-        };
-      }
-
-      case "get_unconfirmed_upgrades": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const upgrades = gameManager.getUnconfirmedUpgrades();
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(upgrades)
-          }]
-        };
-      }
-
-      // Location and Coordinates
-      case "get_home_coords": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const coords = gameManager.getHomeCoords();
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(coords)
-          }]
-        };
-      }
-
-      case "get_revealed_locations": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const locations = gameManager.getRevealedLocations();
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(Array.from(locations.entries()))
-          }]
-        };
-      }
-
-      case "get_claimed_locations": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Player address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const locations = gameManager.getClaimedLocations();
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(Array.from(locations.entries()))
+            text: JSON.stringify({
+              currentBlock,
+              nextChangeBlock,
+              blocksUntilChange: nextChangeBlock - currentBlock
+            })
           }]
         };
       }
@@ -1974,174 +1711,13 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
         };
       }
 
-      // MINING OPERATIONS
+      // MINING OPERATIONS - Moved to minerHandlers.ts
+      // Cases removed: start_explore, stop_explore, set_miner_cores, is_mining, 
+      // get_current_exploring_chunk, get_explored_chunks, has_mined_chunk, 
+      // get_discovered_planets, mine_spiral_pattern, mine_rectangular_area, mine_around_planet
       
-      case "mine_spiral_pattern": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-        const center = args.center as { x: number, y: number };
-        const radius = args.radius as number;
-        const chunkSize = (args.chunkSize as number) || 16;
-
-        if (!address || !center || !radius) {
-          throw new Error("Missing required parameters");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const miningService = gameManager.getMiningService();
-        
-        const chunks = await miningService.mineSpiralPattern(
-          address as EthAddress,
-          center,
-          radius,
-          chunkSize
-        );
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              chunksMined: chunks.length,
-              planetLocations: chunks.flatMap(chunk => chunk.planetLocations)
-            })
-          }]
-        };
-      }
-      
-      case "mine_rectangular_area": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-        const topLeft = args.topLeft as { x: number, y: number };
-        const bottomRight = args.bottomRight as { x: number, y: number };
-        const chunkSize = (args.chunkSize as number) || 16;
-
-        if (!address || !topLeft || !bottomRight) {
-          throw new Error("Missing required parameters");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const miningService = gameManager.getMiningService();
-        
-        const chunks = await miningService.mineRectangularArea(
-          address as EthAddress,
-          topLeft,
-          bottomRight,
-          chunkSize
-        );
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              chunksMined: chunks.length,
-              planetLocations: chunks.flatMap(chunk => chunk.planetLocations)
-            })
-          }]
-        };
-      }
-      
-      case "mine_around_planet": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-        const planetId = args.planetId as string;
-        const radius = args.radius as number;
-        const chunkSize = (args.chunkSize as number) || 16;
-
-        if (!address || !planetId || !radius) {
-          throw new Error("Missing required parameters");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const miningService = gameManager.getMiningService();
-        
-        const chunks = await miningService.mineAroundPlanet(
-          address as EthAddress,
-          planetId as LocationId,
-          radius,
-          chunkSize
-        );
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              chunksMined: chunks.length,
-              planetLocations: chunks.flatMap(chunk => chunk.planetLocations)
-            })
-          }]
-        };
-      }
-      
-      // Capture Zone Related Tools
-      
-      case "get_capture_zones": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const captureZones = gameManager.getCaptureZones();
-        
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              zones: Array.from(captureZones)
-            })
-          }]
-        };
-      }
-      
-      case "is_planet_in_capture_zone": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-        const planetId = args.planetId as string;
-
-        if (!address || !planetId) {
-          throw new Error("Address and planetId are required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const isInZone = await gameManager.isPlanetInCaptureZone(planetId as LocationId);
-        
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              planetId,
-              isInCaptureZone: isInZone
-            })
-          }]
-        };
-      }
-      
-      case "get_next_capture_zone_change": {
-        const args = request.params.arguments || {};
-        const address = args.address as string;
-
-        if (!address) {
-          throw new Error("Address is required");
-        }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-        const nextChangeBlock = await gameManager.getNextCaptureZoneChangeBlock();
-        
-        // Get current block for context
-        const currentBlock = await gameManager.getEthConnection().getBlockNumber();
-        
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              currentBlock,
-              nextChangeBlock,
-              blocksUntilChange: nextChangeBlock - currentBlock
-            })
-          }]
-        };
+      case "generate_home_coords": {
+        // ... existing implementation ...
       }
 
       default:

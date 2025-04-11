@@ -1,3 +1,8 @@
+import { minerSchemas } from './minerSchemas';
+
+/**
+ * All tool schemas for the MCP
+ */
 export const toolSchemas = [
   {
     name: "generatePubkey",
@@ -8,6 +13,8 @@ export const toolSchemas = [
       required: []
     }
   },
+  // Mining schemas are now imported from minerSchemas.ts
+  ...minerSchemas,
   {
     name: "init_player",
     description: "Initialize a new player",
@@ -431,8 +438,8 @@ export const toolSchemas = [
     }
   },
   {
-    name: "get_discovered_planets",
-    description: "Get all discovered planets",
+    name: "get_captured_planets",
+    description: "Get all captured planets",
     inputSchema: {
       type: "object",
       properties: {
@@ -1074,135 +1081,6 @@ export const toolSchemas = [
         address: {
           type: "string",
           description: "Player's Ethereum address"
-        }
-      },
-      required: ["address"]
-    }
-  },
-  {
-    name: "mine_spiral_pattern",
-    description: "Mine the universe in a spiral pattern starting from a center point",
-    inputSchema: {
-      type: "object",
-      properties: {
-        address: {
-          type: "string",
-          description: "Player's Ethereum address"
-        },
-        center: {
-          type: "object",
-          properties: {
-            x: {
-              type: "number",
-              description: "X coordinate of the center point"
-            },
-            y: {
-              type: "number",
-              description: "Y coordinate of the center point"
-            }
-          },
-          required: ["x", "y"],
-          description: "Center coordinates for the spiral pattern"
-        },
-        radius: {
-          type: "number",
-          description: "How far from the center to mine (in world units)"
-        },
-        chunkSize: {
-          type: "number",
-          description: "Size of chunks to mine (defaults to 16)"
-        }
-      },
-      required: ["address", "center", "radius"]
-    }
-  },
-  {
-    name: "mine_rectangular_area",
-    description: "Mine a rectangular area of the universe",
-    inputSchema: {
-      type: "object",
-      properties: {
-        address: {
-          type: "string",
-          description: "Player's Ethereum address"
-        },
-        topLeft: {
-          type: "object",
-          properties: {
-            x: {
-              type: "number",
-              description: "X coordinate of the top left corner"
-            },
-            y: {
-              type: "number",
-              description: "Y coordinate of the top left corner"
-            }
-          },
-          required: ["x", "y"],
-          description: "Top left coordinates of the rectangle"
-        },
-        bottomRight: {
-          type: "object",
-          properties: {
-            x: {
-              type: "number",
-              description: "X coordinate of the bottom right corner"
-            },
-            y: {
-              type: "number",
-              description: "Y coordinate of the bottom right corner"
-            }
-          },
-          required: ["x", "y"],
-          description: "Bottom right coordinates of the rectangle"
-        },
-        chunkSize: {
-          type: "number",
-          description: "Size of chunks to mine (defaults to 16)"
-        }
-      },
-      required: ["address", "topLeft", "bottomRight"]
-    }
-  },
-  {
-    name: "mine_around_planet",
-    description: "Mine the area around a planet in a radial pattern",
-    inputSchema: {
-      type: "object",
-      properties: {
-        address: {
-          type: "string",
-          description: "Player's Ethereum address"
-        },
-        planetId: {
-          type: "string",
-          description: "ID of the planet to mine around"
-        },
-        radius: {
-          type: "number",
-          description: "How far from the planet to mine (in world units)"
-        },
-        chunkSize: {
-          type: "number",
-          description: "Size of chunks to mine (defaults to 16)"
-        }
-      },
-      required: ["address", "planetId", "radius"]
-    }
-  },
-  {
-    name: "get_discovered_planets",
-    description: "Get the planets discovered by a player through mining",
-    inputSchema: {
-      type: "object",
-      properties: {
-        address: {
-          type: "string",
-          description: "Player's Ethereum address"
-        },
-        includeDetails: {
-          type: "boolean",
-          description: "Whether to include detailed planet information (optional)"
         }
       },
       required: ["address"]

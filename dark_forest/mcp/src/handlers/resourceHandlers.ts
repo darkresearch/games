@@ -24,12 +24,13 @@ export function setupResourceHandlers(server: Server, playerRegistry: PlayerRegi
           name: "Players",
           description: "List of all players in the game"
         },
-        {
-          uri: "/planets",
-          mimeType: "application/json",
-          name: "Discovered Planets",
-          description: "List of planets discovered by a specific player"
-        }
+        // TODO: Implement this later
+        // {
+        //   uri: "/discoveredPlanets",
+        //   mimeType: "application/json",
+        //   name: "Agent Discovered Planets",
+        //   description: "List of planets discovered by a specific agent through mining"
+        // }
       ]
     };
   });
@@ -85,27 +86,27 @@ export function setupResourceHandlers(server: Server, playerRegistry: PlayerRegi
           }]
         };
       }
-      
-      case "/planets": {
-        logger.debug("Processing planets request");
-        if (!playerAddress) {
-          logger.debug("No player address provided");
-          throw new Error("Player address is required to list discovered planets");
-        }
 
-        logger.debug(`Getting planets for player: ${playerAddress}`);
-        const gameManager = await playerRegistry.getOrCreatePlayer(playerAddress as EthAddress);
-        const discoveredPlanets = await gameManager.getDiscoveredPlanets();
-        logger.debug(`Found planets: ${discoveredPlanets.length}`);
+      // TODO: Implement this later
+      // case "/discoveredPlanets": {
+      //   logger.debug("Processing discovered planets request");
+      //   if (!playerAddress) {
+      //     logger.debug("No player address provided");
+      //     throw new Error("Player address is required to list discovered planets");
+      //   }
 
-        return {
-          contents: [{
-            uri: request.params.uri,
-            mimeType: "application/json",
-            text: JSON.stringify(discoveredPlanets)
-          }]
-        };
-      }
+      //   logger.debug(`Getting discovered planets for agent: ${playerAddress}`);
+      //   const planetIds = playerRegistry.getDiscoveredPlanets(playerAddress as EthAddress);
+      //   logger.debug(`Found discovered planets: ${planetIds.length}`);
+
+      //   return {
+      //     contents: [{
+      //       uri: request.params.uri,
+      //       mimeType: "application/json",
+      //       text: JSON.stringify(planetIds)
+      //     }]
+      //   };
+      // }
 
       default:
         logger.debug(`Unknown resource: ${pathname}`);

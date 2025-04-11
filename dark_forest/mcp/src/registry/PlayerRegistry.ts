@@ -1,8 +1,16 @@
 import { EthConnection } from "@darkforest_eth/network";
-import { EthAddress } from "@darkforest_eth/types";
+import { EthAddress, LocationId, WorldCoords } from "@darkforest_eth/types";
 import { providers } from "ethers";
 import { GameManager } from "../GameManager";
 import { WalletManager } from "../WalletManager";
+
+/**
+ * Interface for tracking planet discoveries and explored chunks for each agent
+ */
+export interface AgentMiningState {
+  discoveredChunks: Set<string>; // Serialized chunk footprints
+  discoveredPlanets: Set<LocationId>;
+}
 
 /**
  * Manages GameManager instances for each player
@@ -14,6 +22,7 @@ export class PlayerRegistry {
   private baseContractAddress: EthAddress;
   private walletManager: WalletManager;
   private networkId: number;
+  private agentMiningState: Map<EthAddress, AgentMiningState> = new Map();
 
   constructor(gamePubkey: EthAddress, baseContractAddress: EthAddress, networkId: number) {
     this.gamePubkey = gamePubkey;
@@ -61,6 +70,53 @@ export class PlayerRegistry {
    */
   public hasWallet(address: EthAddress): boolean {
     return this.walletManager.hasWallet(address);
+  }
+
+  /**
+   * Gets or creates the mining state for an agent
+   */
+  public getAgentMiningState(agentId: EthAddress): AgentMiningState {
+    let state = this.agentMiningState.get(agentId);
+    if (!state) {
+      state = {
+        discoveredChunks: new Set(),
+        discoveredPlanets: new Set()
+      };
+      this.agentMiningState.set(agentId, state);
+    }
+    return state;
+  }
+
+  /**
+   * Add a discovered planet to the agent's mining state
+   */
+  public addDiscoveredPlanet(agentId: EthAddress, planetId: LocationId): void {
+    const state = this.getAgentMiningState(agentId);
+    state.discoveredPlanets.add(planetId);
+  }
+
+  /**
+   * Add a discovered chunk to the agent's mining state
+   */
+  public addDiscoveredChunk(agentId: EthAddress, chunkKey: string): void {
+    const state = this.getAgentMiningState(agentId);
+    state.discoveredChunks.add(chunkKey);
+  }
+
+  /**
+   * Check if an agent has already discovered a chunk
+   */
+  public hasDiscoveredChunk(agentId: EthAddress, chunkKey: string): boolean {
+    const state = this.getAgentMiningState(agentId);
+    return state.discoveredChunks.has(chunkKey);
+  }
+
+  /**
+   * Get all planets discovered by an agent
+   */
+  public getDiscoveredPlanets(agentId: EthAddress): LocationId[] {
+    const state = this.getAgentMiningState(agentId);
+    return Array.from(state.discoveredPlanets);
   }
 
   async getOrCreatePlayer(address: EthAddress): Promise<GameManager> {

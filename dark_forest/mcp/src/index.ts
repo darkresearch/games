@@ -15,6 +15,11 @@ import { EthAddress } from "@darkforest_eth/types";
 import { CONTRACT_ADDRESS, NETWORK_ID } from "@darkforest_eth/contracts";
 import * as logger from './helpers/logger';
 
+// Extend global object to include playerRegistry
+declare global {
+  var playerRegistry: PlayerRegistry;
+}
+
 // Get game-specific public key from environment variable
 const gamePubkey = (process.env.GAME_PUBKEY || EMPTY_ADDRESS) as EthAddress;
 if (gamePubkey === EMPTY_ADDRESS) {
@@ -29,6 +34,9 @@ const networkId = parseInt(process.env.DARK_FOREST_NETWORK_ID || NETWORK_ID.toSt
 
 // Create registry instance with game pubkey, base contract address and network ID
 const playerRegistry = new PlayerRegistry(gamePubkey, baseContractAddress, networkId);
+
+// Make playerRegistry available globally for access by GameManager
+global.playerRegistry = playerRegistry;
 
 /**
  * Create MCP server with capabilities for resources and tools
