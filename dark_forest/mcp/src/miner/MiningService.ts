@@ -4,6 +4,7 @@ import { locationIdFromBigInt } from "@darkforest_eth/serde";
 import { GameManager } from "../GameManager";
 import { PlayerRegistry } from "../registry/PlayerRegistry";
 import bigInt from "big-integer";
+import { getBytesFromHex } from "@darkforest_eth/hexgen";
 
 // Constant from client
 const LOCATION_ID_UB = bigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
@@ -50,22 +51,23 @@ export class MiningService {
    */
   async mineChunk(
     agentId: EthAddress,
-    topLeft: WorldCoords,
+    center: WorldCoords,
     sideLength: number = 16
   ): Promise<Chunk | null> {
     // Check if this chunk is within world bounds
-    const chunkCenterX = topLeft.x + sideLength / 2;
-    const chunkCenterY = topLeft.y + sideLength / 2;
-    const distFromCenter = Math.sqrt(chunkCenterX ** 2 + chunkCenterY ** 2);
-    
+    const distFromCenter = Math.sqrt(center.x ** 2 + center.x ** 2);
     if (distFromCenter > this.worldRadius) {
       // Skip chunks outside world radius
       return null;
     }
     
     // Create the chunk rectangle
+    const bottomLeft = {
+        x: center.x - sideLength / 2,
+        y: center.y - sideLength / 2
+    };
     const chunkRect: Rectangle = {
-      bottomLeft: topLeft,
+      bottomLeft: bottomLeft,
       sideLength
     };
     
@@ -120,15 +122,23 @@ export class MiningService {
     const { x: bottomLeftX, y: bottomLeftY } = chunkRect.bottomLeft;
     const { sideLength } = chunkRect;
     
+    // Fixed planetRarityBI calculation
+    const planetRarityBI = bigInt(this.planetRarity);
+    
     // Iterate through every coordinate in the chunk
     for (let x = bottomLeftX; x < bottomLeftX + sideLength; x++) {
       for (let y = bottomLeftY; y < bottomLeftY + sideLength; y++) {
         const hash = planetHashFn(x, y);
         
         // Check if this location contains a planet based on hash
-        if (hash.lesser(LOCATION_ID_UB.divide(bigInt(this.planetRarity.toString())))) {
+        if (hash.lesser(LOCATION_ID_UB.divide(planetRarityBI))) {
           // Convert hash to locationId
           const locationId = locationIdFromBigInt(hash);
+          
+          // Check if planet level is below level 0 threshold (just like in client code)
+          if (!this.planetLevelBelowLevel0Threshold(locationId)) {
+            continue;
+          }
           
           // Calculate perlin values for space type and biome
           const spacePerlin = perlin({ x, y }, spaceTypePerlinOpts);
@@ -154,5 +164,15 @@ export class MiningService {
       planetLocations,
       perlin: perlin(chunkCenter, { ...spaceTypePerlinOpts, floor: false }),
     };
+  }
+  
+  /**
+   * Checks if a planet's level is below the level 0 threshold
+   * Uses the same logic as the client code
+   */
+  private planetLevelBelowLevel0Threshold(locationId: LocationId): boolean {
+    const levelBigInt = getBytesFromHex(locationId, 4, 7);
+    // Threshold [0] is the largest number. This matches client logic.
+    return levelBigInt.lesser(bigInt(this.planetLevelThresholds[0]));
   }
 } 

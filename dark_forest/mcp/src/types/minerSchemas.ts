@@ -6,8 +6,8 @@ import { zodToMcpSchema } from "./schemaUtils";
  */
 export const MineChunkSchema = z.object({
   address: z.string().describe("Player's Ethereum address"),
-  x: z.number().describe("X coordinate of the bottom-left corner of the chunk to mine"),
-  y: z.number().describe("Y coordinate of the bottom-left corner of the chunk to mine")
+  x: z.number().describe("X coordinate of the center of the chunk to mine"),
+  y: z.number().describe("Y coordinate of the center of the chunk to mine")
 });
 
 /**

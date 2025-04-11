@@ -22,6 +22,7 @@
     "@darkforest_eth/events": "file:../events",
     "@darkforest_eth/gamelogic": "file:../gamelogic",
     "@darkforest_eth/hashing": "file:../hashing",
+    "@darkforest_eth/hexgen": "file:../hexgen",
     "@darkforest_eth/network": "file:../network",
     "@darkforest_eth/procedural": "file:../procedural",
     "@darkforest_eth/serde": "file:../serde",

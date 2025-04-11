@@ -688,24 +688,6 @@ export const toolSchemas = [
     }
   },
   {
-    name: "set_miner_cores",
-    description: "Set the number of cores to use for mining",
-    inputSchema: {
-      type: "object",
-      properties: {
-        address: {
-          type: "string",
-          description: "Player's Ethereum address"
-        },
-        cores: {
-          type: "number",
-          description: "Number of cores to use"
-        }
-      },
-      required: ["address", "cores"]
-    }
-  },
-  {
     name: "is_mining",
     description: "Check if mining is active",
     inputSchema: {

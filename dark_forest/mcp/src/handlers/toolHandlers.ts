@@ -3,12 +3,13 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { EthAddress, LocationId, ArtifactId } from "@darkforest_eth/types";
 import { EMPTY_ADDRESS } from "@darkforest_eth/constants";
 import { PlayerRegistry } from "../registry/PlayerRegistry";
-import { toolSchemas } from "../types/toolSchemas";
 import { z } from "zod";
 import { perlin } from '@darkforest_eth/hashing';
 import * as logger from '../helpers/logger';
 import { setupMinerHandlers } from './minerHandlers';
-import { MineChunkSchema } from '../types/minerSchemas';
+
+import { toolSchemas } from "../types/toolSchemas";
+import { minerSchemas, MineChunkSchema } from '../types/minerSchemas';
 
 // Request schemas
 const AddressAndPlanetIdsSchema = z.object({
@@ -43,14 +44,16 @@ const AddressAndPlanetSchema = z.object({
 });
 
 export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry) {
+  server
   // Setup mining-related handlers
   setupMinerHandlers(server, playerRegistry);
 
   /**
    * List available game tools
    */
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: toolSchemas };
+  server.setRequestHandler(ListToolsRequestSchema, async () => {    
+    // Combine toolSchemas and minerSchemas for the response
+    return { tools: [...minerSchemas, ...toolSchemas, ] };
   });
 
   /**
@@ -58,56 +61,6 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
    */
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (request.params.name) {
-      case "mine_chunk": {
-        const args = request.params.arguments || {};
-        
-        // Validate input using our Zod schema
-        const validatedArgs = MineChunkSchema.parse(args);
-        const { address, x, y } = validatedArgs;
-        const sideLength = 16; // Fixed chunk size
-        
-        logger.debug(`Mining chunk at (${x}, ${y}) with side length ${sideLength}`);
-        
-        try {
-          const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-          const miningService = gameManager.getMiningService();
-          
-          // Mine the chunk at the specified coordinates
-          const chunk = await miningService.mineChunk(
-            address as EthAddress,
-            { x, y },
-            sideLength
-          );
-          
-          // Return the results
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify({
-                success: true,
-                chunk: {
-                  x,
-                  y,
-                  sideLength
-                },
-                planetLocations: chunk ? chunk.planetLocations : []
-              })
-            }]
-          };
-        } catch (error) {
-          logger.error(`Error mining chunk: ${error instanceof Error ? error.message : String(error)}`);
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: error instanceof Error ? error.message : String(error)
-              })
-            }]
-          };
-        }
-      }
-
       case "generatePubkey": {
         // Generate a new Ethereum address for the agent
         const address = playerRegistry.generatePubkey();
@@ -121,6 +74,69 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
             })
           }]
         };
+      }
+
+      case "mine_chunk": {
+        const args = request.params.arguments || {};
+        const validatedArgs = MineChunkSchema.parse(args);
+        const { address, x, y } = validatedArgs;
+        const sideLength = 16; // Fixed chunk size
+        
+        logger.debug(`Mining chunk at (${x}, ${y}) with side length ${sideLength}`);
+
+        try {
+          const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+          const miningService = gameManager.getMiningService();
+
+          const chunk = await miningService.mineChunk(
+            address as EthAddress,
+            { x, y },
+            sideLength
+          );
+
+          if (chunk) {
+            return {
+              content: [{
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  chunk: {
+                    x,
+                    y,
+                    sideLength
+                  },
+                  chunkFootprint: chunk.chunkFootprint,
+                  planetLocations: chunk.planetLocations,
+                  perlin: chunk.perlin
+                })
+              }]
+            };
+          } else {
+            // Return the results
+            return {
+              content: [{
+                type: "text",
+                text: JSON.stringify({
+                  success: false,
+                  chunk: null,
+                  planetLocations: [],
+                })
+              }]
+            };
+          }
+
+        } catch (error) {
+          logger.error(`Error mining chunk: ${error instanceof Error ? error.message : String(error)}`);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                success: false,
+                error: error instanceof Error ? error.message : String(error)
+              })
+            }]
+          };
+        }
       }
       
       case "init_player": {
