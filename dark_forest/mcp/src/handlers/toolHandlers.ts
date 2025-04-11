@@ -82,31 +82,193 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
         try {
           const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
           
-          // Generate random coordinates and calculate radius
-          const x = Math.floor(Math.random() * 10000);
-          const y = Math.floor(Math.random() * 10000);
+          // First, get necessary universe parameters from the contract
+          // Since there's no getContract method, we'll wrap calls in try/catch
+          let worldRadius = 10000; // default
           
-          // Calculate radius using the same formula as the original client
-          // floor(sqrt(x^2 + y^2)) + 1
-          const r = Math.floor(Math.sqrt(x ** 2 + y ** 2)) + 1;
+          // Get world radius
+          try {
+            worldRadius = gameManager.getWorldRadius();
+            console.log(`Got world radius from game manager: ${worldRadius}`);
+          } catch (e) {
+            console.log('Could not get world radius from game manager, using default', e);
+          }
+          
+          // Get spawn constraints if available - using defaults since we don't have direct access
+          const spawnRimArea = 0;
+          const initPerlinMin = 15;
+          const initPerlinMax = 30;
+          
+          console.log(`Init constraints: worldRadius=${worldRadius}, rimArea=${spawnRimArea}, perlinMin=${initPerlinMin}, perlinMax=${initPerlinMax}`);
+          
+          // Get hash config for perlin validation
+          const hashConfig = gameManager.getHashConfig();
+          
+          // Helper function to validate coordinates
+          const validateCoordinates = (x: number, y: number, r: number): boolean => {
+            try {
+              // Import required functions locally
+              const { perlin } = require('@darkforest_eth/hashing');
+              
+              // Create perlin config
+              const perlinConfig = {
+                key: hashConfig.spaceTypeKey,
+                scale: hashConfig.perlinLengthScale,
+                mirrorX: hashConfig.perlinMirrorX,
+                mirrorY: hashConfig.perlinMirrorY,
+                floor: true
+              };
+              
+              // Calculate perlin value for this location
+              const perlinValue = perlin({ x, y }, perlinConfig);
+              
+              // Check world radius constraint
+              if (r > worldRadius) {
+                console.log(`Radius ${r} exceeds world radius ${worldRadius}`);
+                return false;
+              }
+              
+              // Check rim area constraint if enabled
+              if (spawnRimArea !== 0) {
+                const radiusSquared = r * r;
+                const worldRadiusSquared = worldRadius * worldRadius;
+                
+                const radiusCheck = (radiusSquared * 314) / 100 + spawnRimArea >= (worldRadiusSquared * 314) / 100;
+                
+                if (!radiusCheck) {
+                  console.log(`Radius ${r} doesn't satisfy rim area constraint`);
+                  return false;
+                }
+              }
+              
+              // Check perlin constraints
+              if (perlinValue < initPerlinMin) {
+                console.log(`Perlin value ${perlinValue} is less than minimum ${initPerlinMin}`);
+                return false;
+              }
+              
+              if (perlinValue >= initPerlinMax) {
+                console.log(`Perlin value ${perlinValue} is greater than or equal to maximum ${initPerlinMax}`);
+                return false;
+              }
+              
+              console.log(`Coordinates (${x}, ${y}, ${r}) with perlin ${perlinValue} are valid`);
+              return true;
+            } catch (e) {
+              console.error('Error validating coordinates:', e);
+              return false;
+            }
+          };
+          
+          // Smarter coordinate generation function
+          const generateCoordinates = (attempt: number, worldRadius: number, spawnRimArea: number): { x: number, y: number, r: number } => {
+            // Determine if we should focus on the rim area
+            const isRimSpawn = spawnRimArea !== 0;
+            
+            if (isRimSpawn) {
+              // Calculate the optimal radius based on the rim area constraint
+              // We want to find r such that: (r^2*314)/100 + spawnRimArea >= (worldRadius^2*314)/100
+              // Solving for r: r >= sqrt(worldRadius^2 - (spawnRimArea*100)/314)
+              const minValidRadius = Math.sqrt(
+                Math.max(0, (worldRadius * worldRadius) - ((spawnRimArea * 100) / 314))
+              );
+              
+              // Aim for the middle of the valid rim area to maximize chances
+              const targetRadius = (minValidRadius + worldRadius) / 2;
+              
+              // For rim spawning, use deterministic approach with some randomness
+              const angle = (attempt * (Math.PI * 0.618033988749895)) % (2 * Math.PI); // Golden angle for even distribution
+              
+              // Add some jitter based on attempt number to explore different radii
+              const radiusJitter = 0.05 * worldRadius * (Math.sin(attempt) * 0.5 + 0.5);
+              const effectiveRadius = Math.min(worldRadius * 0.98, targetRadius + radiusJitter);
+              
+              // Convert to cartesian coordinates
+              const x = Math.floor(effectiveRadius * Math.cos(angle));
+              const y = Math.floor(effectiveRadius * Math.sin(angle));
+              
+              // Calculate true radius
+              const r = Math.floor(Math.sqrt(x ** 2 + y ** 2)) + 1;
+              
+              return { x, y, r };
+            } else {
+              // If not rim spawn, use improved random sampling with progressive focus
+              if (attempt < 20) {
+                // First 20 attempts: Completely random throughout map
+                const x = Math.floor((Math.random() * 2 - 1) * worldRadius);
+                const y = Math.floor((Math.random() * 2 - 1) * worldRadius);
+                const r = Math.floor(Math.sqrt(x ** 2 + y ** 2)) + 1;
+                return { x, y, r };
+              } else if (attempt < 50) {
+                // Next 30 attempts: Focus on different quadrants systematically
+                const quadrant = (attempt - 20) % 4;
+                const xSign = quadrant < 2 ? 1 : -1;
+                const ySign = quadrant % 2 === 0 ? 1 : -1;
+                
+                const x = xSign * Math.floor(Math.random() * worldRadius * 0.8);
+                const y = ySign * Math.floor(Math.random() * worldRadius * 0.8);
+                const r = Math.floor(Math.sqrt(x ** 2 + y ** 2)) + 1;
+                return { x, y, r };
+              } else {
+                // Remaining attempts: Search across concentric rings
+                const ringIndex = attempt % 5;
+                const radius = (worldRadius * 0.3) + (ringIndex * worldRadius * 0.12);
+                const angle = (attempt * 0.37) % (2 * Math.PI);
+                
+                const x = Math.floor(radius * Math.cos(angle));
+                const y = Math.floor(radius * Math.sin(angle));
+                const r = Math.floor(Math.sqrt(x ** 2 + y ** 2)) + 1;
+                return { x, y, r };
+              }
+            }
+          };
+          
+          // Try to find valid coordinates with retries
+          const MAX_RETRIES = 100;
+          let retryCount = 0;
+          let validCoords = false;
+          let x = 0, y = 0, r = 0;
+          
+          while (!validCoords && retryCount < MAX_RETRIES) {
+            // Generate coordinates using our smarter algorithm
+            const coords = generateCoordinates(retryCount, worldRadius, spawnRimArea);
+            x = coords.x;
+            y = coords.y;
+            r = coords.r;
+            
+            console.log(`Attempt ${retryCount + 1}/${MAX_RETRIES}: Testing coordinates (${x}, ${y}) with radius ${r}`);
+            
+            // Validate the coordinates
+            validCoords = validateCoordinates(x, y, r);
+            retryCount++;
+          }
+          
+          if (!validCoords) {
+            throw new Error(`Failed to find valid coordinates after ${MAX_RETRIES} attempts`);
+          }
           
           // Random faction/team value (0-9)
           const f = Math.floor(Math.random() * 10);
           
-          console.log(`Initializing player at coordinates (${x}, ${y}) with radius ${r}, team ${f}`);
+          console.log(`Initializing player at validated coordinates (${x}, ${y}) with radius ${r}, team ${f}`);
           
-          // Initialize the player using the snark helper for proof generation
+          // Initialize the player with validated coordinates
           const result = await gameManager.initializePlayer(x, y, r, f);
           
           return {
             content: [{
               type: "text",
-              text: `Player initialized at (${x}, ${y}), radius ${r}, team ${f}. Transaction: ${JSON.stringify(result)}`
+              text: `Player initialized successfully at (${x}, ${y}) with radius ${r}, team ${f}. Result: ${JSON.stringify(result)}`
             }]
           };
         } catch (e) {
           console.error('Error initializing player:', e);
-          throw e;
+          return {
+            content: [{
+              type: "text",
+              text: `Error initializing player: ${e instanceof Error ? e.message : String(e)}`
+            }]
+          };
         }
       }
 

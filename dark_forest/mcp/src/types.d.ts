@@ -19,4 +19,15 @@ declare module 'fastq' {
     worker: (task: any, cb: (error: Error | null, result: any) => void) => void,
     concurrency: number
   ): queue;
+}
+
+declare module 'snarkjs' {
+  export interface Groth16 {
+    fullProve: (input: any, wasmFile: string, zkeyFile: string) => Promise<{
+      proof: any;
+      publicSignals: string[];
+    }>;
+  }
+
+  export const groth16: Groth16;
 } 

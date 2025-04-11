@@ -26,26 +26,30 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
-// Declare snarkjs module since we don't have type definitions
-declare const snarkjs: {
-  groth16: {
-    fullProve: (input: any, wasmFile: string, zkeyFile: string) => Promise<SnarkJSProofAndSignals>;
-  };
-};
+// Dynamic import for snarkjs - we'll load it when needed
+let snarkjs: any = null;
 
 // Create path utilities for ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Define circuit and zkey paths
-const initCircuitPath = path.join(__dirname, '../snarks/init.wasm');
-const initZkeyPath = path.join(__dirname, '../snarks/init.zkey');
-const revealCircuitPath = path.join(__dirname, '../snarks/reveal.wasm');
-const revealZkeyPath = path.join(__dirname, '../snarks/reveal.zkey');
-const moveCircuitPath = path.join(__dirname, '../snarks/move.wasm');
-const moveZkeyPath = path.join(__dirname, '../snarks/move.zkey');
-const biomebaseCircuitPath = path.join(__dirname, '../snarks/biomebase.wasm');
-const biomebaseZkeyPath = path.join(__dirname, '../snarks/biomebase.zkey');
+const initCircuitPath = path.join(process.cwd(), 'build/snarks/init.wasm');
+const initZkeyPath = path.join(process.cwd(), 'build/snarks/init.zkey');
+const revealCircuitPath = path.join(process.cwd(), 'build/snarks/reveal.wasm');
+const revealZkeyPath = path.join(process.cwd(), 'build/snarks/reveal.zkey');
+const moveCircuitPath = path.join(process.cwd(), 'build/snarks/move.wasm');
+const moveZkeyPath = path.join(process.cwd(), 'build/snarks/move.zkey');
+const biomebaseCircuitPath = path.join(process.cwd(), 'build/snarks/biomebase.wasm');
+const biomebaseZkeyPath = path.join(process.cwd(), 'build/snarks/biomebase.zkey');
+
+// Log the full paths for debugging
+console.log(`Circuit paths: 
+  init: ${initCircuitPath} (exists: ${fs.existsSync(initCircuitPath)})
+  reveal: ${revealCircuitPath} (exists: ${fs.existsSync(revealCircuitPath)})
+  move: ${moveCircuitPath} (exists: ${fs.existsSync(moveCircuitPath)})
+  biomebase: ${biomebaseCircuitPath} (exists: ${fs.existsSync(biomebaseCircuitPath)})
+`);
 
 type SnarkInput = RevealSnarkInput | InitSnarkInput | MoveSnarkInput | BiomebaseSnarkInput;
 
@@ -61,11 +65,11 @@ type ZKPTask = {
  * Queue for processing SNARK proof generation tasks
  */
 class SnarkProverQueue {
-  private taskQueue: FastQueue.queue;
+  private taskQueue: any;
   private taskCount: number;
 
   constructor() {
-    this.taskQueue = FastQueue(this.execute.bind(this), 1);
+    this.taskQueue = FastQueue(this, this.execute, 1);
     this.taskCount = 0;
   }
 
@@ -103,37 +107,35 @@ class SnarkProverQueue {
       // Check if the circuit and zkey files exist
       if (!fs.existsSync(task.circuit) || !fs.existsSync(task.zkey)) {
         console.error(`Circuit or zkey file not found: ${task.circuit}, ${task.zkey}`);
-        throw new Error(`Circuit or zkey file not found: ${task.circuit}, ${task.zkey}`);
+        throw new Error(`SNARK proof generation failed: Circuit or zkey file not found at ${task.circuit} or ${task.zkey}. Please ensure these files are copied to build/snarks.`);
       }
       
-      // Use fake proofs if real SNARK generation fails or for testing
+      // Dynamically import snarkjs if needed
+      if (!snarkjs) {
+        try {
+          console.log("Dynamically importing snarkjs...");
+          snarkjs = await import('snarkjs');
+          console.log("snarkjs imported successfully");
+        } catch (e) {
+          console.error('Failed to import snarkjs:', e);
+          throw new Error(`Failed to import snarkjs: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      
+      // Check if snarkjs is available
+      if (!snarkjs || !snarkjs.groth16 || !snarkjs.groth16.fullProve) {
+        console.error('snarkjs or its methods are not available');
+        throw new Error('SNARK proof generation failed: snarkjs library is not properly loaded. Please ensure it is installed and properly imported.');
+      }
+      
       try {
         const res = await snarkjs.groth16.fullProve(task.input, task.circuit, task.zkey);
         console.log(`Proved ${task.taskId}`);
         cb(null, res);
       } catch (e) {
-        console.error('Error generating SNARK proof, falling back to fake proofs:', e);
-        
-        // Generate a fake proof as fallback
-        let inputs = task.input as Record<string, string>;
-        let publicValues: string[] = [];
-        
-        if ('x' in inputs && 'y' in inputs) {
-          // RevealSnarkInput or InitSnarkInput or BiomebaseSnarkInput
-          publicValues = [inputs.x, inputs.y];
-          
-          if ('r' in inputs) {
-            // InitSnarkInput
-            publicValues.push(inputs.r);
-          }
-        } else if ('x1' in inputs && 'y1' in inputs && 'x2' in inputs && 'y2' in inputs) {
-          // MoveSnarkInput
-          publicValues = [inputs.x1, inputs.y1, inputs.x2, inputs.y2, inputs.r, inputs.distMax];
-        }
-        
-        // Create a fake proof
-        const fakeResult = fakeProof(publicValues);
-        cb(null, fakeResult);
+        console.error('Error during SNARK proof generation:', e);
+        const error = new Error(`SNARK proof generation failed: ${e instanceof Error ? e.message : String(e)}. The Dark Forest contract requires valid ZK-SNARK proofs.`);
+        cb(error, null);
       }
     } catch (e) {
       const error = e instanceof Error ? e : new Error(String(e));
@@ -159,7 +161,8 @@ export class SnarkArgsHelper {
   private moveSnarkCache: LRUMap<string, MoveSnarkContractCallArgs>;
 
   constructor(hashConfig: HashConfig, useMockHash: boolean = false) {
-    this.useMockHash = useMockHash;
+    // Force real SNARK proofs - fake proofs won't work with the contract
+    this.useMockHash = false;
     this.hashConfig = hashConfig;
     this.snarkProverQueue = new SnarkProverQueue();
     
