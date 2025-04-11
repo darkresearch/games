@@ -1,0 +1,34 @@
+import { Abstract, Artifact, ArtifactId, ArtifactRarity, ArtifactType, Biome, EthAddress, Planet, PlanetLevel, RenderedArtifact } from '@darkforest_eth/types';
+export declare const RelicsList: ArtifactType[];
+export declare function isRelic(type: ArtifactType): boolean;
+export declare function isBasic(type: ArtifactType): boolean;
+export declare function isSpaceShip(type: ArtifactType | undefined): boolean;
+export declare function hasStatBoost(type: ArtifactType | undefined): boolean;
+export declare function durationUntilArtifactAvailable(artifact: Artifact): number;
+export declare function artifactAvailableTimestamp(artifact: Artifact): number;
+export declare function isActivated(artifact: Artifact | undefined): boolean;
+export declare function getActivatedArtifact(artifacts: Artifact[]): Artifact | undefined;
+export declare function getArtifactDebugName(a?: Artifact): string;
+export declare const biomeName: (biome: Biome) => string;
+export declare const rarityName: (rarity: ArtifactRarity) => string;
+export declare const rarityNameFromArtifact: (a: Artifact) => string;
+export declare function artifactBiomeName(artifact: Artifact): string;
+export declare const levelFromRarity: (rarity: ArtifactRarity) => PlanetLevel;
+export declare type ArtifactFileColor = Abstract<number, 'ArtifactFileColor'>;
+export declare const ArtifactFileColor: {
+    BLUE: ArtifactFileColor;
+    APP_BACKGROUND: ArtifactFileColor;
+};
+export declare function artifactRoll(id: ArtifactId): number;
+export declare function isAncient(artifact: RenderedArtifact): boolean;
+export declare function setForceAncient(force: boolean): void;
+export declare function artifactFileName(videoMode: boolean, thumb: boolean, artifact: RenderedArtifact, color: ArtifactFileColor, debugProps?: {
+    forceAncient: boolean;
+    skipCaching: boolean;
+} | undefined): string;
+export declare function getActiveBlackDomain(artifacts: Artifact[]): Artifact | undefined;
+export declare const dateMintedAt: (artifact: Artifact | undefined) => string;
+export declare function canActivateArtifact(artifact: Artifact, planet: Planet | undefined, artifactsOnPlanet: Artifact[]): boolean | undefined;
+export declare function canWithdrawArtifact(account: EthAddress, artifact: Artifact, planet?: Planet): boolean | undefined;
+export declare function canDepositArtifact(account: EthAddress, artifact: Artifact, planet?: Planet): boolean | undefined;
+export declare function getPlayerControlledSpaceships(artifacts: (Artifact | undefined)[] | undefined, owner: EthAddress | undefined): (Artifact | undefined)[];
