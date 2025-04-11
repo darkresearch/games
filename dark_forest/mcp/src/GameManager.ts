@@ -1795,9 +1795,9 @@ export class GameManager extends EventEmitter {
       // Combine SNARK args with faction parameter
       // In the Dark Forest contract, initializePlayer expects:
       // - _a, _b, _c: The ZK-SNARK proof data
-      // - x, y, r: Public inputs from the SNARK
-      // - faction: Additional parameter for team selection
-      // The order is [_a, _b, _c, faction]
+      // - _input: Public inputs from the SNARK (uint256[8])
+      // - team: Additional parameter for team selection
+      // The order is [_a, _b, _c, _input, team]
       const fHex = typeof f === 'string' && f.startsWith('0x') ? f : `0x${Number(f).toString(16)}`;
       
       console.log(`Initializing player with SNARK proof and faction ${fHex}`);
@@ -1807,7 +1807,8 @@ export class GameManager extends EventEmitter {
         snarkArgs[0], // _a
         snarkArgs[1], // _b
         snarkArgs[2], // _c
-        fHex,         // faction
+        snarkArgs[3], // _input - the public signals
+        fHex,         // team
         overrides
       );
       
