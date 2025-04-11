@@ -25,6 +25,7 @@
   "dependencies": {
     "@types/gl-matrix": "^3.2.0",
     "big-integer": "^1.6.48",
+    "decoders": "^1.25.5",
     "ethers": "^5.5.1",
     "gl-matrix": "^3.3.0",
     "type-fest": "^2.12.1"
