@@ -401,7 +401,7 @@ export const toolSchemas = [
       properties: {
         address: {
           type: "string",
-          description: "Player's Ethereum address"
+          description: "Player's Ethereum address for authentication"
         }
       },
       required: ["address"]
@@ -1068,6 +1068,217 @@ export const toolSchemas = [
         }
       },
       required: ["address"]
+    }
+  },
+  {
+    name: "mine_spiral_pattern",
+    description: "Mine the universe in a spiral pattern starting from a center point",
+    inputSchema: {
+      type: "object",
+      properties: {
+        address: {
+          type: "string",
+          description: "Player's Ethereum address"
+        },
+        center: {
+          type: "object",
+          properties: {
+            x: {
+              type: "number",
+              description: "X coordinate of the center point"
+            },
+            y: {
+              type: "number",
+              description: "Y coordinate of the center point"
+            }
+          },
+          required: ["x", "y"],
+          description: "Center coordinates for the spiral pattern"
+        },
+        radius: {
+          type: "number",
+          description: "How far from the center to mine (in world units)"
+        },
+        chunkSize: {
+          type: "number",
+          description: "Size of chunks to mine (defaults to 16)"
+        }
+      },
+      required: ["address", "center", "radius"]
+    }
+  },
+  {
+    name: "mine_rectangular_area",
+    description: "Mine a rectangular area of the universe",
+    inputSchema: {
+      type: "object",
+      properties: {
+        address: {
+          type: "string",
+          description: "Player's Ethereum address"
+        },
+        topLeft: {
+          type: "object",
+          properties: {
+            x: {
+              type: "number",
+              description: "X coordinate of the top left corner"
+            },
+            y: {
+              type: "number",
+              description: "Y coordinate of the top left corner"
+            }
+          },
+          required: ["x", "y"],
+          description: "Top left coordinates of the rectangle"
+        },
+        bottomRight: {
+          type: "object",
+          properties: {
+            x: {
+              type: "number",
+              description: "X coordinate of the bottom right corner"
+            },
+            y: {
+              type: "number",
+              description: "Y coordinate of the bottom right corner"
+            }
+          },
+          required: ["x", "y"],
+          description: "Bottom right coordinates of the rectangle"
+        },
+        chunkSize: {
+          type: "number",
+          description: "Size of chunks to mine (defaults to 16)"
+        }
+      },
+      required: ["address", "topLeft", "bottomRight"]
+    }
+  },
+  {
+    name: "mine_around_planet",
+    description: "Mine the area around a planet in a radial pattern",
+    inputSchema: {
+      type: "object",
+      properties: {
+        address: {
+          type: "string",
+          description: "Player's Ethereum address"
+        },
+        planetId: {
+          type: "string",
+          description: "ID of the planet to mine around"
+        },
+        radius: {
+          type: "number",
+          description: "How far from the planet to mine (in world units)"
+        },
+        chunkSize: {
+          type: "number",
+          description: "Size of chunks to mine (defaults to 16)"
+        }
+      },
+      required: ["address", "planetId", "radius"]
+    }
+  },
+  {
+    name: "get_discovered_planets",
+    description: "Get the planets discovered by a player through mining",
+    inputSchema: {
+      type: "object",
+      properties: {
+        address: {
+          type: "string",
+          description: "Player's Ethereum address"
+        },
+        includeDetails: {
+          type: "boolean",
+          description: "Whether to include detailed planet information (optional)"
+        }
+      },
+      required: ["address"]
+    }
+  },
+  {
+    name: "get_capture_zones",
+    description: "Get all current capture zones in the universe",
+    inputSchema: {
+      type: "object",
+      properties: {
+        address: {
+          type: "string",
+          description: "Player's Ethereum address for authentication"
+        }
+      },
+      required: ["address"]
+    }
+  },
+  {
+    name: "is_planet_in_capture_zone",
+    description: "Check if a planet is within any capture zone",
+    inputSchema: {
+      type: "object",
+      properties: {
+        address: {
+          type: "string",
+          description: "Player's Ethereum address"
+        },
+        planetId: {
+          type: "string",
+          description: "ID of the planet to check"
+        }
+      },
+      required: ["address", "planetId"]
+    }
+  },
+  {
+    name: "get_next_capture_zone_change",
+    description: "Get information about when capture zones will next change",
+    inputSchema: {
+      type: "object",
+      properties: {
+        address: {
+          type: "string",
+          description: "Player's Ethereum address for authentication"
+        }
+      },
+      required: ["address"]
+    }
+  },
+  {
+    name: "invade_planet",
+    description: "Start invasion of a planet in a capture zone",
+    inputSchema: {
+      type: "object",
+      properties: {
+        address: {
+          type: "string",
+          description: "Player's Ethereum address"
+        },
+        planetId: {
+          type: "string",
+          description: "ID of the planet to invade"
+        }
+      },
+      required: ["address", "planetId"]
+    }
+  },
+  {
+    name: "capture_planet",
+    description: "Capture a planet after successful invasion in a capture zone",
+    inputSchema: {
+      type: "object",
+      properties: {
+        address: {
+          type: "string",
+          description: "Player's Ethereum address"
+        },
+        planetId: {
+          type: "string",
+          description: "ID of the planet to capture"
+        }
+      },
+      required: ["address", "planetId"]
     }
   }
 ]; 
