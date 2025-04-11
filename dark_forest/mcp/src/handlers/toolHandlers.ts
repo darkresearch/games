@@ -6,6 +6,7 @@ import { PlayerRegistry } from "../registry/PlayerRegistry";
 import { toolSchemas } from "../types/toolSchemas";
 import { z } from "zod";
 import { perlin } from '@darkforest_eth/hashing';
+import * as logger from '../helpers/logger';
 
 // Request schemas
 const AddressAndPlanetIdsSchema = z.object({
@@ -85,14 +86,14 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
           
           // First, get necessary universe parameters from the contract
           // Since there's no getContract method, we'll wrap calls in try/catch
-          let worldRadius = 10000; // default
+          let worldRadius = 5000; // default
           
           // Get world radius
           try {
             worldRadius = gameManager.getWorldRadius();
-            console.log(`Got world radius from game manager: ${worldRadius}`);
+            logger.debug(`Got world radius from game manager: ${worldRadius}`);
           } catch (e) {
-            console.log('Could not get world radius from game manager, using default', e);
+            logger.debug('Could not get world radius from game manager, using default');
           }
           
           // Get spawn constraints if available - using defaults as fallback
@@ -108,22 +109,22 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
               // Update perlin values from contract if available
               if (constants && constants.INIT_PERLIN_MIN !== undefined) {
                 initPerlinMin = constants.INIT_PERLIN_MIN;
-                console.log(`Got initPerlinMin from contract: ${initPerlinMin}`);
+                logger.debug(`Got initPerlinMin from contract: ${initPerlinMin}`);
               }
               if (constants && constants.INIT_PERLIN_MAX !== undefined) {
                 initPerlinMax = constants.INIT_PERLIN_MAX;
-                console.log(`Got initPerlinMax from contract: ${initPerlinMax}`);
+                logger.debug(`Got initPerlinMax from contract: ${initPerlinMax}`);
               }
               if (constants && constants.SPAWN_RIM_AREA !== undefined) {
                 spawnRimArea = constants.SPAWN_RIM_AREA;
-                console.log(`Got spawnRimArea from contract: ${spawnRimArea}`);
+                logger.debug(`Got spawnRimArea from contract: ${spawnRimArea}`);
               }
             }
           } catch (e) {
-            console.log('Could not get perlin constraints from contract, using defaults', e);
+            logger.debug('Could not get perlin constraints from contract, using defaults');
           }
           
-          console.log(`Init constraints: worldRadius=${worldRadius}, rimArea=${spawnRimArea}, perlinMin=${initPerlinMin}, perlinMax=${initPerlinMax}`);
+          logger.debug(`Init constraints: worldRadius=${worldRadius}, rimArea=${spawnRimArea}, perlinMin=${initPerlinMin}, perlinMax=${initPerlinMax}`);
           
           // Get hash config for perlin validation
           const hashConfig = gameManager.getHashConfig();
@@ -146,16 +147,16 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
                 floor: true
               };
               
-              console.log(`Validating coordinates (${x}, ${y}) with radius ${r}...`);
-              console.log(`Game parameters: worldRadius=${worldRadius}, rimArea=${spawnRimArea}, perlinMin=${initPerlinMin}, perlinMax=${initPerlinMax}`);
+              logger.debug(`Validating coordinates (${x}, ${y}) with radius ${r}...`);
+              logger.debug(`Game parameters: worldRadius=${worldRadius}, rimArea=${spawnRimArea}, perlinMin=${initPerlinMin}, perlinMax=${initPerlinMax}`);
               
               // Calculate perlin value for this location - using imported perlin
               const perlinValue = perlin({ x, y }, perlinConfig);
-              console.log(`Calculated perlin value: ${perlinValue}`);
+              logger.debug(`Calculated perlin value: ${perlinValue}`);
               
               // Check world radius constraint
               if (r > worldRadius) {
-                console.log(`FAIL: Radius ${r} exceeds world radius ${worldRadius}`);
+                logger.debug(`FAIL: Radius ${r} exceeds world radius ${worldRadius}`);
                 return [false, 'radiusCheck', perlinValue];
               }
               
@@ -169,12 +170,12 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
                 const rightSide = (worldRadiusSquared * 314) / 100;
                 const rimAreaPass = leftSide >= rightSide;
                 
-                console.log(`Rim area calculation: (${r}^2*314)/100 + ${spawnRimArea} = ${leftSide}`);
-                console.log(`Compared to: (${worldRadius}^2*314)/100 = ${rightSide}`);
-                console.log(`Rim area constraint result: ${rimAreaPass ? 'PASS' : 'FAIL'}`);
+                logger.debug(`Rim area calculation: (${r}^2*314)/100 + ${spawnRimArea} = ${leftSide}`);
+                logger.debug(`Compared to: (${worldRadius}^2*314)/100 = ${rightSide}`);
+                logger.debug(`Rim area constraint result: ${rimAreaPass ? 'PASS' : 'FAIL'}`);
                 
                 if (!rimAreaPass) {
-                  console.log(`FAIL: Radius ${r} doesn't satisfy rim area constraint`);
+                  logger.debug(`FAIL: Radius ${r} doesn't satisfy rim area constraint`);
                   return [false, 'rimAreaCheck', perlinValue];
                 }
               }
@@ -182,21 +183,21 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
               // Check perlin constraints
               const perlinMinPass = perlinValue >= initPerlinMin;
               if (!perlinMinPass) {
-                console.log(`FAIL: Perlin value ${perlinValue} is less than minimum ${initPerlinMin}`);
+                logger.debug(`FAIL: Perlin value ${perlinValue} is less than minimum ${initPerlinMin}`);
                 return [false, 'perlinMinCheck', perlinValue];
               }
               
               const perlinMaxPass = perlinValue < initPerlinMax;
               if (!perlinMaxPass) {
-                console.log(`FAIL: Perlin value ${perlinValue} is greater than or equal to maximum ${initPerlinMax}`);
+                logger.debug(`FAIL: Perlin value ${perlinValue} is greater than or equal to maximum ${initPerlinMax}`);
                 return [false, 'perlinMaxCheck', perlinValue];
               }
               
               // All constraints passed
-              console.log(`VALIDATION RESULT: All constraints passed for (${x}, ${y}, ${r}) with perlin ${perlinValue}`);
+              logger.debug(`VALIDATION RESULT: All constraints passed for (${x}, ${y}, ${r}) with perlin ${perlinValue}`);
               return [true, 'success', perlinValue];
             } catch (e) {
-              console.error('Error validating coordinates:', e);
+              logger.error(`Error validating coordinates: ${e instanceof Error ? e.message : String(e)}`);
               return [false, 'error'];
             }
           };
@@ -284,6 +285,8 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
           const coordinates = [];
           let lastFailReason = '';
           
+          logger.debug(`Starting coordinate search with max ${MAX_RETRIES} attempts`);
+          
           while (!validCoords && retryCount < MAX_RETRIES) {
             // Generate coordinates using our smarter algorithm
             const coords = generateCoordinates(retryCount, worldRadius, spawnRimArea);
@@ -291,7 +294,7 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
             y = coords.y;
             r = coords.r;
             
-            console.log(`Attempt ${retryCount + 1}/${MAX_RETRIES}: Testing coordinates (${x}, ${y}) with radius ${r}`);
+            logger.debug(`Attempt ${retryCount + 1}/${MAX_RETRIES}: Testing coordinates (${x}, ${y}) with radius ${r}`);
             
             // Validate the coordinates
             const [isValid, failReason, perlinValue] = validateCoordinatesWithReason(x, y, r);
@@ -313,19 +316,19 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
                 coordinates.push({ x, y, r, perlinValue });
               }
               
-              console.log(`FAILED: Attempt ${retryCount + 1} - Reason: ${failReason}`);
+              logger.debug(`FAILED: Attempt ${retryCount + 1} - Reason: ${failReason}`);
             }
             
             retryCount++;
           }
           
           if (!validCoords) {
-            console.error("=== CONSTRAINT FAILURE STATISTICS ===");
-            console.error(`World Radius Constraint Failures: ${failureStats.radiusCheck}`);
-            console.error(`Rim Area Constraint Failures: ${failureStats.rimAreaCheck}`);
-            console.error(`Perlin Min Value Failures: ${failureStats.perlinMinCheck}`);
-            console.error(`Perlin Max Value Failures: ${failureStats.perlinMaxCheck}`);
-            console.error(`Other Errors: ${failureStats.otherErrors}`);
+            logger.debug("=== CONSTRAINT FAILURE STATISTICS ===");
+            logger.debug(`World Radius Constraint Failures: ${failureStats.radiusCheck}`);
+            logger.debug(`Rim Area Constraint Failures: ${failureStats.rimAreaCheck}`);
+            logger.debug(`Perlin Min Value Failures: ${failureStats.perlinMinCheck}`);
+            logger.debug(`Perlin Max Value Failures: ${failureStats.perlinMaxCheck}`);
+            logger.debug(`Other Errors: ${failureStats.otherErrors}`);
             
             // Calculate and log perlin value statistics
             if (perlinValues.length > 0) {
@@ -334,11 +337,11 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
               const min = Math.min(...perlinValues);
               const max = Math.max(...perlinValues);
               
-              console.error("=== PERLIN VALUE STATISTICS ===");
-              console.error(`Average Perlin Value: ${avg.toFixed(2)}`);
-              console.error(`Min Perlin Value: ${min}`);
-              console.error(`Max Perlin Value: ${max}`);
-              console.error(`Required Range: ${initPerlinMin} to ${initPerlinMax}`);
+              logger.debug("=== PERLIN VALUE STATISTICS ===");
+              logger.debug(`Average Perlin Value: ${avg.toFixed(2)}`);
+              logger.debug(`Min Perlin Value: ${min}`);
+              logger.debug(`Max Perlin Value: ${max}`);
+              logger.debug(`Required Range: ${initPerlinMin} to ${initPerlinMax}`);
               
               // Find the coordinates that came closest to passing the perlin check
               let closestToPass = null;
@@ -362,10 +365,10 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
               }
               
               if (closestToPass) {
-                console.error("=== CLOSEST COORDINATES TO PASSING ===");
-                console.error(`Coordinates: (${closestToPass.x}, ${closestToPass.y}), r=${closestToPass.r}`);
-                console.error(`Perlin Value: ${closestToPass.perlinValue}`);
-                console.error(`Distance from valid range: ${minDistance.toFixed(2)}`);
+                logger.debug("=== CLOSEST COORDINATES TO PASSING ===");
+                logger.debug(`Coordinates: (${closestToPass.x}, ${closestToPass.y}), r=${closestToPass.r}`);
+                logger.debug(`Perlin Value: ${closestToPass.perlinValue}`);
+                logger.debug(`Distance from valid range: ${minDistance.toFixed(2)}`);
               }
             }
             
@@ -375,7 +378,7 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
           // Random faction/team value (0-9)
           const f = Math.floor(Math.random() * 10);
           
-          console.log(`Initializing player at validated coordinates (${x}, ${y}) with radius ${r}, team ${f}`);
+          logger.debug(`Initializing player at validated coordinates (${x}, ${y}) with radius ${r}, team ${f}`);
           
           // Initialize the player with validated coordinates
           // Pass basic integer values and let GameManager handle the formatting
@@ -386,6 +389,8 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
             f  // Simple team number 0-9
           );
           
+          logger.debug(`Player initialized successfully: ${JSON.stringify(result)}`);
+          
           return {
             content: [{
               type: "text",
@@ -393,7 +398,25 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
             }]
           };
         } catch (e) {
-          console.error('Error initializing player:', e);
+          // Enhanced error logging
+          logger.error(`ERROR initializing player: ${e instanceof Error ? e.message : String(e)}`);
+          
+          // Check for specific error types
+          if (e instanceof Error) {
+            if (e.message.includes('transaction failed')) {
+              logger.error('Contract transaction failed - this often means validation failed on the contract side');
+            } else if (e.message.includes('invalid value for array')) {
+              logger.error('Parameter formatting issue - double check that parameters are formatted correctly');
+            }
+            
+            // Log any additional error details
+            for (const [key, value] of Object.entries(e)) {
+              if (key !== 'message' && key !== 'stack') {
+                logger.debug(`Error detail - ${key}: ${JSON.stringify(value)}`);
+              }
+            }
+          }
+          
           return {
             content: [{
               type: "text",
@@ -1657,7 +1680,7 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
 
         const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
         // For now just log the intent since transferOwnership is more complex
-        console.log(`Transfer ownership of ${planetId} from ${address} to ${newOwner}`);
+        logger.debug(`Transfer ownership of ${planetId} from ${address} to ${newOwner}`);
 
         return {
           content: [{
@@ -1907,7 +1930,7 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
 
         const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
         // Stub implementation - would need actual logic
-        console.log(`Disconnecting Twitter handle ${twitter} for ${address}`);
+        logger.debug(`Disconnecting Twitter handle ${twitter} for ${address}`);
 
         return {
           content: [{
@@ -1924,7 +1947,7 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
 
         const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
         // Stub implementation - would need actual logic
-        console.log(`Setting player ${address} ready state to ${ready}`);
+        logger.debug(`Setting player ${address} ready state to ${ready}`);
 
         return {
           content: [{

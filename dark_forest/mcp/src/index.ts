@@ -13,11 +13,12 @@ import { setupResourceHandlers } from "./handlers/resourceHandlers";
 import { setupToolHandlers } from "./handlers/toolHandlers";
 import { EthAddress } from "@darkforest_eth/types";
 import { CONTRACT_ADDRESS, NETWORK_ID } from "@darkforest_eth/contracts";
+import * as logger from './helpers/logger';
 
 // Get game-specific public key from environment variable
 const gamePubkey = (process.env.GAME_PUBKEY || EMPTY_ADDRESS) as EthAddress;
 if (gamePubkey === EMPTY_ADDRESS) {
-  console.warn("Warning: Using empty address for game public key. Set GAME_PUBKEY environment variable to specify the game instance.");
+  logger.warn("Warning: Using empty address for game public key. Set GAME_PUBKEY environment variable to specify the game instance.");
 }
 
 // Base Dark Forest contract address from the contracts package
@@ -56,12 +57,12 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   
-  console.log("Dark Forest MCP Server started");
-  console.log("Game Public Key:", gamePubkey);
-  console.log("Base Contract Address:", baseContractAddress);
+  logger.info("Dark Forest MCP Server started");
+  logger.info(`Game Public Key: ${gamePubkey}`);
+  logger.info(`Base Contract Address: ${baseContractAddress}`);
 }
 
 main().catch((error) => {
-  console.error("Server error:", error);
+  logger.error(`Server error: ${logger.formatError(error)}`);
   process.exit(1);
 });
