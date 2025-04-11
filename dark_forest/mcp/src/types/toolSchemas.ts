@@ -1,5 +1,14 @@
 export const toolSchemas = [
   {
+    name: "generatePubkey",
+    description: "Generate a new Ethereum address for the agent to use with Dark Forest MCP",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  },
+  {
     name: "init_player",
     description: "Initialize a new player",
     inputSchema: {

@@ -51,6 +51,21 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
    */
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (request.params.name) {
+      case "generatePubkey": {
+        // Generate a new Ethereum address for the agent
+        const address = playerRegistry.generatePubkey();
+        
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({ 
+              address,
+              message: "New Ethereum address generated. Use this address for future requests."
+            })
+          }]
+        };
+      }
+      
       case "init_player": {
         const args = request.params.arguments || {};
         const address = args.address as string;
@@ -58,23 +73,41 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
         if (!address) {
           throw new Error("Player address is required");
         }
-
-        const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
         
-        // Generate random coordinates for initialization
-        const x = Math.floor(Math.random() * 10000);
-        const y = Math.floor(Math.random() * 10000);
-        const r = Math.floor(Math.random() * 10000);
-        const f = Math.floor(Math.random() * 10000);
-        
-        await gameManager.initializePlayer(x, y, r, f);
+        // Check if we have a wallet for this address
+        if (!playerRegistry.hasWallet(address as EthAddress)) {
+          throw new Error(`No wallet found for address ${address}. Please use the generatePubkey tool first.`);
+        }
 
-        return {
-          content: [{
-            type: "text",
-            text: "Player initialized"
-          }]
-        };
+        try {
+          const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+          
+          // Generate random coordinates and calculate radius
+          const x = Math.floor(Math.random() * 10000);
+          const y = Math.floor(Math.random() * 10000);
+          
+          // Calculate radius using the same formula as the original client
+          // floor(sqrt(x^2 + y^2)) + 1
+          const r = Math.floor(Math.sqrt(x ** 2 + y ** 2)) + 1;
+          
+          // Random faction/team value (0-9)
+          const f = Math.floor(Math.random() * 10);
+          
+          console.log(`Initializing player at coordinates (${x}, ${y}) with radius ${r}, team ${f}`);
+          
+          // Initialize the player using the snark helper for proof generation
+          const result = await gameManager.initializePlayer(x, y, r, f);
+          
+          return {
+            content: [{
+              type: "text",
+              text: `Player initialized at (${x}, ${y}), radius ${r}, team ${f}. Transaction: ${JSON.stringify(result)}`
+            }]
+          };
+        } catch (e) {
+          console.error('Error initializing player:', e);
+          throw e;
+        }
       }
 
       case "move": {

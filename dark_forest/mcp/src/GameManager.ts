@@ -7,7 +7,6 @@ import {
   Artifact,
   ArtifactId,
   WorldCoords,
-  EthTxStatus,
   TxIntent,
   TransactionId,
   PlanetType,
@@ -35,12 +34,19 @@ import { getPlanetName } from '@darkforest_eth/procedural';
 import { perlin } from "@darkforest_eth/hashing";
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 // Replace the static import with a declaration and dynamic import later
 // import DarkForestABI from "@darkforest_eth/contracts/abis/DarkForest.json" with { type: 'json' };
 // We'll use a dynamic approach to load the ABI
 let DarkForestABI: any;
 import { MiningService } from "./MiningService";
 import { CaptureZoneGenerator, CaptureZonesGeneratedEvent } from "./CaptureZoneGenerator";
+import { SnarkArgsHelper } from "./helpers/SnarkArgsHelper";
+
+// Create ES Module equivalents for __dirname and __filename
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * MCP IMPLEMENTATION NOTES:
@@ -80,8 +86,8 @@ import { CaptureZoneGenerator, CaptureZonesGeneratedEvent } from "./CaptureZoneG
  *   Reason: Critical gameplay feature for competitive modes
  */
 
-// Define enum for transaction status with actual values
-export enum EthTxStatus {
+// Define enum for transaction status
+export enum TransactionStatus {
   Queued = 0,
   Init = 1,
   Submit = 2,
@@ -94,7 +100,7 @@ export enum EthTxStatus {
 interface Transaction<T extends TxIntent = TxIntent> {
   id: TransactionId;
   intent: T;
-  status: EthTxStatus;
+  status: TransactionStatus;
   hash?: string;
   submittedAt?: number;
   confirmedAt?: number;
@@ -138,7 +144,7 @@ interface WormholeConfiguration {
 }
 
 // Interface for hash configuration
-interface HashConfig {
+export interface HashConfig {
   planetHashKey: number;
   spaceTypeKey: number;
   biomeBaseKey: number;
@@ -148,91 +154,9 @@ interface HashConfig {
   planetRarity: number;
 }
 
-// Define a custom planet type that matches the fields we populate in our implementation
-interface ManagedPlanet extends Partial<Planet> {
-  locationId: LocationId;
-  perlin: number;
-  owner: EthAddress;
-  planetLevel: PlanetLevel;
-  planetType: PlanetType;
-  isHomePlanet: boolean;
-  spaceType: SpaceType;
-  hasTriedFindingArtifact: boolean;
-  energyCap: number;
-  energyGrowth: number;
-  silverCap: number;
-  silverGrowth: number;
-  energy: number;
-  silver: number;
-  range: number;
-  speed: number;
-  defense: number;
-  spaceJunk: number;
-  lastUpdated: number;
-  upgradeState: [number, number, number]; // Explicitly typed as a tuple with 3 elements
-  unconfirmedDepartures: any[];
-  unconfirmedUpgrades: any[];
-  unconfirmedBuyHats: any[];
-  unconfirmedPlanetTransfers: any[];
-  heldArtifactIds: ArtifactId[];
-  coordsRevealed: boolean;
-  revealer: EthAddress;
+// Define our extended Planet type that includes location
+interface PlanetWithLocation extends Planet {
   location?: WorldLocation;
-}
-
-// Define a custom artifact type that matches the fields we populate in our implementation
-interface ManagedArtifact extends Partial<Artifact> {
-  id: ArtifactId;
-  planetDiscoveredOn: LocationId;
-  rarity: ArtifactRarity;
-  planetBiome: Biome; // Use Biome instead of SpaceType
-  mintedAtTimestamp: number;
-  discoverer: EthAddress;
-  artifactType: ArtifactType;
-  controller: EthAddress;
-  currentOwner: EthAddress;
-  activations: number;
-  lastActivated: number;
-  lastDeactivated: number;
-  wormholeTo: LocationId | null;
-  onPlanetId: LocationId;
-  isInititalized: boolean;
-  upgrade: Upgrade | undefined;
-  timeDelayedUpgrade: Upgrade | undefined;
-}
-
-// Extended interface for move transaction intents
-interface MoveIntent extends TxIntent {
-  methodName: 'move';
-  from: LocationId;
-  to: LocationId;
-  forces: number;
-  silver: number;
-  artifact?: ArtifactId;
-}
-
-// Extended interface for upgrade transaction intents
-interface UpgradeIntent extends TxIntent {
-  methodName: 'upgradePlanet';
-  locationId: LocationId;
-  branch: number;
-}
-
-// Extended interface for transferPlanet transaction intents
-interface TransferPlanetIntent extends TxIntent {
-  methodName: 'transferPlanet';
-  locationId: LocationId;
-  newOwner: EthAddress;
-}
-
-// Extended interface for ready/notReady transaction intents
-interface ReadyIntent extends TxIntent {
-  methodName: 'ready' | 'notReady';
-}
-
-// Extended interface for disconnectTwitter transaction intents
-interface DisconnectTwitterIntent extends TxIntent {
-  methodName: 'disconnectTwitter';
 }
 
 /**
@@ -264,6 +188,7 @@ export class GameManager extends EventEmitter {
   private paused: boolean = false;
   private miningService: MiningService | undefined;
   private captureZoneGenerator: CaptureZoneGenerator | undefined;
+  private snarkHelper: SnarkArgsHelper;
 
   /**
    * Create a new GameManager for interacting with the Dark Forest contract
@@ -279,6 +204,9 @@ export class GameManager extends EventEmitter {
     this.contractAddress = contractAddress;
     this.account = account;
     this.hashConfig = hashConfig;
+    
+    // Initialize SNARK helper
+    this.snarkHelper = new SnarkArgsHelper(hashConfig);
     
     // Load the ABI before initializing the contract
     this.loadAbi();
@@ -495,6 +423,9 @@ export class GameManager extends EventEmitter {
         unconfirmedUpgrades: [],
         unconfirmedBuyHats: [],
         unconfirmedPlanetTransfers: [],
+        moves: 0,
+        ready: Boolean(playerData.ready || false),
+        team: Number(playerData.team || 0),
       } as Player;
       
       // Store in cache
@@ -570,6 +501,13 @@ export class GameManager extends EventEmitter {
       console.error(`Error getting artifact ${artifactId}:`, e);
       return undefined;
     }
+  }
+  
+  /**
+   * Alias for getArtifact to match the method name used in toolHandlers
+   */
+  public getArtifactById(artifactId: ArtifactId): Promise<Artifact | undefined> {
+    return this.getArtifact(artifactId);
   }
   
   /**
@@ -965,7 +903,7 @@ export class GameManager extends EventEmitter {
     return {
       id: (this.txCounter++).toString() as TransactionId,
       intent,
-      status: EthTxStatus.Queued,
+      status: TransactionStatus.Queued,
       createdAt: Date.now()
     };
   }
@@ -981,7 +919,7 @@ export class GameManager extends EventEmitter {
     
     try {
       // Update status
-      tx.status = EthTxStatus.Submit;
+      tx.status = TransactionStatus.Submit;
       tx.submittedAt = Date.now();
       this.emit(GameManagerEvent.TransactionUpdate, tx);
       
@@ -1048,11 +986,11 @@ export class GameManager extends EventEmitter {
         // Wait for confirmation
         const receipt = await contractTx.wait();
         tx.confirmedAt = Date.now();
-        tx.status = receipt.status === 1 ? EthTxStatus.Complete : EthTxStatus.Fail;
+        tx.status = receipt.status === 1 ? TransactionStatus.Complete : TransactionStatus.Fail;
         this.emit(GameManagerEvent.TransactionUpdate, tx);
         
         // Refresh relevant data based on transaction type
-        if (tx.status === EthTxStatus.Complete) {
+        if (tx.status === TransactionStatus.Complete) {
           if (intent.methodName === 'move') {
             const moveIntent = intent as unknown as MoveIntent;
             await this.refreshPlanet(moveIntent.from);
@@ -1071,7 +1009,7 @@ export class GameManager extends EventEmitter {
       return tx;
     } catch (e) {
       console.error('Error submitting transaction:', e);
-      tx.status = EthTxStatus.Fail;
+      tx.status = TransactionStatus.Fail;
       this.emit(GameManagerEvent.TransactionUpdate, tx);
       throw e;
     }
@@ -1365,7 +1303,7 @@ export class GameManager extends EventEmitter {
     const unconfirmedMoves: Transaction<UnconfirmedMove>[] = [];
     
     for (const tx of this.transactions.values()) {
-      if (tx.intent.methodName === 'move' && tx.status !== EthTxStatus.Complete && tx.status !== EthTxStatus.Fail) {
+      if (tx.intent.methodName === 'move' && tx.status !== TransactionStatus.Complete && tx.status !== TransactionStatus.Fail) {
         unconfirmedMoves.push(tx as Transaction<UnconfirmedMove>);
       }
     }
@@ -1380,7 +1318,7 @@ export class GameManager extends EventEmitter {
     const unconfirmedUpgrades: Transaction<UnconfirmedUpgrade>[] = [];
     
     for (const tx of this.transactions.values()) {
-      if (tx.intent.methodName === 'upgradePlanet' && tx.status !== EthTxStatus.Complete && tx.status !== EthTxStatus.Fail) {
+      if (tx.intent.methodName === 'upgradePlanet' && tx.status !== TransactionStatus.Complete && tx.status !== TransactionStatus.Fail) {
         unconfirmedUpgrades.push(tx as Transaction<UnconfirmedUpgrade>);
       }
     }
@@ -1396,8 +1334,8 @@ export class GameManager extends EventEmitter {
     
     for (const tx of this.transactions.values()) {
       if (tx.intent.methodName === 'activateArtifact' && 
-          tx.status !== EthTxStatus.Complete && 
-          tx.status !== EthTxStatus.Fail) {
+          tx.status !== TransactionStatus.Complete && 
+          tx.status !== TransactionStatus.Fail) {
         
         // Check if this is a wormhole activation (has wormholeTo property)
         const activateTx = tx as Transaction<UnconfirmedActivateArtifact>;
@@ -1548,58 +1486,83 @@ export class GameManager extends EventEmitter {
   }
 
   /**
-   * Create a properly typed planet object from contract data
+   * Creates a Planet object from contract data
    */
   private createPlanetFromContractData(planetData: any, locationId: LocationId): Planet {
-    // Create planet object with proper typing
-    const planet: ManagedPlanet = {
-      locationId,
-      perlin: Number(planetData.perlin?.toString() || '0'),
-      owner: planetData.owner as EthAddress,
-      planetLevel: Number(planetData.planetLevel?.toString() || '0') as PlanetLevel,
-      planetType: Number(planetData.planetType?.toString() || '0') as PlanetType,
+    // Basic planet properties
+    const planet: Planet = {
+      locationId: locationId,
+      perlin: Number(planetData.perlin || 0),
+      owner: planetData.owner,
+      planetLevel: Number(planetData.planetLevel || 0),
+      planetType: Number(planetData.planetType || 0),
       isHomePlanet: Boolean(planetData.isHomePlanet),
-      spaceType: Number(planetData.spaceType?.toString() || '0') as SpaceType,
-      hasTriedFindingArtifact: false,
+      spaceType: Number(planetData.spaceType || 0),
+      hasTriedFindingArtifact: Boolean(planetData.hasTriedFindingArtifact),
       
-      // Resource-related fields
-      energyCap: Number(planetData.populationCap?.toString() || '0'),
-      energyGrowth: Number(planetData.populationGrowth?.toString() || '0'),
-      silverCap: Number(planetData.silverCap?.toString() || '0'),
-      silverGrowth: Number(planetData.silverGrowth?.toString() || '0'),
-      energy: Number(planetData.population?.toString() || '0'),
-      silver: Number(planetData.silver?.toString() || '0'),
+      // Resource-related properties
+      energyCap: Number(planetData.populationCap || 0),
+      energyGrowth: Number(planetData.populationGrowth || 0),
+      silverCap: Number(planetData.silverCap || 0),
+      silverGrowth: Number(planetData.silverGrowth || 0),
+      energy: Number(planetData.population || 0),
+      silver: Number(planetData.silver || 0),
       
-      // Movement-related fields
-      range: Number(planetData.range?.toString() || '0'),
-      speed: Number(planetData.speed?.toString() || '0'),
-      defense: Number(planetData.defense?.toString() || '0'),
+      // Movement-related properties
+      range: Number(planetData.range || 0),
+      speed: Number(planetData.speed || 0),
+      defense: Number(planetData.defense || 0),
       
-      // Other fields
-      spaceJunk: Number(planetData.spaceJunk?.toString() || '0'),
-      lastUpdated: Number(planetData.lastUpdated?.toString() || '0'),
-      upgradeState: [0, 0, 0],
+      // Game mechanics properties
+      spaceJunk: Number(planetData.spaceJunk || 0),
+      lastUpdated: Number(planetData.lastUpdated || 0),
+      upgradeState: [
+        Number(planetData.upgradeState0 || 0),
+        Number(planetData.upgradeState1 || 0),
+        Number(planetData.upgradeState2 || 0)
+      ],
       
-      // Arrays for tracking pending operations
+      // Unconfirmed actions tracking
       unconfirmedDepartures: [],
       unconfirmedUpgrades: [],
       unconfirmedBuyHats: [],
       unconfirmedPlanetTransfers: [],
+      
+      // Artifacts
       heldArtifactIds: [],
       
-      // Additional properties needed for full Planet compatibility
-      hatLevel: 0,
-      destroyed: false,
-      unconfirmedAddEmoji: false,
-      unconfirmedClearEmoji: false,
-      silverSpent: 0,
+      // Reveal status
+      coordsRevealed: Boolean(planetData.coordsRevealed),
+      revealer: planetData.revealer || EMPTY_ADDRESS,
       
-      // Reveal state
-      coordsRevealed: false,
-      revealer: this.account
+      // Flags for UI and game mechanics
+      isInContract: true,
+      destroyed: Boolean(planetData.destroyed),
+      needsServerRefresh: false,
+      syncedWithContract: true,
+      lastLoadedServerState: Date.now(),
+      loadingServerState: false,
+      transactions: undefined,
+      messages: undefined,
+      unconfirmedClearEmoji: false,
+      unconfirmedAddEmoji: false,
+      unconfirmedActivateArtifact: false,
+      unconfirmedDeactivateArtifact: false,
+      unconfirmedMove: false,
+      unconfirmedRelease: undefined,
+      invader: planetData.invader || EMPTY_ADDRESS,
+      capturer: planetData.capturer || EMPTY_ADDRESS,
+      invadeStartBlock: Number(planetData.invadeStartBlock || 0),
+      blockedPlanetIds: [],
+      hatLevel: Number(planetData.hatLevel || 0),
+      prospectedBlockNumber: planetData.prospectedBlockNumber ? Number(planetData.prospectedBlockNumber) : undefined,
+      isTargetPlanet: Boolean(planetData.isTargetPlanet),
+      isSpawnPlanet: Boolean(planetData.isSpawnPlanet),
+      emojiZoopAnimation: undefined,
+      emojiZoopOutAnimation: undefined,
     };
     
-    return planet as unknown as Planet;
+    return planet;
   }
   
   /**
@@ -1710,7 +1673,7 @@ export class GameManager extends EventEmitter {
       return false;
     }
     
-    return await this.captureZoneGenerator.isInZone(locationId);
+    return await this.captureZoneGenerator.isPlanetInZone(locationId);
   }
 
   /**
@@ -1734,8 +1697,7 @@ export class GameManager extends EventEmitter {
       return 0;
     }
     
-    const currentBlock = await this.ethConnection.getBlockNumber();
-    return this.captureZoneGenerator.getNextChangeBlock(currentBlock);
+    return this.captureZoneGenerator.getNextChangeBlock();
   }
 
   /**
@@ -1759,29 +1721,32 @@ export class GameManager extends EventEmitter {
    */
   private loadAbi(): void {
     try {
-      // Try to locate the ABI file relative to the module
-      const abiPath = path.resolve(__dirname, '../node_modules/@darkforest_eth/contracts/abis/DarkForest.json');
-      
-      // Check if file exists at that path
+      // Try to load from a local file
+      // First, try to find the ABI in the parent directory's contracts folder
+      const abiPath = path.join(__dirname, '../../contracts/abis/DarkForest.json');
       if (fs.existsSync(abiPath)) {
+        console.log('Loading ABI from contracts directory:', abiPath);
         DarkForestABI = JSON.parse(fs.readFileSync(abiPath, 'utf8'));
-        console.log('Loaded ABI from node_modules path');
+      } 
+      // Fallback to node_modules
+      else {
+        const nodeModulesPath = path.join(__dirname, '../node_modules/@darkforest_eth/contracts/abis/DarkForest.json');
+        if (fs.existsSync(nodeModulesPath)) {
+          console.log('Loading ABI from node_modules:', nodeModulesPath);
+          DarkForestABI = JSON.parse(fs.readFileSync(nodeModulesPath, 'utf8'));
       } else {
-        // Try alternative path
-        const altPath = path.resolve(process.cwd(), './node_modules/@darkforest_eth/contracts/abis/DarkForest.json');
-        if (fs.existsSync(altPath)) {
-          DarkForestABI = JSON.parse(fs.readFileSync(altPath, 'utf8'));
-          console.log('Loaded ABI from alternative path');
-        } else {
-          // Try direct path from repo
-          const directPath = path.resolve(process.cwd(), '../../contracts/abis/DarkForest.json');
-          if (fs.existsSync(directPath)) {
-            DarkForestABI = JSON.parse(fs.readFileSync(directPath, 'utf8'));
-            console.log('Loaded ABI from direct repo path');
-          } else {
-            console.error('Could not find DarkForest.json ABI file');
-            throw new Error('Missing DarkForest ABI file');
-          }
+          // Fallback to a default minimal ABI if file doesn't exist
+          console.warn('DarkForest ABI file not found, using minimal ABI');
+          DarkForestABI = [
+            // Example minimal ABI - should be replaced with actual functions needed
+            "function planets(string) view returns (tuple)",
+            "function players(address) view returns (tuple)",
+            "function artifacts(string) view returns (tuple)",
+            "function move(string, string, uint256, uint256, string) returns (tuple)",
+            "function worldRadius() view returns (uint256)",
+            "function initializePlayer(uint256, uint256, uint256, uint256) returns (tuple)",
+            // Add other necessary functions
+          ];
         }
       }
     } catch (e) {
@@ -1791,18 +1756,631 @@ export class GameManager extends EventEmitter {
   }
 
   /**
-   * Initialize the contract with the loaded ABI
+   * Initialize the contract
    */
   public initializeContract(): void {
-    if (!DarkForestABI) {
-      throw new Error('ABI not loaded, cannot initialize contract');
-    }
-    
-    // Initialize contract with ABI - access provider via the any type to avoid private property error
+    try {
+      // Create contract instance
+      const provider = this.ethConnection.getProvider();
+      const signer = this.ethConnection.getSigner();
+      
     this.contract = new Contract(
       this.contractAddress,
       DarkForestABI,
-      (this.ethConnection as any).provider
-    );
+        signer || provider
+      );
+      
+      console.log('Contract initialized with address:', this.contractAddress);
+    } catch (e) {
+      console.error('Error initializing contract:', e);
+      throw e;
+    }
+  }
+
+  /**
+   * Initialize a new player in the game. First step when a player joins the game.
+   */
+  public async initializePlayer(x: string | number, y: string | number, r: string | number, f: string | number): Promise<any> {
+    try {
+      // Call the initializePlayer method on the contract
+      const overrides: Overrides = { gasLimit: 5000000 };
+      
+      // Get snark arguments for initialization
+      const snarkArgs = await this.snarkHelper.getInitArgs(
+        Number(x),
+        Number(y),
+        Number(r)
+      );
+      
+      // Combine SNARK args with faction parameter
+      // In the Dark Forest contract, initializePlayer expects:
+      // - _a, _b, _c: The ZK-SNARK proof data
+      // - x, y, r: Public inputs from the SNARK
+      // - faction: Additional parameter for team selection
+      // The order is [_a, _b, _c, faction]
+      const fHex = typeof f === 'string' && f.startsWith('0x') ? f : `0x${Number(f).toString(16)}`;
+      
+      console.log(`Initializing player with SNARK proof and faction ${fHex}`);
+      
+      // Send the transaction with all the arguments
+      const tx = await this.contract.initializePlayer(
+        snarkArgs[0], // _a
+        snarkArgs[1], // _b
+        snarkArgs[2], // _c
+        fHex,         // faction
+        overrides
+      );
+      
+      // Wait for transaction to be mined
+      const receipt = await tx.wait();
+      
+      console.log(`Player initialized. Transaction hash: ${receipt.transactionHash}`);
+      
+      // Refresh player data after initialization
+      if (this.account) {
+        await this.loadPlayer(this.account);
+      }
+      
+      return {
+        success: true,
+        transaction: receipt
+      };
+    } catch (e) {
+      console.error('Error initializing player:', e);
+      throw e;
+    }
+  }
+
+  /**
+   * Prospect a planet for artifacts
+   */
+  public async prospectPlanet(planetId: LocationId): Promise<any> {
+    try {
+      const planet = await this.getPlanet(planetId);
+      
+      if (!planet) {
+        throw new Error("Planet not found");
+      }
+      
+      if (planet.owner !== this.account) {
+        throw new Error("You don't own this planet");
+      }
+      
+      if (planet.planetType !== PlanetType.RUINS) {
+        throw new Error("This planet doesn't have an artifact");
+      }
+      
+      if (planet.prospectedBlockNumber !== undefined) {
+        throw new Error("This planet has already been prospected");
+      }
+      
+      // Call the contract to prospect the planet
+      const tx = await this.contract.prospectPlanet(planetId);
+      const receipt = await tx.wait();
+      
+      // Update the planet after prospecting
+      await this.refreshPlanet(planetId);
+      
+      return {
+        txHash: receipt.transactionHash,
+        success: true
+      };
+    } catch (e) {
+      console.error("Error prospecting planet:", e);
+      throw e;
+    }
+  }
+  
+  /**
+   * Find an artifact on a planet
+   */
+  public async findArtifact(planetId: LocationId): Promise<any> {
+    try {
+      const planet = await this.getPlanet(planetId);
+      
+      if (!planet) {
+        throw new Error("Planet not found");
+      }
+      
+      if (planet.owner !== this.account) {
+        throw new Error("You don't own this planet");
+      }
+      
+      if (planet.planetType !== PlanetType.RUINS) {
+        throw new Error("This planet doesn't have an artifact");
+      }
+      
+      if (planet.hasTriedFindingArtifact) {
+        throw new Error("Someone already tried finding an artifact on this planet");
+      }
+      
+      if (planet.prospectedBlockNumber === undefined) {
+        throw new Error("You need to prospect this planet first");
+      }
+      
+      // Call the contract to find the artifact
+      const tx = await this.contract.findArtifact(planetId);
+      const receipt = await tx.wait();
+      
+      // Update the planet and artifacts after finding
+      await this.refreshPlanet(planetId);
+      
+      // Get the artifact that was found
+      const artifactIds = planet.heldArtifactIds;
+      if (artifactIds.length > 0) {
+        const artifactId = artifactIds[0];
+        await this.refreshArtifact(artifactId);
+      }
+      
+      return {
+        txHash: receipt.transactionHash,
+        success: true
+      };
+    } catch (e) {
+      console.error("Error finding artifact:", e);
+      throw e;
+    }
+  }
+  
+  /**
+   * Upgrade a planet
+   */
+  public async upgradePlanet(planetId: LocationId, branch: number): Promise<any> {
+    try {
+      const planet = await this.getPlanet(planetId);
+      
+      if (!planet) {
+        throw new Error("Planet not found");
+      }
+      
+      if (planet.owner !== this.account) {
+        throw new Error("You don't own this planet");
+      }
+      
+      // Call the contract to upgrade the planet
+      const tx = await this.contract.upgradePlanet(planetId, branch);
+      const receipt = await tx.wait();
+      
+      // Update the planet after upgrading
+      await this.refreshPlanet(planetId);
+      
+      return {
+        txHash: receipt.transactionHash,
+        success: true
+      };
+    } catch (e) {
+      console.error("Error upgrading planet:", e);
+      throw e;
+    }
+  }
+  
+  /**
+   * Buy a hat for a planet
+   */
+  public async buyHat(planetId: LocationId): Promise<any> {
+    try {
+      const planet = await this.getPlanet(planetId);
+      
+      if (!planet) {
+        throw new Error("Planet not found");
+      }
+      
+      if (planet.owner !== this.account) {
+        throw new Error("You don't own this planet");
+      }
+      
+      // Calculate hat cost based on current hat level
+      const hatLevel = planet.hatLevel || 0;
+      const hatCost = BigNumber.from(10).pow(18).mul(BigNumber.from(2).pow(hatLevel));
+      
+      // Call the contract to buy a hat
+      const tx = await this.contract.buyHat(planetId, { value: hatCost });
+      const receipt = await tx.wait();
+      
+      // Update the planet after buying a hat
+      await this.refreshPlanet(planetId);
+      
+      return {
+        txHash: receipt.transactionHash,
+        success: true
+      };
+    } catch (e) {
+      console.error("Error buying hat:", e);
+      throw e;
+    }
+  }
+  
+  /**
+   * Reveal a planet's location
+   */
+  public async revealLocation(planetId: LocationId, x: number, y: number, r: number): Promise<any> {
+    try {
+      // Call the contract to reveal the location
+      const tx = await this.contract.revealLocation(planetId, x, y, r);
+      const receipt = await tx.wait();
+      
+      // Update the planet after revealing
+      await this.refreshPlanet(planetId);
+      
+      return {
+        txHash: receipt.transactionHash,
+        success: true
+      };
+    } catch (e) {
+      console.error("Error revealing location:", e);
+      throw e;
+    }
+  }
+  
+  /**
+   * Deposit an artifact on a planet
+   */
+  public async depositArtifact(locationId: LocationId, artifactId: ArtifactId): Promise<any> {
+    try {
+      // Call the contract to deposit the artifact
+      const tx = await this.contract.depositArtifact(locationId, artifactId);
+      const receipt = await tx.wait();
+      
+      // Update the planet and artifact
+      await Promise.all([
+        this.refreshPlanet(locationId),
+        this.refreshArtifact(artifactId)
+      ]);
+      
+      return {
+        txHash: receipt.transactionHash,
+        success: true
+      };
+    } catch (e) {
+      console.error("Error depositing artifact:", e);
+      throw e;
+    }
+  }
+  
+  /**
+   * Withdraw an artifact from a planet
+   */
+  public async withdrawArtifact(locationId: LocationId, artifactId: ArtifactId): Promise<any> {
+    try {
+      // Call the contract to withdraw the artifact
+      const tx = await this.contract.withdrawArtifact(locationId, artifactId);
+      const receipt = await tx.wait();
+      
+      // Update the planet and artifact
+      await Promise.all([
+        this.refreshPlanet(locationId),
+        this.refreshArtifact(artifactId)
+      ]);
+      
+      return {
+        txHash: receipt.transactionHash,
+        success: true
+      };
+    } catch (e) {
+      console.error("Error withdrawing artifact:", e);
+      throw e;
+    }
+  }
+  
+  /**
+   * Activate an artifact
+   */
+  public async activateArtifact(
+    locationId: LocationId,
+    artifactId: ArtifactId,
+    wormholeTo?: LocationId
+  ): Promise<any> {
+    try {
+      // Call the contract to activate the artifact
+      const tx = await this.contract.activateArtifact(
+        locationId,
+        artifactId,
+        wormholeTo || "0x0"
+      );
+      const receipt = await tx.wait();
+      
+      // Update the planet and artifact
+      await Promise.all([
+        this.refreshPlanet(locationId),
+        this.refreshArtifact(artifactId)
+      ]);
+      
+      return {
+        txHash: receipt.transactionHash,
+        success: true
+      };
+    } catch (e) {
+      console.error("Error activating artifact:", e);
+      throw e;
+    }
+  }
+  
+  /**
+   * Deactivate an artifact
+   */
+  public async deactivateArtifact(locationId: LocationId): Promise<any> {
+    try {
+      // Call the contract to deactivate the artifact
+      const tx = await this.contract.deactivateArtifact(locationId);
+      const receipt = await tx.wait();
+      
+      // Update the planet
+      await this.refreshPlanet(locationId);
+      
+      return {
+        txHash: receipt.transactionHash,
+        success: true
+      };
+    } catch (e) {
+      console.error("Error deactivating artifact:", e);
+      throw e;
+    }
+  }
+  
+  /**
+   * Withdraw silver from a planet
+   */
+  public async withdrawSilver(locationId: LocationId, amount: number): Promise<any> {
+    try {
+      // Call the contract to withdraw silver
+      const tx = await this.contract.withdrawSilver(locationId, amount);
+      const receipt = await tx.wait();
+      
+      // Update the planet
+      await this.refreshPlanet(locationId);
+      
+      return {
+        txHash: receipt.transactionHash,
+        success: true
+      };
+    } catch (e) {
+      console.error("Error withdrawing silver:", e);
+      throw e;
+    }
+  }
+  
+  /**
+   * Claim victory
+   */
+  public async claimVictory(): Promise<any> {
+    try {
+      // Call the contract to claim victory
+      const tx = await this.contract.claimVictory();
+      const receipt = await tx.wait();
+      
+      return {
+        txHash: receipt.transactionHash,
+        success: true
+      };
+    } catch (e) {
+      console.error("Error claiming victory:", e);
+      throw e;
+    }
+  }
+  
+  /**
+   * Start exploring/mining
+   */
+  public startExplore(): void {
+    this.getMiningService().startExplore();
+  }
+  
+  /**
+   * Stop exploring/mining
+   */
+  public stopExplore(): void {
+    this.getMiningService().stopExplore();
+  }
+  
+  /**
+   * Set the number of cores for mining
+   */
+  public setMinerCores(cores: number): void {
+    this.getMiningService().setCores(cores);
+  }
+  
+  /**
+   * Check if mining is active
+   */
+  public isMining(): boolean {
+    return this.getMiningService().isMining();
+  }
+  
+  /**
+   * Get the currently exploring chunk
+   */
+  public getCurrentlyExploringChunk(): Rectangle | undefined {
+    return this.getMiningService().getCurrentChunk();
+  }
+  
+  /**
+   * Get all explored chunks
+   */
+  public getExploredChunks(): Set<Chunk> {
+    return this.getMiningService().getExploredChunks();
+  }
+  
+  /**
+   * Check if a chunk has been mined
+   */
+  public hasMinedChunk(chunk: Rectangle): boolean {
+    return this.getMiningService().hasMinedChunk(chunk);
+  }
+
+  /**
+   * Get the Twitter handle associated with an address
+   */
+  public async getTwitter(address: EthAddress): Promise<string | undefined> {
+    const player = await this.getPlayer(address);
+    return player?.twitter;
+  }
+
+  /**
+   * Get the hash configuration
+   */
+  public getHashConfig(): HashConfig {
+    return { ...this.hashConfig };
+  }
+
+  /**
+   * Get the end time in seconds
+   */
+  public getEndTimeSeconds(): number | undefined {
+    return this.endTime;
+  }
+
+  /**
+   * Get the token mint end time in seconds
+   */
+  public getTokenMintEndTimeSeconds(): number {
+    // This would typically come from the contract
+    // For now, we're just returning the end time
+    return this.endTime;
+  }
+
+  /**
+   * Get a player's energy
+   */
+  public async getEnergyOfPlayer(address: EthAddress): Promise<number> {
+    let totalEnergy = 0;
+    
+    // Get the player's planets
+    for (const planet of this.planets.values()) {
+      if (planet.owner === address) {
+        totalEnergy += planet.energy;
+      }
+    }
+    
+    return totalEnergy;
+  }
+  
+  /**
+   * Get a player's silver
+   */
+  public async getSilverOfPlayer(address: EthAddress): Promise<number> {
+    let totalSilver = 0;
+    
+    // Get the player's planets
+    for (const planet of this.planets.values()) {
+      if (planet.owner === address) {
+        totalSilver += planet.silver;
+      }
+    }
+    
+    return totalSilver;
+  }
+
+  /**
+   * Get the EthConnection object
+   */
+  public getEthConnection(): EthConnection {
+    return this.ethConnection;
+  }
+
+  /**
+   * Submits a transaction to move forces from one planet to another.
+   * Adapted for server-side use, simplified compared to the client version.
+   */
+  public async move(
+    fromId: LocationId,
+    toId: LocationId,
+    forces: number,
+    silver: number = 0,
+    artifactId?: ArtifactId
+  ): Promise<any> {
+    try {
+      if (this.gameOver) {
+        throw new Error('Game has ended');
+      }
+
+      if (this.paused) {
+        throw new Error('Game is paused');
+      }
+
+      const fromPlanet = await this.getPlanet(fromId);
+      const toPlanet = await this.getPlanet(toId);
+
+      if (!fromPlanet || !toPlanet) {
+        throw new Error('Origin or destination planet not found');
+      }
+
+      if (fromPlanet.owner !== this.account) {
+        throw new Error('You do not own the origin planet');
+      }
+
+      if (forces > fromPlanet.energy) {
+        throw new Error('Not enough forces on the origin planet');
+      }
+
+      if (silver > fromPlanet.silver) {
+        throw new Error('Not enough silver on the origin planet');
+      }
+
+      // Execute the move on the contract
+      const tx = await this.contract.move(fromId, toId, forces, silver, artifactId || '0x0');
+      const receipt = await tx.wait();
+
+      // Update the planets after the move
+      await this.refreshPlanet(fromId);
+      await this.refreshPlanet(toId);
+
+      return {
+        txHash: receipt.transactionHash,
+        from: fromId,
+        to: toId,
+        forces,
+        silver,
+        artifact: artifactId
+      };
+    } catch (error) {
+      console.error('Error executing move:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get planets within range of a given location in the world
+   */
+  public getPlanetsInWorldRectangle(
+    worldX: number,
+    worldY: number,
+    worldWidth: number,
+    worldHeight: number,
+    levels: number[]
+  ): Planet[] {
+    // Get all planets that are in the given rectangle
+    const result: Planet[] = [];
+    
+    for (const planet of this.planets.values()) {
+      // Skip planets that don't meet level criteria if levels is provided
+      if (levels.length > 0 && !levels.includes(planet.planetLevel)) {
+        continue;
+      }
+      
+      // Check if planet's coordinates are in the rectangle
+      const planetWithLocation = planet as PlanetWithLocation;
+      if (planetWithLocation.location && planetWithLocation.location.coords) {
+        const { x, y } = planetWithLocation.location.coords;
+        if (
+          x >= worldX && 
+          x <= worldX + worldWidth && 
+          y >= worldY && 
+          y <= worldY + worldHeight
+        ) {
+          result.push(planet);
+        }
+      }
+    }
+    
+    return result;
+  }
+  
+  /**
+   * Get all voyages (movements) that are in progress
+   */
+  public getAllVoyages(): QueuedArrival[] {
+    return this.contract.getAllArrivals ? 
+      this.contract.getAllArrivals() : 
+      [];
   }
 } 

@@ -25,11 +25,15 @@
     "@darkforest_eth/network": "6.7.29",
     "@darkforest_eth/procedural": "6.7.29",
     "@darkforest_eth/serde": "6.7.29",
+    "@darkforest_eth/snarks": "6.7.29",
     "@darkforest_eth/types": "6.7.29",
     "@modelcontextprotocol/sdk": "^1.9.0",
     "big-integer": "^1.6.51",
     "delay": "^5.0.0",
-    "ethers": "^5.7.2"
+    "ethers": "^5.7.2",
+    "fastq": "^1.15.0",
+    "mnemonist": "^0.39.5",
+    "snarkjs": "^0.7.2"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
