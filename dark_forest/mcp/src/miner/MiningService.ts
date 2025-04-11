@@ -31,17 +31,18 @@ export class MiningService {
     this.worldRadius = gameManager.getWorldRadius();
     
     // Get hash config from game manager
-    const hashConfig = gameManager.getHashConfig();
-    this.planetRarity = hashConfig.planetRarity;
-    this.planetHashKey = hashConfig.planetHashKey;
-    this.spaceTypeKey = hashConfig.spaceTypeKey;
-    this.biomebaseKey = hashConfig.biomeBaseKey;
-    this.perlinLengthScale = hashConfig.perlinLengthScale;
-    this.perlinMirrorX = hashConfig.perlinMirrorX;
-    this.perlinMirrorY = hashConfig.perlinMirrorY;
+    // const hashConfig = gameManager.getHashConfig();
+    
+    this.planetRarity = 7000;
+    this.planetHashKey = 69;
+    this.spaceTypeKey = 69;
+    this.biomebaseKey = 69;
+    this.perlinLengthScale = 512;
+    this.perlinMirrorX = false;
+    this.perlinMirrorY = false;
     
     // TODO: Get these from game config
-    this.planetLevelThresholds = [16, 32, 48, 64, 80, 96, 112, 128, 144, 160];
+    this.planetLevelThresholds = [8194293, 4194292, 1048561, 262128, 65520, 16368, 4080, 1008, 240, 48];
   }
 
   /**
@@ -78,7 +79,7 @@ export class MiningService {
     }
     
     // Mine the chunk using proper DF hashing
-    const chunk = this.generateChunk(chunkRect);
+    const chunk = this.generateChunk(chunkRect, center);
     
     // Mark planets as discovered in the player registry
     chunk.planetLocations.forEach(location => {
@@ -98,7 +99,14 @@ export class MiningService {
   /**
    * Generates planet data for a chunk using proper DF hashing algorithm
    */
-  private generateChunk(chunkRect: Rectangle): {
+  /**
+   * 
+   * OPEN QUESTIONS:
+   * 1. is the planet hashkey correct?
+   * 2. Are all the spaceTypePerlinOpts and biomebasePerlinOpts
+   *    correct?
+   */
+  private generateChunk(chunkRect: Rectangle, center: WorldCoords): {
     planetLocations: WorldLocation[];
     perlin: number;
   } {
@@ -118,48 +126,39 @@ export class MiningService {
       floor: true,
     };
 
-    const planetLocations: WorldLocation[] = [];
+    let planetLocations: WorldLocation[] = [];
+    const planetRarityBI = bigInt(this.planetRarity);
+    let count = 0;
     const { x: bottomLeftX, y: bottomLeftY } = chunkRect.bottomLeft;
     const { sideLength } = chunkRect;
-    
-    // Fixed planetRarityBI calculation
-    const planetRarityBI = bigInt(this.planetRarity);
-    
-    // Iterate through every coordinate in the chunk
     for (let x = bottomLeftX; x < bottomLeftX + sideLength; x++) {
-      for (let y = bottomLeftY; y < bottomLeftY + sideLength; y++) {
-        const hash = planetHashFn(x, y);
+        for (let y = bottomLeftY; y < bottomLeftY + sideLength; y++) {
+            const hash = planetHashFn(x, y);
+            if (hash.lesser(LOCATION_ID_UB.divide(planetRarityBI))) {
+                // if planet bytes 4-6 are too high for planet threshold, don't render on client.
+                if (
+                    !this.planetLevelBelowLevel0Threshold(
+                        locationIdFromBigInt(hash), 
+                        this.planetLevelThresholds
+                    )
+                ) continue;
+
+                planetLocations.push({
+                    coords: { x, y },
+                    hash: locationIdFromBigInt(hash),
+                    perlin: perlin({ x, y }, spaceTypePerlinOpts),
+                    biomebase: perlin({ x, y }, biomebasePerlinOpts),
+                });
+            }
         
-        // Check if this location contains a planet based on hash
-        if (hash.lesser(LOCATION_ID_UB.divide(planetRarityBI))) {
-          // Convert hash to locationId
-          const locationId = locationIdFromBigInt(hash);
-          
-          // Check if planet level is below level 0 threshold (just like in client code)
-          if (!this.planetLevelBelowLevel0Threshold(locationId)) {
-            continue;
-          }
-          
-          // Calculate perlin values for space type and biome
-          const spacePerlin = perlin({ x, y }, spaceTypePerlinOpts);
-          const biomePerlin = perlin({ x, y }, biomebasePerlinOpts);
-          
-          planetLocations.push({
-            coords: { x, y },
-            hash: locationId,
-            perlin: spacePerlin,
-            biomebase: biomePerlin,
-          });
         }
-      }
     }
 
-    // Calculate perlin value for chunk center
     const chunkCenter = {
-      x: chunkRect.bottomLeft.x + chunkRect.sideLength / 2,
-      y: chunkRect.bottomLeft.y + chunkRect.sideLength / 2,
+      x: center.x,
+      y: center.y,
     };
-    
+
     return {
       planetLocations,
       perlin: perlin(chunkCenter, { ...spaceTypePerlinOpts, floor: false }),
@@ -170,9 +169,12 @@ export class MiningService {
    * Checks if a planet's level is below the level 0 threshold
    * Uses the same logic as the client code
    */
-  private planetLevelBelowLevel0Threshold(locationId: LocationId): boolean {
-    const levelBigInt = getBytesFromHex(locationId, 4, 7);
-    // Threshold [0] is the largest number. This matches client logic.
-    return levelBigInt.lesser(bigInt(this.planetLevelThresholds[0]));
+  private planetLevelBelowLevel0Threshold(
+    hex: LocationId,
+    thresholds: number[]
+  ): boolean {
+    const levelBigInt = getBytesFromHex(hex, 4, 7);
+    // Threshold [0] is the largest number.
+    return levelBigInt < bigInt(thresholds[0]);
   }
 } 
