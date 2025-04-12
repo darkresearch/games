@@ -18,6 +18,7 @@ let DarkForestABI: any;
 import { SnarkArgsHelper } from "../helpers/SnarkArgsHelper";
 import * as logger from '../helpers/logger';
 import { MiningService } from "./MiningService";
+import { PlayerRegistry } from "./PlayerRegistry";
 
 // Create ES Module equivalents for __dirname and __filename
 const __filename = fileURLToPath(import.meta.url);
@@ -98,6 +99,7 @@ export interface HashConfig {
   perlinMirrorY: boolean;
   planetRarity: number;
   planetLevelThresholds: number[];
+  worldRadius: number;
 }
 
 /**
@@ -114,6 +116,7 @@ export class GameManager extends EventEmitter {
   private hashConfig: HashConfig;
   private snarkHelper: SnarkArgsHelper;
   private miningService: MiningService | null = null;
+  private playerRegistry: PlayerRegistry;
 
   /**
    * Create a new GameManager for interacting with the Dark Forest contract
@@ -122,41 +125,28 @@ export class GameManager extends EventEmitter {
     ethConnection: EthConnection,
     contractAddress: EthAddress,
     account: EthAddress,
-    hashConfig: HashConfig
+    hashConfig: HashConfig,
+    playerRegistry: PlayerRegistry
   ) {
     super();
     this.ethConnection = ethConnection;
     this.contractAddress = contractAddress;
     this.account = account;
     this.hashConfig = hashConfig;
+    this.worldRadius = hashConfig.worldRadius;
+    this.playerRegistry = playerRegistry;
     
     // Initialize SNARK helper
     this.snarkHelper = new SnarkArgsHelper(hashConfig);
 
     // Initialize mining service
-    this.miningService = new MiningService(this, (global as any).playerRegistry);
+    this.miningService = new MiningService(this, this.playerRegistry);
     
     // Load the ABI before initializing the contract
     this.loadAbi();
-    
-    // Initialize the contract
-    this.initializeContract();
-  }
 
-  /**
-   * Initialize the GameManager by loading essential data
-   */
-  public async initialize(): Promise<void> {
-    try {
-      // Get world radius from contract
-      const worldRadiusResult = await this.contract.worldRadius();
-      this.worldRadius = Number(worldRadiusResult.toString());
-      
-      console.log('GameManager initialized');
-    } catch (e) {
-      console.error('Error initializing GameManager:', e);
-      throw e;
-    }
+    // Initialize
+    this.initializeContract();
   }
   
   /**

@@ -6,6 +6,7 @@ import { PlayerRegistry } from "./PlayerRegistry";
 import bigInt from "big-integer";
 import { getBytesFromHex } from "@darkforest_eth/hexgen";
 import { LOCATION_ID_UB } from "../config";
+import * as logger from '../helpers/logger';
 
 /**
  * Simplified MiningService that handles mining single chunks using proper DF hashing
@@ -51,10 +52,16 @@ export class MiningService {
     center: WorldCoords,
     sideLength: number = 16
   ): Promise<Chunk | null> {
+    logger.debug(`[mineChunk()] Mining chunk at (${center.x}, ${center.y}) with side length ${sideLength}`);
+
     // Check if this chunk is within world bounds
-    const distFromCenter = Math.sqrt(center.x ** 2 + center.x ** 2);
+    const distFromCenter = Math.sqrt(center.x ** 2 + center.y ** 2);
+    logger.debug(`[mineChunk()] World radius: ${this.worldRadius}`);
+    logger.debug(`[mineChunk()] Distance from center: ${distFromCenter}`);
+
     if (distFromCenter > this.worldRadius) {
       // Skip chunks outside world radius
+      logger.debug(`[mineChunk()] Chunk is outside world radius`);
       return null;
     }
     
@@ -67,7 +74,8 @@ export class MiningService {
       bottomLeft: bottomLeft,
       sideLength
     };
-    
+    logger.debug(`[mineChunk()] Chunk rectangle: ${JSON.stringify(chunkRect)}`);
+
     // Check if we've already mined this chunk
     const chunkKey = `${chunkRect.bottomLeft.x},${chunkRect.bottomLeft.y},${sideLength}`;
     if (this.playerRegistry.hasDiscoveredChunk(agentId, chunkKey)) {

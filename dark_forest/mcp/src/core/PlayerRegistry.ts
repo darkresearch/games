@@ -199,12 +199,11 @@ export class PlayerRegistry {
           perlinMirrorX: twoPlayerHashConfig.PERLIN_MIRROR_X,
           perlinMirrorY: twoPlayerHashConfig.PERLIN_MIRROR_Y,
           planetRarity: twoPlayerHashConfig.PLANET_RARITY,
-          planetLevelThresholds: twoPlayerHashConfig.PLANET_LEVEL_THRESHOLDS
-        }
+          planetLevelThresholds: twoPlayerHashConfig.PLANET_LEVEL_THRESHOLDS,
+          worldRadius: twoPlayerHashConfig.WORLD_RADIUS_MIN
+        },
+        this
       );
-      
-      // Initialize the GameManager
-      await player.initialize();
 
       this.players.set(address, player);
     }
