@@ -5,9 +5,7 @@ import { GameManager } from "../GameManager";
 import { PlayerRegistry } from "../registry/PlayerRegistry";
 import bigInt from "big-integer";
 import { getBytesFromHex } from "@darkforest_eth/hexgen";
-
-// Constant from client
-const LOCATION_ID_UB = bigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
+import { LOCATION_ID_UB } from "../config";
 
 /**
  * Simplified MiningService that handles mining single chunks using proper DF hashing
@@ -31,18 +29,16 @@ export class MiningService {
     this.worldRadius = gameManager.getWorldRadius();
     
     // Get hash config from game manager
-    // const hashConfig = gameManager.getHashConfig();
+    const hashConfig = gameManager.getHashConfig();
     
-    this.planetRarity = 7000;
-    this.planetHashKey = 69;
-    this.spaceTypeKey = 69;
-    this.biomebaseKey = 69;
-    this.perlinLengthScale = 512;
-    this.perlinMirrorX = false;
-    this.perlinMirrorY = false;
-    
-    // TODO: Get these from game config
-    this.planetLevelThresholds = [8194293, 4194292, 1048561, 262128, 65520, 16368, 4080, 1008, 240, 48];
+    this.planetRarity = hashConfig.planetRarity;
+    this.planetHashKey = hashConfig.planetHashKey;
+    this.spaceTypeKey = hashConfig.spaceTypeKey;
+    this.biomebaseKey = hashConfig.biomeBaseKey;
+    this.perlinLengthScale = hashConfig.perlinLengthScale;
+    this.perlinMirrorX = hashConfig.perlinMirrorX;
+    this.perlinMirrorY = hashConfig.perlinMirrorY;
+    this.planetLevelThresholds = hashConfig.planetLevelThresholds;
   }
 
   /**
@@ -98,13 +94,6 @@ export class MiningService {
 
   /**
    * Generates planet data for a chunk using proper DF hashing algorithm
-   */
-  /**
-   * 
-   * OPEN QUESTIONS:
-   * 1. is the planet hashkey correct?
-   * 2. Are all the spaceTypePerlinOpts and biomebasePerlinOpts
-   *    correct?
    */
   private generateChunk(chunkRect: Rectangle, center: WorldCoords): {
     planetLocations: WorldLocation[];

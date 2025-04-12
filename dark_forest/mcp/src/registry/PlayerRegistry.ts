@@ -3,6 +3,7 @@ import { EthAddress, LocationId, WorldCoords } from "@darkforest_eth/types";
 import { providers } from "ethers";
 import { GameManager } from "../GameManager";
 import { WalletManager } from "../WalletManager";
+import { twoPlayerHashConfig } from "../config";
 
 /**
  * Interface for tracking planet discoveries and explored chunks for each agent
@@ -147,14 +148,15 @@ export class PlayerRegistry {
         this.gamePubkey,
         address,
         {
-          // Default hash config - in real implementation this would come from the contract
-          planetHashKey: 1,
-          spaceTypeKey: 2,
-          biomeBaseKey: 3,
-          perlinLengthScale: 1000,
-          perlinMirrorX: false,
-          perlinMirrorY: false,
-          planetRarity: 16384
+          // Use the twoPlayerHashConfig from config.ts
+          planetHashKey: twoPlayerHashConfig.PLANETHASH_KEY,
+          spaceTypeKey: twoPlayerHashConfig.SPACETYPE_KEY,
+          biomeBaseKey: twoPlayerHashConfig.BIOMEBASE_KEY,
+          perlinLengthScale: twoPlayerHashConfig.PERLIN_LENGTH_SCALE,
+          perlinMirrorX: twoPlayerHashConfig.PERLIN_MIRROR_X,
+          perlinMirrorY: twoPlayerHashConfig.PERLIN_MIRROR_Y,
+          planetRarity: twoPlayerHashConfig.PLANET_RARITY,
+          planetLevelThresholds: twoPlayerHashConfig.PLANET_LEVEL_THRESHOLDS
         }
       );
       

@@ -142,6 +142,7 @@ export interface HashConfig {
   perlinMirrorX: boolean;
   perlinMirrorY: boolean;
   planetRarity: number;
+  planetLevelThresholds: number[];
 }
 
 // Define our extended Planet type that includes location

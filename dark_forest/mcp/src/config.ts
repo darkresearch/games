@@ -1,4 +1,8 @@
-export const config = {
+import bigInt from "big-integer";
+
+export const LOCATION_ID_UB = bigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
+
+export const twoPlayerHashConfig = {
     ADMIN_CAN_ADD_PLANETS: true,
     WORLD_RADIUS_LOCKED: true,
     WORLD_RADIUS_MIN: 5000,
