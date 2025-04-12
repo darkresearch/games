@@ -17,7 +17,13 @@ const PlayerAddressSchema = z.object({
  */
 export const GeneratePubkeySchema = z.object({});
 
-export const InitPlayerSchema = AddressSchema;
+export const InitPlayerSchema = AddressSchema.extend({
+  x: z.number().describe("X coordinate of the planet"),
+  y: z.number().describe("Y coordinate of the planet"),
+  hash: z.string().describe("Planet's LocationId hash"),
+  perlin: z.number().describe("Perlin value at these coordinates"),
+  biomebase: z.number().describe("Biomebase perlin value at these coordinates")
+});
 
 export const GetPlayerSchema = AddressSchema;
 

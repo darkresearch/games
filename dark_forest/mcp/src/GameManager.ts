@@ -45,6 +45,7 @@ let DarkForestABI: any;
 import { MiningService } from "./miner/MiningService";
 import { CaptureZoneGenerator, CaptureZonesGeneratedEvent } from "./CaptureZoneGenerator";
 import { SnarkArgsHelper } from "./helpers/SnarkArgsHelper";
+import * as logger from './helpers/logger';
 
 // Create ES Module equivalents for __dirname and __filename
 const __filename = fileURLToPath(import.meta.url);
@@ -914,62 +915,17 @@ export class GameManager extends EventEmitter {
       tx.submittedAt = Date.now();
       this.emit(GameManagerEvent.TransactionUpdate, tx);
       
-      // Execute the contract method based on intent type
-      let contractTx;
+      // Add high gas limit to overrides to prevent estimation failures
+      const txOverrides = {
+        ...overrides,
+        gasLimit: overrides?.gasLimit || 2000000 // Default to 2 million gas if not specified
+      };
       
-      switch (intent.methodName) {
-        case 'move':
-          const moveIntent = intent as unknown as MoveIntent;
-          contractTx = await this.contract.move(
-            moveIntent.from,
-            moveIntent.to,
-            moveIntent.forces,
-            moveIntent.silver,
-            overrides || {}
-          );
-          break;
-          
-        case 'upgradePlanet':
-          const upgradeIntent = intent as unknown as UpgradeIntent;
-          contractTx = await this.contract.upgradePlanet(
-            upgradeIntent.locationId,
-            upgradeIntent.branch,
-            overrides || {}
-          );
-          break;
-          
-        case 'transferPlanet':
-          const transferIntent = intent as unknown as TransferPlanetIntent;
-          contractTx = await this.contract.transferPlanet(
-            transferIntent.locationId,
-            transferIntent.newOwner,
-            overrides || {}
-          );
-          break;
-          
-        case 'ready':
-          contractTx = await this.contract.ready(overrides || {});
-          break;
-          
-        case 'notReady':
-          contractTx = await this.contract.notReady(overrides || {});
-          break;
-          
-        case 'disconnectTwitter':
-          contractTx = await this.contract.disconnectTwitter(overrides || {});
-          break;
-          
-        default:
-          // For other transaction types, call the method dynamically
-          if (intent.methodName && typeof this.contract[intent.methodName] === 'function') {
-            const args = await intent.args;
-            contractTx = await this.contract[intent.methodName](...args, overrides || {});
-          } else {
-            throw new Error(`Unknown method: ${intent.methodName}`);
-          }
-      }
-      
-      if (contractTx) {
+      // Execute the contract method directly
+      if (intent.methodName && typeof this.contract[intent.methodName] === 'function') {
+        const args = await intent.args;
+        const contractTx = await this.contract[intent.methodName](...args, txOverrides);
+        
         // Update with hash
         tx.hash = contractTx.hash;
         this.emit(GameManagerEvent.TransactionUpdate, tx);
@@ -980,21 +936,12 @@ export class GameManager extends EventEmitter {
         tx.status = receipt.status === 1 ? TransactionStatus.Complete : TransactionStatus.Fail;
         this.emit(GameManagerEvent.TransactionUpdate, tx);
         
-        // Refresh relevant data based on transaction type
+        // Refresh player data on completion
         if (tx.status === TransactionStatus.Complete) {
-          if (intent.methodName === 'move') {
-            const moveIntent = intent as unknown as MoveIntent;
-            await this.refreshPlanet(moveIntent.from);
-            await this.refreshPlanet(moveIntent.to);
-          } else if (intent.methodName === 'upgradePlanet' || intent.methodName === 'transferPlanet') {
-            const locationIntent = intent as unknown as { locationId?: LocationId };
-            if (locationIntent.locationId) {
-              await this.refreshPlanet(locationIntent.locationId);
-            }
-          } else if (intent.methodName === 'ready' || intent.methodName === 'notReady' || intent.methodName === 'disconnectTwitter') {
-            await this.refreshPlayer(this.account);
-          }
+          await this.refreshPlayer(this.account);
         }
+      } else {
+        throw new Error(`Unknown method: ${intent.methodName}`);
       }
       
       return tx;
@@ -1773,55 +1720,56 @@ export class GameManager extends EventEmitter {
   /**
    * Initialize a new player in the game. First step when a player joins the game.
    */
-  public async initializePlayer(x: string | number, y: string | number, r: string | number, f: string | number): Promise<any> {
-    try {
-      // Call the initializePlayer method on the contract
-      const overrides: Overrides = { gasLimit: 5000000 };
-      
-      // Get snark arguments for initialization
-      const snarkArgs = await this.snarkHelper.getInitArgs(
-        Number(x),
-        Number(y),
-        Number(r)
+  // NOTE: Right now we do NOT support teams.
+  public async initializePlayer(
+    worldLocation: WorldLocation
+  ): Promise<Transaction> {
+    // if (this.gameOver) {
+    //   throw new Error("Game is over");
+    // }
+
+    // if (!this.gameStarted) {
+    //   throw new Error("Game has not started yet");
+    // }
+
+    const getArgs = async () => {
+      const args = await this.snarkHelper.getInitArgs(
+        worldLocation.coords.x,
+        worldLocation.coords.y,
+        Math.floor(Math.sqrt(worldLocation.coords.x ** 2 + worldLocation.coords.y ** 2)) + 1 // floor(sqrt(x^2 + y^2)) + 1
       );
-      
-      // Combine SNARK args with faction parameter
-      // In the Dark Forest contract, initializePlayer expects:
-      // - _a, _b, _c: The ZK-SNARK proof data
-      // - _input: Public inputs from the SNARK (uint256[8])
-      // - team: Additional parameter for team selection
-      // The order is [_a, _b, _c, _input, team]
-      const fHex = typeof f === 'string' && f.startsWith('0x') ? f : `0x${Number(f).toString(16)}`;
-      
-      console.log(`Initializing player with SNARK proof and faction ${fHex}`);
-      
-      // Send the transaction with all the arguments
-      const tx = await this.contract.initializePlayer(
-        snarkArgs[0], // _a
-        snarkArgs[1], // _b
-        snarkArgs[2], // _c
-        snarkArgs[3], // _input - the public signals
-        fHex,         // team
-        overrides
-      );
-      
-      // Wait for transaction to be mined
-      const receipt = await tx.wait();
-      
-      console.log(`Player initialized. Transaction hash: ${receipt.transactionHash}`);
-      
-      // Refresh player data after initialization
-      if (this.account) {
-        await this.loadPlayer(this.account);
+      return [...args, 0]; // NOTE: We don't support teams yet
+    };
+
+    const txIntent = {
+      methodName: 'initializePlayer',
+      contract: this.contract.contract,
+      locationId: worldLocation.hash,
+      location: worldLocation,
+      args: getArgs(),
+    };
+
+    // Log the transaction intent details
+    logger.debug(`Transaction Intent:, ${{
+      methodName: txIntent.methodName,
+      locationId: txIntent.locationId,
+      coordinates: {
+        x: txIntent.location.coords.x,
+        y: txIntent.location.coords.y
+      },
+      hash: txIntent.location.hash,
+      perlin: txIntent.location.perlin,
+      biomebase: txIntent.location.biomebase
+    }}`);
+
+    while (true) {
+      try {
+        const tx = await this.submitTransaction(txIntent);
+        return tx;
+        break;
+      } catch (e) {
+        throw e;
       }
-      
-      return {
-        success: true,
-        transaction: receipt
-      };
-    } catch (e) {
-      console.error('Error initializing player:', e);
-      throw e;
     }
   }
 

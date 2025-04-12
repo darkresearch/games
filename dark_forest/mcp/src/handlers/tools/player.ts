@@ -1,7 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { PlayerRegistry } from "../../registry/PlayerRegistry";
 import { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";
-import { EthAddress } from "@darkforest_eth/types";
+import { EthAddress, LocationId, WorldLocation } from "@darkforest_eth/types";
 import * as logger from '../../helpers/logger';
 
 /**
@@ -29,8 +29,36 @@ export async function setupPlayerHandlers(server: Server, playerRegistry: Player
     case "init_player": {
       const address = args.address as string;
 
-      if (!address) {
-        throw new Error("Player address is required");
+      const x = args.x as number;
+      const y = args.y as number;
+      const hash = args.hash as LocationId;
+      const perlin = args.perlin as number;
+      const biomebase = args.biomebase as number;
+
+      // Validate all required parameters
+      if (!hash) {
+        throw new Error("Planet hash (LocationId) is required");
+      }
+
+      if (perlin === undefined || perlin === null) {
+        throw new Error("Perlin value is required");
+      }
+
+      if (biomebase === undefined || biomebase === null) {
+        throw new Error("Biomebase value is required");
+      }
+
+      // Store the planet ID for later use
+      const planetId = hash;
+
+      const worldLocation: WorldLocation = {
+        coords: {
+          x,
+          y
+        },
+        hash,
+        perlin,
+        biomebase
       }
       
       // Check if we have a wallet for this address
@@ -39,110 +67,101 @@ export async function setupPlayerHandlers(server: Server, playerRegistry: Player
       }
 
       const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+
+      let tx = await gameManager.initializePlayer(worldLocation);
       
-      // Random faction/team value (0-9)
-      const f = Math.floor(Math.random() * 10);
-      
-      // Initialize the player with validated coordinates
-      // Pass basic integer values and let GameManager handle the formatting
-      const result = await gameManager.initializePlayer(
-        0, // x
-        0, // y
-        0, // r
-        f  // Simple team number 0-9
-      );
-      
-      logger.debug(`Player initialized successfully: ${JSON.stringify(result)}`);
+      logger.debug(`Player initialized successfully: ${JSON.stringify(tx)}`);
       
       return {
         content: [{
           type: "text",
-          text: `Player initialized successfully with team ${f}. Result: ${JSON.stringify(result)}`
+          text: `Player initialized successfully at planet ${planetId}. Result: ${JSON.stringify(tx)}`
         }]
       };
     }
 
-    case "get_player": {
-      const address = args.address as string;
+    // case "get_player": {
+    //   const address = args.address as string;
 
-      if (!address) {
-        throw new Error("Player address is required");
-      }
+    //   if (!address) {
+    //     throw new Error("Player address is required");
+    //   }
 
-      const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-      const player = await gameManager.getPlayer(address as EthAddress);
+    //   const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    //   const player = await gameManager.getPlayer(address as EthAddress);
 
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify(player)
-        }]
-      };
-    }
+    //   return {
+    //     content: [{
+    //       type: "text",
+    //       text: JSON.stringify(player)
+    //     }]
+    //   };
+    // }
 
-    case "get_all_players": {
-      const address = args.address as string;
+    // case "get_all_players": {
+    //   const address = args.address as string;
 
-      if (!address) {
-        throw new Error("Player address is required");
-      }
+    //   if (!address) {
+    //     throw new Error("Player address is required");
+    //   }
 
-      const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-      const players = gameManager.getAllPlayers();
+    //   const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    //   const players = gameManager.getAllPlayers();
 
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify(players)
-        }]
-      };
-    }
+    //   return {
+    //     content: [{
+    //       type: "text",
+    //       text: JSON.stringify(players)
+    //     }]
+    //   };
+    // }
 
-    case "get_energy_of_player": {
-      const address = args.address as string;
-      const playerAddress = args.playerAddress as string;
+    // case "get_energy_of_player": {
+    //   const address = args.address as string;
+    //   const playerAddress = args.playerAddress as string;
 
-      if (!address || !playerAddress) {
-        throw new Error("Missing required parameters");
-      }
+    //   if (!address || !playerAddress) {
+    //     throw new Error("Missing required parameters");
+    //   }
 
-      const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-      const energy = await gameManager.getEnergyOfPlayer(playerAddress as EthAddress);
+    //   const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    //   const energy = await gameManager.getEnergyOfPlayer(playerAddress as EthAddress);
 
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({ energy })
-        }]
-      };
-    }
+    //   return {
+    //     content: [{
+    //       type: "text",
+    //       text: JSON.stringify({ energy })
+    //     }]
+    //   };
+    // }
 
-    case "get_silver_of_player": {
-      const address = args.address as string;
-      const playerAddress = args.playerAddress as string;
+    // case "get_silver_of_player": {
+    //   const address = args.address as string;
+    //   const playerAddress = args.playerAddress as string;
 
-      if (!address || !playerAddress) {
-        throw new Error("Missing required parameters");
-      }
+    //   if (!address || !playerAddress) {
+    //     throw new Error("Missing required parameters");
+    //   }
 
-      const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-      const silver = await gameManager.getSilverOfPlayer(playerAddress as EthAddress);
+    //   const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
+    //   const silver = await gameManager.getSilverOfPlayer(playerAddress as EthAddress);
 
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({ silver })
-        }]
-      };
-    }
+    //   return {
+    //     content: [{
+    //       type: "text",
+    //       text: JSON.stringify({ silver })
+    //     }]
+    //   };
+    // }
 
-    case "get_player_space_junk":
-    case "get_player_space_junk_limit":
-    case "get_player_blocked_planets":
-    case "get_player_defense_planets":
-    case "get_targets_held":
-    case "set_ready":
-    case "is_admin": {
+    // case "get_player_space_junk":
+    // case "get_player_space_junk_limit":
+    // case "get_player_blocked_planets":
+    // case "get_player_defense_planets":
+    // case "get_targets_held":
+    // case "is_admin":
+
+    case "set_ready": {
       // Implementation needed
       throw new Error("Not implemented");
     }
