@@ -42,10 +42,10 @@ import { dirname } from 'path';
 // import DarkForestABI from "@darkforest_eth/contracts/abis/DarkForest.json" with { type: 'json' };
 // We'll use a dynamic approach to load the ABI
 let DarkForestABI: any;
-import { MiningService } from "./miner/MiningService";
+import { MiningService } from "./MiningService";
 import { CaptureZoneGenerator, CaptureZonesGeneratedEvent } from "./CaptureZoneGenerator";
-import { SnarkArgsHelper } from "./helpers/SnarkArgsHelper";
-import * as logger from './helpers/logger';
+import { SnarkArgsHelper } from "../helpers/SnarkArgsHelper";
+import * as logger from '../helpers/logger';
 
 // Create ES Module equivalents for __dirname and __filename
 const __filename = fileURLToPath(import.meta.url);

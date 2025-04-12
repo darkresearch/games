@@ -1,8 +1,8 @@
 import { EthAddress, LocationId, WorldCoords, Chunk, PerlinConfig, WorldLocation, Rectangle } from "@darkforest_eth/types";
 import { mimcHash, perlin } from "@darkforest_eth/hashing";
 import { locationIdFromBigInt } from "@darkforest_eth/serde";
-import { GameManager } from "../GameManager";
-import { PlayerRegistry } from "../registry/PlayerRegistry";
+import { GameManager } from "./GameManager";
+import { PlayerRegistry } from "./PlayerRegistry";
 import bigInt from "big-integer";
 import { getBytesFromHex } from "@darkforest_eth/hexgen";
 import { LOCATION_ID_UB } from "../config";

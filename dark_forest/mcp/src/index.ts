@@ -8,7 +8,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { EMPTY_ADDRESS } from "@darkforest_eth/constants";
-import { PlayerRegistry } from "./registry/PlayerRegistry";
+import { PlayerRegistry } from "./core/PlayerRegistry";
 import { setupResourceHandlers } from "./handlers/resourceHandlers";
 import { setupToolHandlers } from "./handlers/tools/index";
 import { EthAddress } from "@darkforest_eth/types";

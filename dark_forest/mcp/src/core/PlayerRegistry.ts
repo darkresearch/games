@@ -1,8 +1,8 @@
 import { EthConnection } from "@darkforest_eth/network";
 import { EthAddress, LocationId, WorldCoords } from "@darkforest_eth/types";
 import { providers } from "ethers";
-import { GameManager } from "../GameManager";
-import { WalletManager } from "../WalletManager";
+import { GameManager } from "./GameManager";
+import { WalletManager } from "../helpers/WalletManager";
 import { twoPlayerHashConfig } from "../config";
 
 /**
