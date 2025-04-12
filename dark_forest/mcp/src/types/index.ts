@@ -20,10 +20,10 @@ import { socialSchemas } from './social';
  */
 export const toolSchemas = [
   ...minerSchemas,
-  ...planetSchemas,
-  ...artifactSchemas,
   ...playerSchemas,
-  ...gameStateSchemas,
-  ...captureZoneSchemas,
-  ...socialSchemas
+  // ...planetSchemas,
+  // ...artifactSchemas,
+  // ...gameStateSchemas,
+  // ...captureZoneSchemas,
+  // ...socialSchemas
 ]; 

@@ -10,7 +10,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { EMPTY_ADDRESS } from "@darkforest_eth/constants";
 import { PlayerRegistry } from "./registry/PlayerRegistry";
 import { setupResourceHandlers } from "./handlers/resourceHandlers";
-import { setupToolHandlers } from "./handlers/toolHandlers";
+import { setupToolHandlers } from "./handlers/tools/index";
 import { EthAddress } from "@darkforest_eth/types";
 import { CONTRACT_ADDRESS, NETWORK_ID } from "@darkforest_eth/contracts";
 import * as logger from './helpers/logger';
