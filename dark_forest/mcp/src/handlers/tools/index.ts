@@ -6,7 +6,7 @@ import { toolSchemas } from "../../types/index";
 // Import all handlers
 import { setupMinerHandlers } from './miner';
 import { setupPlayerHandlers } from './player';
-// import { setupPlanetHandlers } from './planet';
+import { setupPlanetHandlers } from './planet';
 // import { setupArtifactHandlers } from './artifact';
 // import { setupGameStateHandlers } from './gameState';
 // import { setupCaptureZoneHandlers } from './captureZone';
@@ -49,7 +49,6 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
 
       // Planet tools  
       // case "get_planet":
-      // case "move":
       // case "upgrade_planet":
       // case "buy_hat":
       // case "get_planets_in_range":
@@ -65,7 +64,8 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
       // case "get_temperature":
       // case "transfer_ownership":
       // case "bulk_get_planets":
-      //   return setupPlanetHandlers(server, playerRegistry, request);
+      case "move":
+        return setupPlanetHandlers(server, playerRegistry, request);
 
       // // Artifact tools
       // case "get_artifact":

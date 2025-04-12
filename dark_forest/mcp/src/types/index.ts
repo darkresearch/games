@@ -21,7 +21,7 @@ import { socialSchemas } from './social';
 export const toolSchemas = [
   ...minerSchemas,
   ...playerSchemas,
-  // ...planetSchemas,
+  ...planetSchemas,
   // ...artifactSchemas,
   // ...gameStateSchemas,
   // ...captureZoneSchemas,

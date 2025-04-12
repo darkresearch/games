@@ -270,7 +270,7 @@ export class SnarkArgsHelper {
   /**
    * Get arguments for moving between planets
    */
-  async getMoveArgs(
+  public async getMoveArgs(
     x1: number,
     y1: number,
     x2: number,
@@ -278,17 +278,15 @@ export class SnarkArgsHelper {
     r: number,
     distMax: number
   ): Promise<MoveSnarkContractCallArgs> {
-    const cacheKey = `${x1}-${y1}-${x2}-${y2}-${r}-${distMax}`;
-    const cachedResult = this.moveSnarkCache.get(cacheKey);
-    
-    if (cachedResult) {
-      console.log('MOVE: retrieved snark args from cache');
-      return Promise.resolve(cachedResult);
-    }
-
     try {
-      console.log(`Generating move args from (${x1}, ${y1}) to (${x2}, ${y2})`);
+      const cacheKey = `${x1}-${y1}-${x2}-${y2}-${r}-${distMax}`;
+      const cachedResult = this.moveSnarkCache.get(cacheKey);
+      if (cachedResult) {
+        console.log('MOVE: retrieved snark args from cache');
+        return Promise.resolve(cachedResult);
+      }
       
+      // Create the input for the SNARK circuit
       const input: MoveSnarkInput = {
         x1: modPBigInt(x1).toString(),
         y1: modPBigInt(y1).toString(),
@@ -303,16 +301,17 @@ export class SnarkArgsHelper {
         yMirror: this.hashConfig.perlinMirrorY ? '1' : '0',
       };
 
+      // Generate the proof
       const result: SnarkJSProofAndSignals = this.useMockHash
         ? fakeProof([input.x1, input.y1, input.x2, input.y2, input.r, input.distMax])
         : await this.snarkProverQueue.doProof(input, moveCircuitPath, moveZkeyPath);
       
-      const ret = buildContractCallArgs(result.proof, result.publicSignals) as MoveSnarkContractCallArgs;
+      // Build the contract call arguments
+      const proofArgs = buildContractCallArgs(result.proof, result.publicSignals) as MoveSnarkContractCallArgs;
       
-      // Add to cache
-      this.moveSnarkCache.set(cacheKey, ret);
-      
-      return ret;
+      // Cache the result
+      this.moveSnarkCache.set(cacheKey, proofArgs);
+      return proofArgs;
     } catch (e) {
       console.error('Error generating move args:', e);
       throw e;

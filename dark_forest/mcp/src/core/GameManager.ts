@@ -30,7 +30,7 @@ import {
 } from "@darkforest_eth/types";
 import { providers, BigNumber, Contract, Overrides } from "ethers";
 import { EventEmitter } from "events";
-import { EMPTY_ADDRESS } from "@darkforest_eth/constants";
+import { CONTRACT_PRECISION, EMPTY_ADDRESS } from "@darkforest_eth/constants";
 import { isLocatable, isSpaceShip, getRange, isActivated, timeUntilNextBroadcastAvailable } from '@darkforest_eth/gamelogic';
 import { getPlanetName } from '@darkforest_eth/procedural';
 import { perlin } from "@darkforest_eth/hashing";
@@ -46,10 +46,44 @@ import { MiningService } from "./MiningService";
 import { CaptureZoneGenerator, CaptureZonesGeneratedEvent } from "./CaptureZoneGenerator";
 import { SnarkArgsHelper } from "../helpers/SnarkArgsHelper";
 import * as logger from '../helpers/logger';
+import { locationIdToDecStr } from "@darkforest_eth/serde";
 
 // Create ES Module equivalents for __dirname and __filename
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+export const enum ZKArgIdx {
+  PROOF_A,
+  PROOF_B,
+  PROOF_C,
+  DATA,
+}
+
+export type MoveArgs = [
+  [string, string], // proofA
+  [
+    // proofB
+    [string, string],
+    [string, string]
+  ],
+  [string, string], // proofC
+  [
+    string, // from locationID (BigInt)
+    string, // to locationID (BigInt)
+    string, // perlin at to
+    string, // radius at to
+    string, // distMax
+    string, // planetHashKey
+    string, // spaceTypeKey
+    string, // perlin lengthscale
+    string, // perlin xmirror (1 true, 0 false)
+    string, // perlin ymirror (1 true, 0 false)
+    string, // ships sent
+    string, // silver sent
+    string, // artifactId sent
+    string // is planet being released (1 true, 0 false)
+  ]
+];
 
 /**
  * MCP IMPLEMENTATION NOTES:
@@ -329,15 +363,28 @@ export class GameManager extends EventEmitter {
     
     try {
       // Get planet data from contract
-      const planetData = await this.contract.planets(locationId);
-      
-      // Skip if planet doesn't exist
-      if (!planetData || !planetData.isInitialized) {
+      logger.info(`Getting planet ${locationId} from contract...`);
+      const planetData = await this.contract.getPlanet(locationIdToDecStr(locationId));
+      logger.info('Retrieved planet data from contract: ' + JSON.stringify(planetData));
+
+      if (!planetData) {
+        logger.info(`Planet ${locationId} does not exist`);
         return undefined;
       }
+
+      // // isInitialized is at index 12 in the array (13th element)
+      // const isInitialized = planetData[12];
+      // logger.info('Planet initialized status: ' + isInitialized);
+
+      // if (!planetData || !isInitialized) {
+      //   logger.info(`Planet ${locationId} does not exist or is not initialized`);
+      //   return undefined;
+      // }
       
       // Create planet using helper
+      logger.info('Creating planet object from contract data...');
       const planet = this.createPlanetFromContractData(planetData, locationId);
+      logger.info('Created planet object: ' + JSON.stringify(planet));
       
       // Get any active artifact
       try {
@@ -521,7 +568,11 @@ export class GameManager extends EventEmitter {
   public getPlanetName(locationId: LocationId): string {
     // Get the planet first for type compatibility
     const planet = this.planets.get(locationId);
-    return getPlanetName(planet || locationId);
+    if (!planet) {
+      // If planet not found, just use the locationId
+      return locationId;
+    }
+    return getPlanetName(planet);
   }
   
   /**
@@ -1425,40 +1476,50 @@ export class GameManager extends EventEmitter {
 
   /**
    * Creates a Planet object from contract data
+   * @param planetData Array from contract containing planet properties in order:
+   * [0] owner: address
+   * [1] range: uint256
+   * [2] speed: uint256
+   * [3] defense: uint256
+   * [4] population: uint256 (energy)
+   * [5] populationCap: uint256 (energyCap)
+   * [6] populationGrowth: uint256 (energyGrowth)
+   * [7] silverCap: uint256
+   * [8] silverGrowth: uint256
+   * [9] silver: uint256
+   * [10] planetLevel: uint256
+   * [11] planetType: uint8
+   * [12] isHomePlanet: bool
    */
-  private createPlanetFromContractData(planetData: any, locationId: LocationId): Planet {
+  private createPlanetFromContractData(planetData: any[], locationId: LocationId): Planet {
     // Basic planet properties
     const planet: Planet = {
       locationId: locationId,
-      perlin: Number(planetData.perlin || 0),
-      owner: planetData.owner,
-      planetLevel: Number(planetData.planetLevel || 0),
-      planetType: Number(planetData.planetType || 0),
-      isHomePlanet: Boolean(planetData.isHomePlanet),
-      spaceType: Number(planetData.spaceType || 0),
-      hasTriedFindingArtifact: Boolean(planetData.hasTriedFindingArtifact),
+      perlin: 0, // This will need to be calculated or passed in separately
+      owner: planetData[0],
+      planetLevel: Number(planetData[10]) as PlanetLevel,
+      planetType: Number(planetData[11]) as PlanetType,
+      isHomePlanet: Boolean(planetData[12]),
+      spaceType: 0 as SpaceType, // This will need to be calculated or passed in separately
+      hasTriedFindingArtifact: false, // This might need to come from elsewhere
       
       // Resource-related properties
-      energyCap: Number(planetData.populationCap || 0),
-      energyGrowth: Number(planetData.populationGrowth || 0),
-      silverCap: Number(planetData.silverCap || 0),
-      silverGrowth: Number(planetData.silverGrowth || 0),
-      energy: Number(planetData.population || 0),
-      silver: Number(planetData.silver || 0),
+      energyCap: Number(planetData[5]),
+      energyGrowth: Number(planetData[6]),
+      silverCap: Number(planetData[7]),
+      silverGrowth: Number(planetData[8]),
+      energy: Number(planetData[4]),
+      silver: Number(planetData[9]),
       
       // Movement-related properties
-      range: Number(planetData.range || 0),
-      speed: Number(planetData.speed || 0),
-      defense: Number(planetData.defense || 0),
+      range: Number(planetData[1]),
+      speed: Number(planetData[2]),
+      defense: Number(planetData[3]),
       
-      // Game mechanics properties
-      spaceJunk: Number(planetData.spaceJunk || 0),
-      lastUpdated: Number(planetData.lastUpdated || 0),
-      upgradeState: [
-        Number(planetData.upgradeState0 || 0),
-        Number(planetData.upgradeState1 || 0),
-        Number(planetData.upgradeState2 || 0)
-      ],
+      // Game mechanics properties - initialize with defaults
+      spaceJunk: 0,
+      lastUpdated: Date.now(),
+      upgradeState: [0, 0, 0],
       
       // Unconfirmed actions tracking
       unconfirmedDepartures: [],
@@ -1470,12 +1531,12 @@ export class GameManager extends EventEmitter {
       heldArtifactIds: [],
       
       // Reveal status
-      coordsRevealed: Boolean(planetData.coordsRevealed),
-      revealer: planetData.revealer || EMPTY_ADDRESS,
+      coordsRevealed: false,
+      revealer: EMPTY_ADDRESS,
       
       // Flags for UI and game mechanics
       isInContract: true,
-      destroyed: Boolean(planetData.destroyed),
+      destroyed: false,
       needsServerRefresh: false,
       syncedWithContract: true,
       lastLoadedServerState: Date.now(),
@@ -1488,14 +1549,14 @@ export class GameManager extends EventEmitter {
       unconfirmedDeactivateArtifact: false,
       unconfirmedMove: false,
       unconfirmedRelease: undefined,
-      invader: planetData.invader || EMPTY_ADDRESS,
-      capturer: planetData.capturer || EMPTY_ADDRESS,
-      invadeStartBlock: Number(planetData.invadeStartBlock || 0),
+      invader: EMPTY_ADDRESS,
+      capturer: EMPTY_ADDRESS,
+      invadeStartBlock: 0,
       blockedPlanetIds: [],
-      hatLevel: Number(planetData.hatLevel || 0),
-      prospectedBlockNumber: planetData.prospectedBlockNumber ? Number(planetData.prospectedBlockNumber) : undefined,
-      isTargetPlanet: Boolean(planetData.isTargetPlanet),
-      isSpawnPlanet: Boolean(planetData.isSpawnPlanet),
+      hatLevel: 0,
+      prospectedBlockNumber: undefined,
+      isTargetPlanet: false,
+      isSpawnPlanet: false,
       emojiZoopAnimation: undefined,
       emojiZoopOutAnimation: undefined,
     };
@@ -1724,16 +1785,6 @@ export class GameManager extends EventEmitter {
   public async initializePlayer(
     worldLocation: WorldLocation
   ): Promise<Transaction> {
-    // TODO: These are niceties that can be
-    // added back in later.
-
-    // if (this.gameOver) {
-    //   throw new Error("Game is over");
-    // }
-
-    // if (!this.gameStarted) {
-    //   throw new Error("Game has not started yet");
-    // }
 
     const getArgs = async () => {
       const args = await this.snarkHelper.getInitArgs(
@@ -2229,54 +2280,92 @@ export class GameManager extends EventEmitter {
   public async move(
     fromId: LocationId,
     toId: LocationId,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
     forces: number,
     silver: number = 0,
     artifactId?: ArtifactId
   ): Promise<any> {
     try {
-      if (this.gameOver) {
-        throw new Error('Game has ended');
-      }
+      logger.debug(`Move called with:
+        fromId: ${fromId}
+        toId: ${toId}
+        fromX: ${fromX}
+        fromY: ${fromY}
+        toX: ${toX}
+        toY: ${toY}
+        forces: ${forces}
+        silver: ${silver}
+      `);
 
-      if (this.paused) {
-        throw new Error('Game is paused');
-      }
+      // Get the source planet to get its radius
+      // const sourcePlanet = await this.getPlanet(fromId);
+      // if (!sourcePlanet) {
+      //   throw new Error('Source planet not found');
+      // }
+      // logger.debug('Source planet:', sourcePlanet);
 
-      const fromPlanet = await this.getPlanet(fromId);
-      const toPlanet = await this.getPlanet(toId);
+      // Calculate max distance based on actual distance between points
+      const xDiff = toX - fromX;
+      const yDiff = toY - fromY;
+      const distMax = Math.ceil(Math.sqrt(xDiff ** 2 + yDiff ** 2));
+      logger.debug(`Calculated distMax: ${distMax}`);
 
-      if (!fromPlanet || !toPlanet) {
-        throw new Error('Origin or destination planet not found');
-      }
+      // Generate ZK move args
+      const getArgs = async () => {
+        logger.debug('Generating SNARK args...');
+        const snarkArgs = await this.snarkHelper.getMoveArgs(
+          fromX,
+          fromY,
+          toX,
+          toY,
+          this.worldRadius,
+          distMax
+        );
 
-      if (fromPlanet.owner !== this.account) {
-        throw new Error('You do not own the origin planet');
-      }
+        // const CONTRACT_PRECISION = 1000;
+        const args: MoveArgs = [
+          snarkArgs[ZKArgIdx.PROOF_A],
+          snarkArgs[ZKArgIdx.PROOF_B],
+          snarkArgs[ZKArgIdx.PROOF_C],
+          [
+            ...snarkArgs[ZKArgIdx.DATA],
+            (forces * CONTRACT_PRECISION).toString(),
+            (silver * CONTRACT_PRECISION).toString(),
+            '0', // Default artifact value
+            '0', // Not abandoning
+          ],
+        ] as MoveArgs;
 
-      if (forces > fromPlanet.energy) {
-        throw new Error('Not enough forces on the origin planet');
-      }
+        logger.debug('Move args prepared');
 
-      if (silver > fromPlanet.silver) {
-        throw new Error('Not enough silver on the origin planet');
-      }
+        // No artifact support for now
+        // Handle artifact if provided
+        // if (artifactId) {
+        //   args[ZKArgIdx.DATA][MoveArgIdxs.ARTIFACT_SENT] = artifactIdToDecStr(artifactId);
+        // }
 
-      // Execute the move on the contract
-      const tx = await this.contract.move(fromId, toId, forces, silver, artifactId || '0x0');
-      const receipt = await tx.wait();
+        return args;
+      };
 
-      // Update the planets after the move
-      await this.refreshPlanet(fromId);
-      await this.refreshPlanet(toId);
+      logger.debug(`getArgs(): ${JSON.stringify(await getArgs())}`);
 
-      return {
-        txHash: receipt.transactionHash,
+      const txIntent = {
+        methodName: 'move',
+        contract: this.contract.contract,
+        args: getArgs(),
         from: fromId,
         to: toId,
         forces,
         silver,
-        artifact: artifactId
+        artifact: artifactId,
+        abandoning: false
       };
+
+      const tx = await this.submitTransaction(txIntent);
+      return tx;
     } catch (error) {
       console.error('Error executing move:', error);
       throw error;
