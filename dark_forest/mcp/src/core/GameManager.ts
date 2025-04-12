@@ -165,72 +165,6 @@ export class GameManager extends EventEmitter {
   public getWorldRadius(): number {
     return this.worldRadius;
   }
-  
-
-  /** TX SENDING =========================================================================== */
-  
-  /**
-   * Create a new transaction
-   */
-  private createTransaction<T extends TxIntent>(intent: T): Transaction<T> {
-    return {
-      id: (this.txCounter++).toString() as TransactionId,
-      intent,
-      status: TransactionStatus.Queued,
-      createdAt: Date.now()
-    };
-  }
-  
-  /**
-   * Submit a transaction to the contract
-   */
-  public async submitTransaction<T extends TxIntent>(
-    intent: T, 
-    overrides?: providers.TransactionRequest
-  ): Promise<Transaction<T>> {
-    const tx = this.createTransaction(intent);
-    
-    try {
-      // Update status
-      tx.status = TransactionStatus.Submit;
-      tx.submittedAt = Date.now();
-      this.emit(GameManagerEvent.TransactionUpdate, tx);
-      
-      // Add high gas limit to overrides to prevent estimation failures
-      const txOverrides = {
-        ...overrides,
-        gasLimit: overrides?.gasLimit || 2000000 // Default to 2 million gas if not specified
-      };
-      
-      // Execute the contract method directly
-      if (intent.methodName && typeof this.contract[intent.methodName] === 'function') {
-        const args = await intent.args;
-        const contractTx = await this.contract[intent.methodName](...args, txOverrides);
-        
-        // Update with hash
-        tx.hash = contractTx.hash;
-        this.emit(GameManagerEvent.TransactionUpdate, tx);
-        
-        // Wait for confirmation
-        const receipt = await contractTx.wait();
-        tx.confirmedAt = Date.now();
-        tx.status = receipt.status === 1 ? TransactionStatus.Complete : TransactionStatus.Fail;
-        this.emit(GameManagerEvent.TransactionUpdate, tx);
-
-      } else {
-        throw new Error(`Unknown method: ${intent.methodName}`);
-      }
-      
-      return tx;
-    } catch (e) {
-      console.error('Error submitting transaction:', e);
-      tx.status = TransactionStatus.Fail;
-      this.emit(GameManagerEvent.TransactionUpdate, tx);
-      throw e;
-    }
-  }
-
-  /** TX SENDING =========================================================================== */
 
   /**
    * Load the ABI dynamically
@@ -314,7 +248,71 @@ export class GameManager extends EventEmitter {
     return this.miningService as MiningService;
   }
 
-  /** TOOLS =========================================================================== */
+  /** TX SENDING =========================================================================== */
+  
+  /**
+   * Create a new transaction
+   */
+  private createTransaction<T extends TxIntent>(intent: T): Transaction<T> {
+    return {
+      id: (this.txCounter++).toString() as TransactionId,
+      intent,
+      status: TransactionStatus.Queued,
+      createdAt: Date.now()
+    };
+  }
+  
+  /**
+   * Submit a transaction to the contract
+   */
+  public async submitTransaction<T extends TxIntent>(
+    intent: T, 
+    overrides?: providers.TransactionRequest
+  ): Promise<Transaction<T>> {
+    const tx = this.createTransaction(intent);
+    
+    try {
+      // Update status
+      tx.status = TransactionStatus.Submit;
+      tx.submittedAt = Date.now();
+      this.emit(GameManagerEvent.TransactionUpdate, tx);
+      
+      // Add high gas limit to overrides to prevent estimation failures
+      const txOverrides = {
+        ...overrides,
+        gasLimit: overrides?.gasLimit || 2000000 // Default to 2 million gas if not specified
+      };
+      
+      // Execute the contract method directly
+      if (intent.methodName && typeof this.contract[intent.methodName] === 'function') {
+        const args = await intent.args;
+        const contractTx = await this.contract[intent.methodName](...args, txOverrides);
+        
+        // Update with hash
+        tx.hash = contractTx.hash;
+        this.emit(GameManagerEvent.TransactionUpdate, tx);
+        
+        // Wait for confirmation
+        const receipt = await contractTx.wait();
+        tx.confirmedAt = Date.now();
+        tx.status = receipt.status === 1 ? TransactionStatus.Complete : TransactionStatus.Fail;
+        this.emit(GameManagerEvent.TransactionUpdate, tx);
+
+      } else {
+        throw new Error(`Unknown method: ${intent.methodName}`);
+      }
+      
+      return tx;
+    } catch (e) {
+      console.error('Error submitting transaction:', e);
+      tx.status = TransactionStatus.Fail;
+      this.emit(GameManagerEvent.TransactionUpdate, tx);
+      throw e;
+    }
+  }
+
+  /** TX SENDING ====================================================================== */
+
   /** TOOLS =========================================================================== */
 
   /**
@@ -451,6 +449,5 @@ export class GameManager extends EventEmitter {
     }
   }
 
-  /** TOOLS =========================================================================== */
   /** TOOLS =========================================================================== */
 } 
