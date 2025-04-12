@@ -6,10 +6,9 @@ import { PlayerRegistry } from "../registry/PlayerRegistry";
 import { z } from "zod";
 import { perlin } from '@darkforest_eth/hashing';
 import * as logger from '../helpers/logger';
-import { setupMinerHandlers } from './minerHandlers';
 
-import { toolSchemas } from "../types/toolSchemas";
-import { minerSchemas, MineChunkSchema } from '../types/minerSchemas';
+import { toolSchemas } from "../types/index";
+import { MineChunkSchema } from '../types/miner';
 
 // Request schemas
 const AddressAndPlanetIdsSchema = z.object({
@@ -44,16 +43,13 @@ const AddressAndPlanetSchema = z.object({
 });
 
 export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry) {
-  server
-  // Setup mining-related handlers
-  setupMinerHandlers(server, playerRegistry);
 
   /**
    * List available game tools
    */
   server.setRequestHandler(ListToolsRequestSchema, async () => {    
     // Combine toolSchemas and minerSchemas for the response
-    return { tools: [...minerSchemas, ...toolSchemas, ] };
+    return { tools: toolSchemas };
   });
 
   /**

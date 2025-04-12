@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { zodToMcpSchema } from "./schemaUtils";
+import { zodToMcpSchema } from "./utils";
 
 /**
  * Zod schema for mine_chunk tool

@@ -117,7 +117,6 @@ export class MiningService {
 
     let planetLocations: WorldLocation[] = [];
     const planetRarityBI = bigInt(this.planetRarity);
-    let count = 0;
     const { x: bottomLeftX, y: bottomLeftY } = chunkRect.bottomLeft;
     const { sideLength } = chunkRect;
     for (let x = bottomLeftX; x < bottomLeftX + sideLength; x++) {
