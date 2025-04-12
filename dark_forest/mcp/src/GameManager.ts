@@ -1724,6 +1724,9 @@ export class GameManager extends EventEmitter {
   public async initializePlayer(
     worldLocation: WorldLocation
   ): Promise<Transaction> {
+    // TODO: These are niceties that can be
+    // added back in later.
+
     // if (this.gameOver) {
     //   throw new Error("Game is over");
     // }
