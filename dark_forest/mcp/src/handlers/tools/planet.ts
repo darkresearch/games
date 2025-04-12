@@ -25,8 +25,8 @@ export async function setupPlanetHandlers(server: Server, playerRegistry: Player
       const forces = Number(args.forces);
       const silver = Number(args.silver || 0);
 
-      if (!address || !fromId || !toId || isNaN(forces)) {
-        throw new Error("Missing required parameters");
+      if (!address || !fromId || !toId || isNaN(forces) || isNaN(silver)) {
+        throw new Error("Missing required parameters or invalid number format");
       }
 
       const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);

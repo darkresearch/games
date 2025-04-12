@@ -4,12 +4,14 @@ import * as logger from '../../helpers/logger';
 
 export function setupPlayerResourceHandlers(playerRegistry: PlayerRegistry, request: ReadResourceRequest) {
   logger.debug("Returning players list");
-  // TODO: Implement proper player listing using playerRegistry
+  
+  const playerAddresses = playerRegistry.getAllPlayerAddresses();
+  
   return {
     contents: [{
       uri: request.params.uri,
       mimeType: "application/json",
-      text: JSON.stringify([])
+      list: playerAddresses
     }]
   };
 } 

@@ -4,6 +4,13 @@ import { providers } from "ethers";
 import { GameManager } from "./GameManager";
 import { WalletManager } from "../helpers/WalletManager";
 import { twoPlayerHashConfig } from "../config";
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * Interface for tracking planet discoveries and explored chunks for each agent
@@ -57,6 +64,42 @@ export class PlayerRegistry {
     
     // Use provided network ID
     this.ethConnection = new EthConnection(provider, networkId);
+
+    // Load and initialize players
+    this.loadPlayers();
+  }
+
+  /**
+   * Load players from storage and initialize them
+   */
+  private async loadPlayers(): Promise<void> {
+    const playersPath = path.join(__dirname, '../data/players.json');
+    
+    try {
+      if (fs.existsSync(playersPath)) {
+        const data = fs.readFileSync(playersPath, 'utf8');
+        const playerAddresses = JSON.parse(data) as EthAddress[];
+        
+        console.log(`Found ${playerAddresses.length} players to initialize`);
+        
+        // Initialize each player
+        for (const address of playerAddresses) {
+          try {
+            await this.getOrCreatePlayer(address);
+            console.log(`Initialized player ${address}`);
+          } catch (e) {
+            console.error(`Failed to initialize player ${address}:`, e);
+          }
+        }
+        
+        console.log(`Finished initializing ${this.players.size} players`);
+      } else {
+        console.log('No player data found, starting with empty player list');
+      }
+    } catch (e) {
+      console.error('Error loading players:', e);
+      // Continue with empty player list
+    }
   }
 
   /**
@@ -179,5 +222,12 @@ export class PlayerRegistry {
       // so we're just removing it from the map
       this.players.delete(address);
     }
+  }
+
+  /**
+   * Get all registered player addresses
+   */
+  public getAllPlayerAddresses(): EthAddress[] {
+    return Array.from(this.players.keys());
   }
 } 
