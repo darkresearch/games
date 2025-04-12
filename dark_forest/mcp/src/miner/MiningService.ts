@@ -136,12 +136,12 @@ export class MiningService {
             const hash = planetHashFn(x, y);
             if (hash.lesser(LOCATION_ID_UB.divide(planetRarityBI))) {
                 // if planet bytes 4-6 are too high for planet threshold, don't render on client.
-                // if (
-                //     !this.planetLevelBelowLevel0Threshold(
-                //         locationIdFromBigInt(hash), 
-                //         this.planetLevelThresholds
-                //     )
-                // ) continue;
+                if (
+                    !this.planetLevelBelowLevel0Threshold(
+                        locationIdFromBigInt(hash), 
+                        this.planetLevelThresholds
+                    )
+                ) continue;
 
                 planetLocations.push({
                     coords: { x, y },
