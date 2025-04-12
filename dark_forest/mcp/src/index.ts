@@ -9,7 +9,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { EMPTY_ADDRESS } from "@darkforest_eth/constants";
 import { PlayerRegistry } from "./core/PlayerRegistry";
-import { setupResourceHandlers } from "./handlers/resourceHandlers";
+import { setupResourceHandlers } from "./handlers/resources";
 import { setupToolHandlers } from "./handlers/tools/index";
 import { EthAddress } from "@darkforest_eth/types";
 import { CONTRACT_ADDRESS, NETWORK_ID } from "@darkforest_eth/contracts";

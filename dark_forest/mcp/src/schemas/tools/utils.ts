@@ -1,6 +1,13 @@
 import { z } from "zod";
 
 /**
+ * Base schema for Ethereum address-related types
+ */
+export const AddressSchema = z.object({
+  address: z.string().describe("Player's Ethereum address")
+});
+
+/**
  * Convert a Zod schema to MCP tool schema format
  * This is used to maintain a single source of truth for our schemas while
  * providing MCP-compatible JSON Schema format for the protocol

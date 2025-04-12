@@ -1,5 +1,5 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { PlayerRegistry } from "../../registry/PlayerRegistry";
+import { PlayerRegistry } from "../../core/PlayerRegistry";
 import { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";
 import { EthAddress, LocationId, WorldLocation } from "@darkforest_eth/types";
 import * as logger from '../../helpers/logger';
@@ -78,92 +78,6 @@ export async function setupPlayerHandlers(server: Server, playerRegistry: Player
           text: `Player initialized successfully at planet ${planetId}. Result: ${JSON.stringify(tx)}`
         }]
       };
-    }
-
-    // case "get_player": {
-    //   const address = args.address as string;
-
-    //   if (!address) {
-    //     throw new Error("Player address is required");
-    //   }
-
-    //   const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-    //   const player = await gameManager.getPlayer(address as EthAddress);
-
-    //   return {
-    //     content: [{
-    //       type: "text",
-    //       text: JSON.stringify(player)
-    //     }]
-    //   };
-    // }
-
-    // case "get_all_players": {
-    //   const address = args.address as string;
-
-    //   if (!address) {
-    //     throw new Error("Player address is required");
-    //   }
-
-    //   const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-    //   const players = gameManager.getAllPlayers();
-
-    //   return {
-    //     content: [{
-    //       type: "text",
-    //       text: JSON.stringify(players)
-    //     }]
-    //   };
-    // }
-
-    // case "get_energy_of_player": {
-    //   const address = args.address as string;
-    //   const playerAddress = args.playerAddress as string;
-
-    //   if (!address || !playerAddress) {
-    //     throw new Error("Missing required parameters");
-    //   }
-
-    //   const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-    //   const energy = await gameManager.getEnergyOfPlayer(playerAddress as EthAddress);
-
-    //   return {
-    //     content: [{
-    //       type: "text",
-    //       text: JSON.stringify({ energy })
-    //     }]
-    //   };
-    // }
-
-    // case "get_silver_of_player": {
-    //   const address = args.address as string;
-    //   const playerAddress = args.playerAddress as string;
-
-    //   if (!address || !playerAddress) {
-    //     throw new Error("Missing required parameters");
-    //   }
-
-    //   const gameManager = await playerRegistry.getOrCreatePlayer(address as EthAddress);
-    //   const silver = await gameManager.getSilverOfPlayer(playerAddress as EthAddress);
-
-    //   return {
-    //     content: [{
-    //       type: "text",
-    //       text: JSON.stringify({ silver })
-    //     }]
-    //   };
-    // }
-
-    // case "get_player_space_junk":
-    // case "get_player_space_junk_limit":
-    // case "get_player_blocked_planets":
-    // case "get_player_defense_planets":
-    // case "get_targets_held":
-    // case "is_admin":
-
-    case "set_ready": {
-      // Implementation needed
-      throw new Error("Not implemented");
     }
 
     default:

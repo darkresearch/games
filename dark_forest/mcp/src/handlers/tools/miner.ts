@@ -1,8 +1,7 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { PlayerRegistry } from "../../registry/PlayerRegistry";
+import { PlayerRegistry } from "../../core/PlayerRegistry";
 import { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";
 import { EthAddress } from "@darkforest_eth/types";
-import { MineChunkSchema } from '../../types/miner';
+import { MineChunkSchema } from '../../schemas/tools/miner';
 import * as logger from '../../helpers/logger';
 
 /**
