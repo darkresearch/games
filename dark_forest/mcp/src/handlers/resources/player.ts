@@ -11,7 +11,7 @@ export function setupPlayerResourceHandlers(playerRegistry: PlayerRegistry, requ
     contents: [{
       uri: request.params.uri,
       mimeType: "application/json",
-      list: playerAddresses
+      text: JSON.stringify(playerAddresses)
     }]
   };
 } 
