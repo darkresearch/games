@@ -76,11 +76,12 @@ export class PlayerRegistry {
     const playersPath = path.join(__dirname, '../data/players.json');
     
     try {
+      // First try loading from file
       if (fs.existsSync(playersPath)) {
         const data = fs.readFileSync(playersPath, 'utf8');
         const playerAddresses = JSON.parse(data) as EthAddress[];
         
-        console.log(`Found ${playerAddresses.length} players to initialize`);
+        console.log(`Found ${playerAddresses.length} players to initialize from file`);
         
         // Initialize each player
         for (const address of playerAddresses) {
@@ -92,9 +93,39 @@ export class PlayerRegistry {
           }
         }
         
-        console.log(`Finished initializing ${this.players.size} players`);
-      } else {
-        console.log('No player data found, starting with empty player list');
+        console.log(`Finished initializing ${this.players.size} players from file`);
+      } 
+      // If file doesn't exist, try environment variable
+      else {
+        const envPlayers = process.env.DARK_FOREST_PLAYERS;
+        if (envPlayers) {
+          try {
+            // Expect format: ["0x...", "0x...", ...]
+            const playerAddresses = JSON.parse(envPlayers) as EthAddress[];
+            
+            if (Array.isArray(playerAddresses)) {
+              console.log(`Found ${playerAddresses.length} players to initialize from environment variable`);
+              
+              // Initialize each player
+              for (const address of playerAddresses) {
+                try {
+                  await this.getOrCreatePlayer(address);
+                  console.log(`Initialized player ${address}`);
+                } catch (e) {
+                  console.error(`Failed to initialize player ${address}:`, e);
+                }
+              }
+              
+              console.log(`Finished initializing ${this.players.size} players from environment variable`);
+            } else {
+              console.warn('DARK_FOREST_PLAYERS environment variable is not in correct format. Expected array of addresses');
+            }
+          } catch (e) {
+            console.error('Error parsing DARK_FOREST_PLAYERS environment variable:', e);
+          }
+        } else {
+          console.log('No player data found in file or environment variables, starting with empty player list');
+        }
       }
     } catch (e) {
       console.error('Error loading players:', e);

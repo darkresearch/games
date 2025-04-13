@@ -61,6 +61,7 @@ export class WalletManager {
    */
   private loadWallets(): void {
     try {
+      // First try loading from file
       if (fs.existsSync(this.walletStoragePath)) {
         const data = fs.readFileSync(this.walletStoragePath, 'utf8');
         const walletData = JSON.parse(data);
@@ -69,9 +70,32 @@ export class WalletManager {
           this.wallets.set(address as EthAddress, new Wallet(privateKey as string));
         }
         
-        console.log(`Loaded ${this.wallets.size} agent wallets`);
-      } else {
-        console.log('No wallet data found, starting with empty wallet storage');
+        console.log(`Loaded ${this.wallets.size} agent wallets from file`);
+      } 
+      // If file doesn't exist, try environment variable
+      else {
+        const envWallets = process.env.DARK_FOREST_WALLETS;
+        if (envWallets) {
+          try {
+            // Expect format: [{"address":"0x...","privateKey":"0x..."},...]
+            const walletData = JSON.parse(envWallets);
+            
+            if (Array.isArray(walletData)) {
+              for (const wallet of walletData) {
+                if (wallet.address && wallet.privateKey) {
+                  this.wallets.set(wallet.address as EthAddress, new Wallet(wallet.privateKey));
+                }
+              }
+              console.log(`Loaded ${this.wallets.size} agent wallets from environment variable`);
+            } else {
+              console.warn('DARK_FOREST_WALLETS environment variable is not in correct format. Expected array of {address, privateKey} objects');
+            }
+          } catch (e) {
+            console.error('Error parsing DARK_FOREST_WALLETS environment variable:', e);
+          }
+        } else {
+          console.log('No wallet data found in file or environment variables, starting with empty wallet storage');
+        }
       }
     } catch (e) {
       console.error('Error loading wallets:', e);
