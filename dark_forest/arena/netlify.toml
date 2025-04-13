@@ -1,7 +1,7 @@
 [build]
   command = "yarn workspace client build"
   functions = "functions"
-  publish = "client/dist"
+  publish = "arena/client/dist"
 
 [build.environment]
   CONVERSATION_API_HOST = ""
