@@ -34,11 +34,11 @@
     "ethers": "^5.7.2",
     "fastq": "^1.15.0",
     "mnemonist": "^0.39.5",
-    "snarkjs": "^0.7.2"
+    "snarkjs": "^0.7.2",
+    "esbuild": "^0.25.2"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
-    "esbuild": "^0.25.2",
     "typescript": "^5.8.3"
   },
   "engines": {
