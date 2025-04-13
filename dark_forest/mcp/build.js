@@ -22,6 +22,7 @@ async function build() {
       'ethers',
       'big-integer',
       'delay',
+      'express',
       // Add snarkjs and its dependencies to external
       'snarkjs',
       'ffjavascript',
@@ -31,7 +32,21 @@ async function build() {
       'path',
       'os',
       'stream',
-      'util'
+      'util',
+      // Node built-in modules
+      'node:events',
+      'node:http',
+      'node:https',
+      'node:zlib',
+      'node:stream',
+      'node:util',
+      'node:net',
+      'node:tls',
+      'node:crypto',
+      'node:url',
+      'node:path',
+      'node:fs',
+      'node:assert'
     ],
   });
 

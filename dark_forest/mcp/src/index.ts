@@ -5,8 +5,9 @@
  * Exposes Dark Forest game functionality through the Model Context Protocol
  */
 
+import express, { Request, Response } from "express";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { EMPTY_ADDRESS } from "@darkforest_eth/constants";
 import { PlayerRegistry } from "./core/PlayerRegistry";
 import { setupResourceHandlers } from "./handlers/resources";
@@ -58,16 +59,47 @@ const server = new Server(
 setupResourceHandlers(server, playerRegistry);
 setupToolHandlers(server, playerRegistry);
 
+// Create Express app
+const app = express();
+
+// To support multiple simultaneous connections we have a lookup object from
+// sessionId to transport
+const transports: {[sessionId: string]: SSEServerTransport} = {};
+
+// SSE endpoint for establishing connections
+app.get("/sse", async (_: Request, res: Response) => {
+  const transport = new SSEServerTransport('/messages', res);
+  transports[transport.sessionId] = transport;
+  res.on("close", () => {
+    delete transports[transport.sessionId];
+    logger.info(`Client disconnected: ${transport.sessionId}`);
+  });
+  await server.connect(transport);
+  logger.info(`New client connected: ${transport.sessionId}`);
+});
+
+// Message endpoint for receiving client messages
+app.post("/messages", async (req: Request, res: Response) => {
+  const sessionId = req.query.sessionId as string;
+  const transport = transports[sessionId];
+  if (transport) {
+    await transport.handlePostMessage(req, res);
+  } else {
+    res.status(400).send('No transport found for sessionId');
+  }
+});
+
 /**
  * Start the server
  */
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  
-  logger.info("Dark Forest MCP Server started");
-  logger.info(`Game Public Key: ${gamePubkey}`);
-  logger.info(`Base Contract Address: ${baseContractAddress}`);
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 3001;
+  app.listen(port, () => {
+    logger.info("Dark Forest MCP Server started");
+    logger.info(`Listening on port ${port}`);
+    logger.info(`Game Public Key: ${gamePubkey}`);
+    logger.info(`Base Contract Address: ${baseContractAddress}`);
+  });
 }
 
 main().catch((error) => {
