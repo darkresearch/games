@@ -1,0 +1,198 @@
+type Arena @entity {
+  id: ID!
+  creator: ID!
+  firstMover: ArenaPlayer # might not exist right away
+  owner: String
+  configHash: Bytes! # default: 0, set on ArenaInitialize
+  config: ArenaConfig # set on ArenaInitialize
+  lobbyAddress: ID!
+  gameOver: Boolean!
+  duration: Int # Set on Gameover
+  creationTime: Int!
+  creationBlock: Int!
+  startTime: Int! # set to creation time by default
+  endTime: Int # Set on Gameover
+  winners: [ArenaPlayer!]!
+  players: [ArenaPlayer!]! # @derivedFrom(field: "arena") # derived fields can't be accessed in the mapping
+  planets: [ArenaPlanet!]! @derivedFrom(field: "arena")
+  teams: [ArenaTeam!] @derivedFrom(field: "arena")
+}
+
+# A unique player entity across all arenas
+type Player @entity {
+  id: ID!
+  wins: Int!
+  matches: Int!
+  arenaPlayers: [ArenaPlayer!]! @derivedFrom(field: "player")
+  configPlayers: [ConfigPlayer!]! @derivedFrom(field: "player")
+}
+
+# A unique player entity for each Arena
+type ArenaPlayer @entity {
+  id: ID! # <arena_address>-<player_address>
+  player: Player!
+  address: ID!
+  homePlanet: ArenaPlanet
+  initTimestamp: Int!
+  winner: Boolean!
+  arena: Arena!
+  moves: Int!
+  ready: Boolean!
+  lastMoveTime: Int!
+  lastReadyTime: Int
+  team: ArenaTeam # Only created + assigned if team != 0
+}
+
+type ArenaTeam @entity {
+  id: ID! #<arena_address>-<team#>
+  arena: Arena!
+  teamId: Int! #number
+  players: [ArenaPlayer!]!
+  playerAddresses: [String!]!
+}
+type ConfigTeam @entity {
+  id: ID! # <config_hash>-<player1Address>-<player2>...
+  configHash: Bytes!
+  players: [Player!]!
+  gamesStarted: Int!
+  gamesFinished: Int!
+  wins: Int!
+  losses: Int!
+  elo: Int!
+}
+
+# A unique player entity across arenas w same config
+type ConfigPlayer @entity {
+  id: ID! # <player_address>-<config_hash>
+  address: ID!
+  configHash: Bytes!
+  player: Player!
+  gamesStarted: Int!
+  gamesFinished: Int!
+  bestTime: Arena # stores the top time
+  wins: Int!
+  losses: Int!
+  elo: Int!
+  badge: Badge
+  # Non-competitive Badges
+}
+
+type Blocklist @entity {
+  id: ID!
+  destId: String!
+  srcId: String!
+}
+
+type Badge @entity {
+  id: ID!
+  configPlayer: ConfigPlayer!
+  startYourEngine: Boolean!
+  nice: Boolean!,
+  based: Boolean!,
+  ouch: Boolean!
+}
+
+type ArenaConfig @entity {
+  id: ID! # will be arena address
+  arena: Arena!
+  ABANDON_RANGE_CHANGE_PERCENT: BigInt!
+  ABANDON_SPEED_CHANGE_PERCENT: BigInt!
+  ADMIN_CAN_ADD_PLANETS: Boolean!
+  ARTIFACT_POINT_VALUES: [BigInt!]!
+  BIOME_THRESHOLD_1: BigInt!
+  BIOME_THRESHOLD_2: BigInt!
+  BIOMEBASE_KEY: BigInt!
+  BLOCK_CAPTURE: Boolean!
+  BLOCK_MOVES: Boolean!
+  CAPTURE_ZONE_CHANGE_BLOCK_INTERVAL: BigInt!
+  CAPTURE_ZONE_COUNT: BigInt!
+  CAPTURE_ZONE_HOLD_BLOCKS_REQUIRED: BigInt!
+  CAPTURE_ZONE_PLANET_LEVEL_SCORE: [BigInt!]!
+  CAPTURE_ZONE_RADIUS: BigInt!
+  CAPTURE_ZONES_ENABLED: Boolean!
+  CAPTURE_ZONES_PER_5000_WORLD_RADIUS: BigInt!
+  CLAIM_VICTORY_ENERGY_PERCENT: BigInt!
+  CONFIG_HASH: Bytes!
+  CONFIRM_START: Boolean!
+  DISABLE_ZK_CHECKS: Boolean!
+  INIT_PERLIN_MAX: BigInt!
+  INIT_PERLIN_MIN: BigInt!
+  INIT_PLANET_HASHES: [Bytes!]!
+  LOCATION_REVEAL_COOLDOWN: BigInt!
+  MANUAL_SPAWN: Boolean!
+  MAX_NATURAL_PLANET_LEVEL: BigInt!
+  MODIFIERS: [BigInt!]!
+  NO_ADMIN: Boolean!
+  NUM_TEAMS: BigInt!
+  PERLIN_LENGTH_SCALE: BigInt!
+  PERLIN_MIRROR_X: Boolean!
+  PERLIN_MIRROR_Y: Boolean!
+  PERLIN_THRESHOLD_1: BigInt!
+  PERLIN_THRESHOLD_2: BigInt!
+  PERLIN_THRESHOLD_3: BigInt!
+  PHOTOID_ACTIVATION_DELAY: BigInt!
+  PLANET_LEVEL_JUNK: [BigInt!]!
+  PLANET_LEVEL_THRESHOLDS: [BigInt!]!
+  PLANET_RARITY: BigInt!
+  PLANET_TRANSFER_ENABLED: Boolean!
+  PLANET_TYPE_WEIGHTS: [Int!]! # 1-D array of uint8, no overflow risk
+  PLANETHASH_KEY: BigInt!
+  RANDOM_ARTIFACTS: Boolean!
+  RANKED: Boolean!
+  SILVER_SCORE_VALUE: BigInt!
+  SPACE_JUNK_ENABLED: Boolean!
+  SPACE_JUNK_LIMIT: BigInt!
+  SPACESHIPS: [Boolean!]!
+  SPACETYPE_KEY: BigInt!
+  SPAWN_RIM_AREA: BigInt!
+  START_PAUSED: Boolean!
+  TARGET_PLANETS: Boolean!
+  TARGETS_REQUIRED_FOR_VICTORY: BigInt!
+  TEAMS_ENABLED: Boolean!
+  TIME_FACTOR_HUNDREDTHS: BigInt!
+  TOKEN_MINT_END_TIMESTAMP: BigInt!
+  WHITELIST_ENABLED: Boolean!
+  WHITELIST: [Bytes!]!
+  WORLD_RADIUS_LOCKED: Boolean!
+  WORLD_RADIUS_MIN: BigInt!
+}
+
+type ArenaPlanet @entity {
+  id: ID!
+  arena: Arena!
+  locationDec: BigInt!
+  locationId: String!
+  x: Int! # takes BigInt from chain
+  y: Int! # takes BigInt from chain
+  perlin: BigInt!
+  level: BigInt!
+  planetType: PlanetType!
+  spaceType: SpaceType!
+  targetPlanet: Boolean!
+  spawnPlanet: Boolean!
+  isEnergyCapBoosted: Boolean!
+  isEnergyGrowthBoosted: Boolean!
+  isRangeBoosted: Boolean!
+  isSpeedBoosted: Boolean!
+  isDefenseBoosted: Boolean!
+  isSpaceJunkHalved: Boolean!
+  captured: Boolean!
+  capturer: ArenaPlayer
+  blockedPlanetIds: [ArenaPlanet!]!
+  blockedPlanetHashes: [String!]!
+}
+
+enum PlanetType {
+  PLANET
+  ASTEROID
+  FOUNDRY
+  SPACETIME_RIP
+  QUASAR
+}
+
+enum SpaceType {
+  NEBULA
+  SPACE
+  DEEP_SPACE
+  DEAD_SPACE
+}

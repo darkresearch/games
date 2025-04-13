@@ -1,0 +1,68 @@
+specVersion: 0.0.2
+description: Dark Forest, the world's first decentralized real-time strategy game. Built on Ethereum with zkSNARKs
+repository: https://github.com/darkforest-eth/eth
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: DarkForest
+    network: optimism
+    source:
+      address: '{{{CONTRACT_ADDRESS}}}'
+      abi: DarkForest
+      startBlock: #{{{START_BLOCK}}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.5
+      language: wasm/assemblyscript
+      entities:
+        - Lobby
+        - Arena
+      abis:
+        - name: DarkForest
+          file: '{{{DARKFOREST_ABI_PATH}}}'
+      eventHandlers:
+        - event: LobbyCreated(address,address)
+          handler: handleLobbyCreated
+      file: ./src/arena.ts
+templates:
+  - kind: ethereum/contract
+    name: DarkForest
+    network: optimism
+    source:
+      abi: DarkForest
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.5
+      language: wasm/assemblyscript
+      entities:
+        - Arena
+        - ArenaConfig
+        - ArenaPlayer
+        - ArenaPlanet
+        - ConfigPlayer
+        - ConfigTeam
+        - Player
+      abis:
+        - name: DarkForest
+          file: '{{{DARKFOREST_ABI_PATH}}}'
+      eventHandlers:
+        - event: PlayerInitialized(address,uint256)
+          handler: handlePlayerInitialized
+        - event: Gameover(address)
+          handler: handleGameover
+        - event: GameStarted(address,uint256)
+          handler: handleGameStarted
+        - event: AdminPlanetCreated(uint256)
+          handler: handleAdminPlanetCreated
+        - event: ArrivalQueued(address,uint256,uint256,uint256,uint256,uint256)
+          handler: handleArrivalQueued
+        - event: ArenaInitialized(address,address)
+          handler: handleArenaInitialized
+        - event: PlayerReady(address,uint256)
+          handler: handlePlayerReady
+        - event: PlayerNotReady(address,uint256)
+          handler: handlePlayerNotReady
+        - event: TargetCaptured(uint256,address)
+          handler: handleTargetCaptured
+      file: ./src/arena.ts
