@@ -71,7 +71,7 @@ export function GameLandingPage({ match, location }: RouteComponentProps<{ contr
   const topLevelContainer = useRef<HTMLDivElement | null>(null);
 
   const [gameManager, setGameManager] = useState<GameManager | undefined>();
-  const [terminalVisible, setTerminalVisible] = useState(true);
+  const [terminalVisible, setTerminalVisible] = useState(false);
   const [initRenderState, setInitRenderState] = useState(InitRenderState.NONE);
   const ethConnection = useEthConnection();
   const [contractAddress, setContractAddress] = useState<EthAddress | undefined>(
@@ -683,14 +683,14 @@ export function GameLandingPage({ match, location }: RouteComponentProps<{ contr
       setInitRenderState(InitRenderState.COMPLETE);
       terminal.current?.clear();
 
-      terminal.current?.println('Welcome to the Dark Forest.', TerminalTextStyle.Green);
-      terminal.current?.println('');
-      terminal.current?.println(
-        "This is the Dark Forest interactive JavaScript terminal. Only use this if you know exactly what you're doing."
-      );
-      terminal.current?.println('');
-      terminal.current?.println('Try running: df.getAccount()');
-      terminal.current?.println('');
+      // terminal.current?.println('Welcome to the Dark Forest.', TerminalTextStyle.Green);
+      // terminal.current?.println('');
+      // terminal.current?.println(
+      //   "This is the Dark Forest interactive JavaScript terminal. Only use this if you know exactly what you're doing."
+      // );
+      // terminal.current?.println('');
+      // terminal.current?.println('Try running: df.getAccount()');
+      // terminal.current?.println('');
     },
     []
   );

@@ -4,6 +4,7 @@ import autoBind from 'auto-bind';
 import GameUIManager from '../../Backend/GameLogic/GameUIManager';
 import { distL2, vectorLength } from '../../Backend/Utils/Coordinates';
 import UIEmitter, { UIEmitterEvent } from '../Utils/UIEmitter';
+import { initSputnikSpaceship } from './SpaceshipManager';
 
 export const getDefaultScroll = (): number => {
   const isFirefox = navigator.userAgent.indexOf('Firefox') > 0;
@@ -214,6 +215,12 @@ class Viewport {
       widthInWorldUnits: 5, 
     };
 
+    // Set viewport instance before initializing spaceship
+    Viewport.instance = viewport;
+    
+    // Now initialize the Sputnik spaceship (it will access viewport later)
+    const spaceshipManager = initSputnikSpaceship(gameUIManager, initialViewportData.centerWorldCoords);
+
     // gameUIManager.centerCoords(initialViewportData.centerWorldCoords);
 
     viewport.setData(initialViewportData);
@@ -244,7 +251,13 @@ class Viewport {
       .on(UIEmitterEvent.WindowResize, viewport.onResize);
 
     viewport.intervalId = setInterval(viewport.setStorage, 5000);
-    Viewport.instance = viewport;
+    
+    // Initialize the spaceship renderer now that everything is set up
+    if (spaceshipManager && !spaceshipManager.isInitialized()) {
+      setTimeout(() => {
+        spaceshipManager.initializeRenderer();
+      }, 100); // Small delay to ensure everything is ready
+    }
 
     return viewport;
   }

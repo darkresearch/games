@@ -112,26 +112,29 @@ export function GameWindowLayout({
   const selected = useSelectedPlanet(uiManager).value;
   const [selectedPlanetVisible, setSelectedPlanetVisible] = useState<boolean>(!!selected);
 
-  const [userTerminalVisibleSetting, setTerminalVisibleSetting] = useBooleanSetting(
-    uiManager,
-    Setting.TerminalVisible
-  );
+  const [userTerminalVisibleSetting, setTerminalVisibleSetting] = useState<boolean>(false);
+
+  // const [userTerminalVisibleSetting, setTerminalVisibleSetting] = useBooleanSetting(
+  //   uiManager,
+  //   Setting.TerminalVisible
+  // );
 
   useEffect(() => {
     uiManager.setOverlayContainer(modalsContainer);
   }, [uiManager, modalsContainer]);
 
   const account = uiManager.getAccount();
-  useEffect(() => {
-    if (uiManager.getAccount()) {
-      setTerminalVisible(uiManager.getBooleanSetting(Setting.TerminalVisible));
-    }
-  }, [account, uiManager, setTerminalVisible]);
+  // useEffect(() => {
+  //   if (uiManager.getAccount()) {
+  //     setTerminalVisible(uiManager.getBooleanSetting(Setting.TerminalVisible));
+  //   }
+  // }, [account, uiManager, setTerminalVisible]);
 
   useEffect(() => {
-    if (userTerminalVisibleSetting !== terminalVisible) {
-      setTerminalVisibleSetting(terminalVisible);
-    }
+    // if (userTerminalVisibleSetting !== terminalVisible) {
+    //   setTerminalVisibleSetting(terminalVisible);
+    // }
+    setTerminalVisibleSetting(terminalVisible);
   }, [userTerminalVisibleSetting, setTerminalVisibleSetting, terminalVisible]);
 
   useEffect(() => setSelectedPlanetVisible(!!selected), [selected, setSelectedPlanetVisible]);
