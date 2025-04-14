@@ -7,6 +7,7 @@ import { resourceSchemas } from '../../schemas/resources';
 // Import all handlers
 import { setupPingHandlers } from './ping';
 import { setupPlayerResourceHandlers } from './player';
+import { setupPlanetResourceHandlers } from './planet';
 
 /**
  * Sets up all resource handlers on the server
@@ -23,16 +24,20 @@ export function setupResourceHandlers(server: Server, playerRegistry: PlayerRegi
     logger.info(`Read resource request: ${request.params.uri}`);
     
     // Route to appropriate handler based on resource URI
-    switch (request.params.uri) {
-      case "/ping":
-        return setupPingHandlers(request);
-        
-      case "/players":
-        return setupPlayerResourceHandlers(playerRegistry, request);
-
-      default:
-        logger.debug(`Unknown resource: ${request.params.uri}`);
-        throw new Error(`Unknown resource: ${request.params.uri}`);
+    if (request.params.uri === "/ping") {
+      return setupPingHandlers(request);
     }
+    
+    if (request.params.uri === "/players") {
+      return setupPlayerResourceHandlers(playerRegistry, request);
+    }
+    
+    // Check if this is a planet resource request
+    if (request.params.uri.startsWith("/planet/")) {
+      return setupPlanetResourceHandlers(playerRegistry, request);
+    }
+
+    logger.debug(`Unknown resource: ${request.params.uri}`);
+    throw new Error(`Unknown resource: ${request.params.uri}`);
   });
 } 
