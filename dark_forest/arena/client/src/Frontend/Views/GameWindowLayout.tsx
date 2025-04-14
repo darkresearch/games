@@ -155,45 +155,45 @@ export function GameWindowLayout({
 
       {/* all modals rendered into here */}
       <div ref={modalsContainerCB}>
-        <HelpPane visible={helpVisible} onClose={() => setHelpVisible(false)} />
-        <TransactionLogPane
+        {/* <HelpPane visible={helpVisible} onClose={() => setHelpVisible(false)} /> */}
+        {/* <TransactionLogPane
           visible={transactionLogVisible}
           onClose={() => setTransactionLogVisible(false)}
-        />
-        <PlanetDexPane visible={planetdexVisible} onClose={() => setPlanetdexVisible(false)} />
-        <TwitterVerifyPane
+        /> */}
+        {/* <PlanetDexPane visible={planetdexVisible} onClose={() => setPlanetdexVisible(false)} /> */}
+        {/* <TwitterVerifyPane
           visible={twitterVerifyVisible}
           onClose={() => setTwitterVerifyVisible(false)}
-        />
-        <SettingsPane
+        /> */}
+        {/* <SettingsPane
           ethConnection={uiManager.getEthConnection()}
           visible={settingsVisible}
           onClose={() => setSettingsVisible(false)}
           onOpenPrivate={() => setPrivateVisible(true)}
-        />
-        <PrivatePane visible={privateVisible} onClose={() => setPrivateVisible(false)} />
-        <PlayerArtifactsPane
+        /> */}
+        {/* <PrivatePane visible={privateVisible} onClose={() => setPrivateVisible(false)} /> */}
+        {/* <PlayerArtifactsPane
           visible={playerArtifactsVisible}
           onClose={() => setPlayerArtifactsVisible(false)}
-        />
-        <PlanetContextPane
+        /> */}
+        {/* <PlanetContextPane
           visible={selectedPlanetVisible}
           onClose={() => setSelectedPlanetVisible(false)}
         />
         <DiagnosticsPane
           visible={diagnosticsVisible}
           onClose={() => setDiagnosticsVisible(false)}
-        />
-        <SurveyPane visible={useGameover()} onClose={() => {}} />
+        /> */}
+        {/* <SurveyPane visible={useGameover()} onClose={() => {}} /> */}
 
-        {modalsContainer && (
+        {/* {modalsContainer && (
           <PluginLibraryPane
             modalsContainer={modalsContainer}
             gameUIManager={uiManager}
             visible={pluginsVisible}
             onClose={() => setPluginsVisible(false)}
           />
-        )}
+        )} */}
       </div>
 
       <WaitingRoomPane visible={waitingRoomVisible} onClose={() => setWaitingRoomVisible(false)} />
@@ -203,27 +203,27 @@ export function GameWindowLayout({
           <UpperLeft>
             <ZoomPane />
           </UpperLeft>
-          <SidebarPane
+          {/* <SidebarPane
             exitHook={exitGame}
             settingsHook={[settingsVisible, setSettingsVisible]}
             helpHook={[helpVisible, setHelpVisible]}
             pluginsHook={[pluginsVisible, setPluginsVisible]}
             yourArtifactsHook={[playerArtifactsVisible, setPlayerArtifactsVisible]}
             planetdexHook={[planetdexVisible, setPlanetdexVisible]}
-          />
+          /> */}
           <CanvasWrapper>
             <ControllableCanvas />
           </CanvasWrapper>
 
-          <NotificationsPane />
+          {/* <NotificationsPane /> */}
           <CoordsPane />
-          <ExplorePane />
+          {/* <ExplorePane /> */}
 
           <HoverPlanetPane />
           <ArtifactHoverPane />
 
-          {showTutorial && <TutorialPane />}
-          {showSpectatorInfo && <SpectatorInfoPane />}
+          {/* {showTutorial && <TutorialPane />} */}
+          {/* {showSpectatorInfo && <SpectatorInfoPane />} */}
           {showArenaBriefing && !showTutorial && <ArenaBriefingPane />}
         </CanvasContainer>
       </MainWindow>

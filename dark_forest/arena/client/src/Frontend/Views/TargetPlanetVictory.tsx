@@ -40,7 +40,7 @@ export function TargetPlanetVictory() {
   return (
     <>
       <GameoverContainer>
-        <TooltipTrigger
+        {/* <TooltipTrigger
           extraContent={
             <>
               In this game, you need to capture <Red>{requiredPlanets}</Red> target planet
@@ -50,12 +50,19 @@ export function TargetPlanetVictory() {
           }
           name={TooltipName.Empty}
           style={{ gap: '5px' }}
-        >
+        > */}
           <span style={{ marginInline: '5px' }}>
-            Targets: {gameManager.getTargetsHeld().length}/{requiredPlanets}
+            <>
+              Welcome to DARK Forest. In this game, SPUTNIK needs to capture <Red>{requiredPlanets}</Red> target planet
+              {requiredPlanets !== 1 && 's'} and fill {requiredPlanets == 1 && 'it'}{requiredPlanets !== 1 && 'each'} with{' '}
+              <Green>{requiredEnergy}% energy</Green>.
+            </>
+            <br />
+            <br />
+            (Currently captured: {gameManager.getTargetsHeld().length}/{requiredPlanets})
           </span>
 
-          {canClaimVictory && (
+          {/* {canClaimVictory && (
             <LobbyButton
               primary
               disabled={claiming}
@@ -67,8 +74,8 @@ export function TargetPlanetVictory() {
             >
               {claiming ? 'Claiming...' : 'Claim Victory'!}
             </LobbyButton>
-          )}
-        </TooltipTrigger>
+          )} */}
+        {/* </TooltipTrigger> */}
       </GameoverContainer>
       {/* <TimeContainer>Game length: {prettyTime(gameDuration)}</TimeContainer> */}
     </>
@@ -76,8 +83,11 @@ export function TargetPlanetVictory() {
 }
 
 const GameoverContainer = styled.div`
-  // font-size: 2em;
   text-align: center;
+  max-width: 90%;
+  margin: 0 auto;
+  word-wrap: break-word;
+  white-space: normal;
 `;
 const TimeContainer = styled.div`
   font-size: 1em;

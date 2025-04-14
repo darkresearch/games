@@ -194,20 +194,20 @@ export function TopBar({ twitterVerifyHook }: { twitterVerifyHook: Hook<boolean>
 
   return (
     <TopBarContainer>
-      <AlignCenterHorizontally style={{ width: '100%', justifyContent: 'space-around' }}>
-        <TooltipTrigger
+      {/* <AlignCenterHorizontally style={{ width: '100%', justifyContent: 'space-around' }}> */}
+        {/* <TooltipTrigger
           name={TooltipName.Empty}
           extraContent={<Text>Your burner wallet address.</Text>}
         >
           <AccountLabel includeAddressIfHasTwitter={true} width={'75px'} />
-        </TooltipTrigger>
-        <TooltipTrigger
+        </TooltipTrigger> */}
+        {/* <TooltipTrigger
           name={TooltipName.Empty}
           extraContent={<Text>Your burner wallet balance.</Text>}
         >
           <Sub>({weiToEth(balance).toFixed(2)} xDAI)</Sub>
-        </TooltipTrigger>
-        {process.env.DF_TWITTER_URL && (
+        </TooltipTrigger> */}
+        {/* {process.env.DF_TWITTER_URL && (
           <>
             <TooltipTrigger
               name={TooltipName.Empty}
@@ -226,8 +226,8 @@ export function TopBar({ twitterVerifyHook }: { twitterVerifyHook: Hook<boolean>
               />
             </TooltipTrigger>
           </>
-        )}
-        <TooltipTrigger
+        )} */}
+        {/* <TooltipTrigger
           name={TooltipName.Empty}
           extraContent={<Text>This is the map configuration. Click to copy the hash.</Text>}
         >
@@ -245,9 +245,9 @@ export function TopBar({ twitterVerifyHook }: { twitterVerifyHook: Hook<boolean>
           >
             {getConfigName(uiManager.contractConstants.CONFIG_HASH)}
           </Button>
-        </TooltipTrigger>
-      </AlignCenterHorizontally>{' '}
-      <AlignCenterHorizontally
+        </TooltipTrigger> */}
+      {/* </AlignCenterHorizontally>{' '} */}
+      {/* <AlignCenterHorizontally
         style={{ justifyContent: 'space-evenly', width: '100%', marginTop: '7px' }}
       >
         {uiManager.getSpaceJunkEnabled() && <SpaceJunk account={account} />}
@@ -258,10 +258,10 @@ export function TopBar({ twitterVerifyHook }: { twitterVerifyHook: Hook<boolean>
         ) : (
           <BoardPlacement account={account} />
         )}
-      </AlignCenterHorizontally>
+      </AlignCenterHorizontally> */}
       <TargetPlanetVictory />
-      <Gameover />
-      <Paused />
+      {/* <Gameover />
+      <Paused /> */}
       {/* <Play /> */}
     </TopBarContainer>
   );

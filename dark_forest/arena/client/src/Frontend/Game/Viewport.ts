@@ -201,13 +201,32 @@ class Viewport {
 
     viewport.setDiagnosticUpdater(gameUIManager);
 
-    // set starting position based on storage
-    const stored = viewport.getStorage();
-    if (!stored) {
-      viewport.zoomPlanet(gameUIManager.getHomePlanet());
-    } else {
-      viewport.setData(stored);
-    }
+    // TODO: This is where you're going to query for
+    // last move.
+    const initialViewportData = {
+      centerWorldCoords: {
+        x: -788,
+        y: -3381
+      },
+      // TODO: STARTING WIDTH NEEDS TO BE ADJUSTED
+      // BASED ON SIZE OF PLANET SPUTNIK IS ON
+      // AT GIVEN MOMENT
+      widthInWorldUnits: 5, 
+    };
+
+    // gameUIManager.centerCoords(initialViewportData.centerWorldCoords);
+
+    viewport.setData(initialViewportData);
+
+    // // set starting position based on storage
+    // const stored = viewport.getStorage();
+    // console.log('stored', stored);
+    // if (!stored) {
+    //   viewport.zoomPlanet(gameUIManager.getHomePlanet());
+    // } else {
+    //   // THIS IS WHERE ZOOM DATA IS SET
+    //   viewport.setData(stored);
+    // }
 
     uiEmitter
       .on(UIEmitterEvent.CanvasMouseDown, viewport.onMouseDown)

@@ -44,17 +44,19 @@ export function DarkForestTips({
     return () => clearInterval(intervalHandle);
   }, [incrementTipIndex]);
 
+  const sputnikTIP = "Pan around the map to explore more of the universe!"
+
   return (
     <TipsContainer>
       <HeaderText style={{ textDecoration: 'none' }}>{title ?? 'Dark Forest Tips'}</HeaderText>{' '}
-      <PrevNextContainer>
+      {/* <PrevNextContainer>
         <TextButton onClick={() => incrementTipIndex(-1, true)}>previous</TextButton>
         <Spacer width={16} />
         <TextButton onClick={() => incrementTipIndex(1, true)}>next</TextButton>
-      </PrevNextContainer>
+      </PrevNextContainer> */}
       <br />
       <br />
-      <TipText>{tips[tipIndex]}</TipText>
+      <TipText>{sputnikTIP}</TipText>
     </TipsContainer>
   );
 }
