@@ -794,10 +794,10 @@ export function GameLandingPage({ match, location }: RouteComponentProps<{ contr
             </UIManagerProvider>
           </TopLevelDivProvider>
         )}
-        <TerminalToggler
+        {/* <TerminalToggler
           terminalEnabled={terminalVisible}
           setTerminalEnabled={setTerminalVisible}
-        />
+        /> */}
       </GameWindowWrapper>
       <TerminalWrapper initRender={initRenderState} terminalEnabled={terminalVisible}>
         <Terminal ref={terminalHandle} promptCharacter={'$'} />
