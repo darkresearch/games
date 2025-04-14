@@ -1,0 +1,12 @@
+[submodule "client"]
+	path = client
+	url = https://github.com/dfdao/client
+[submodule "eth"]
+	path = eth
+	url = https://github.com/dfdao/eth
+[submodule "circuits"]
+	path = circuits
+	url = https://github.com/dfdao/circuits
+[submodule "packages"]
+	path = packages
+	url = https://github.com/dfdao/packages

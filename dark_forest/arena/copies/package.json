@@ -1,0 +1,14 @@
+{
+  "name": "copies",
+  "version": "1.0.0",
+  "description": "util for copying and publish Dark Forest packages under dfdao",
+  "main": "load.js",
+  "repository": "https://github.com/dfdao/darkforest-local",
+  "author": "cha0sg0d",
+  "license": "MIT",
+  "scripts": {
+    "clean": "rm -R -- */",
+    "load": "node load.js",
+    "publish": "zsh publish.sh"
+  }
+}

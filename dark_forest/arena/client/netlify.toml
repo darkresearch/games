@@ -1,0 +1,23 @@
+[build]
+command = "yarn workspace client build"
+functions = "functions"
+publish = "/client/dist"
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
+
+[[redirects]]
+from = "/archive/8d8a7d2a/*"
+to = "https://6247dc3ca1de3b6ce0c8e184--df-prod.netlify.app/:splat"
+status = 200
+
+## (optional) Settings for Netlify Dev
+## https://github.com/netlify/cli/blob/master/docs/netlify-dev.md#project-detection
+#[dev]
+#  command = "yarn start" # Command to start your dev server
+#  port = 3000 # Port that the dev server will be listening on
+#  publish = "dist" # Folder with the static content for _redirect file
+
+## more info on configuring this file: https://www.netlify.com/docs/netlify-toml-reference/

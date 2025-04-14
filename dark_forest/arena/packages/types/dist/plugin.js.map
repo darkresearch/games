@@ -1,0 +1,1 @@
+{"version":3,"file":"plugin.js","sourceRoot":"","sources":["../src/plugin.ts"],"names":[],"mappings":"","sourcesContent":["import type { Abstract } from './utility';\n\nexport type PluginId = Abstract<string, 'PluginId'>;\n"]}

@@ -1,0 +1,13 @@
+import * as decoders from 'decoders';
+export declare function withDefault<A>(decoder: decoders.Decoder<A>, def: A): decoders.Decoder<A, unknown>;
+export declare function between(decoder: decoders.Decoder<number>, min: number, max: number): decoders.Decoder<number, unknown>;
+export declare type ExactArray4<A> = [A, A, A, A];
+export declare function exactArray4<A>(decoder: decoders.Decoder<A>): decoders.Decoder<ExactArray4<A>, unknown>;
+export declare type ExactArray5<A> = [A, A, A, A, A];
+export declare function exactArray5<A>(decoder: decoders.Decoder<A>): decoders.Decoder<ExactArray5<A>, unknown>;
+export declare type Tuple6<A> = [A, A, A, A, A, A];
+export declare function array6<A>(decoder: decoders.Decoder<A>): decoders.Decoder<Tuple6<A>, unknown>;
+export declare type ExactArray8<A> = [A, A, A, A, A, A, A, A];
+export declare function exactArray8<A>(decoder: decoders.Decoder<A>): decoders.Decoder<ExactArray8<A>, unknown>;
+export declare type ExactArray10<A> = [A, A, A, A, A, A, A, A, A, A];
+export declare function exactArray10<A>(decoder: decoders.Decoder<A>): decoders.Decoder<ExactArray10<A>, unknown>;
