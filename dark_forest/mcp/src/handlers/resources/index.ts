@@ -28,7 +28,7 @@ export function setupResourceHandlers(server: Server, playerRegistry: PlayerRegi
       return setupPingHandlers(request);
     }
     
-    if (request.params.uri === "/players") {
+    if (request.params.uri === "/players" || request.params.uri === "/player/location") {
       return setupPlayerResourceHandlers(playerRegistry, request);
     }
     

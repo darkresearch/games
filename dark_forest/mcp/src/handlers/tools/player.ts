@@ -79,6 +79,43 @@ export async function setupPlayerHandlers(server: Server, playerRegistry: Player
         }]
       };
     }
+    
+    case "update_location": {
+      const address = args.address as EthAddress;
+      const x = args.x as number;
+      const y = args.y as number;
+      
+      // Validate parameters
+      if (!address) {
+        throw new Error("Player address is required");
+      }
+      
+      if (x === undefined || y === undefined) {
+        throw new Error("Both x and y coordinates are required");
+      }
+      
+      // Check if player exists
+      if (!playerRegistry.getPlayer(address)) {
+        throw new Error(`Player not found: ${address}`);
+      }
+      
+      // Update player location
+      playerRegistry.updatePlayerLocation(address, x, y);
+      
+      logger.debug(`Updated location for player ${address} to (${x}, ${y})`);
+      
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ 
+            success: true,
+            address,
+            location: { x, y },
+            message: `Player location updated to (${x}, ${y})`
+          })
+        }]
+      };
+    }
 
     default:
       throw new Error(`Unknown player tool: ${request.params.name}`);

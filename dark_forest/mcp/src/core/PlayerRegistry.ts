@@ -31,6 +31,7 @@ export class PlayerRegistry {
   private walletManager: WalletManager;
   private networkId: number;
   private agentMiningState: Map<EthAddress, AgentMiningState> = new Map();
+  private playerLocations: Map<EthAddress, { x: number, y: number }> = new Map();
 
   constructor(gamePubkey: EthAddress, baseContractAddress: EthAddress, networkId: number) {
     this.gamePubkey = gamePubkey;
@@ -194,6 +195,20 @@ export class PlayerRegistry {
     return Array.from(state.discoveredPlanets);
   }
 
+  /**
+   * Get player's current location
+   */
+  public getPlayerLocation(address: EthAddress): { x: number, y: number } | undefined {
+    return this.playerLocations.get(address);
+  }
+
+  /**
+   * Update player's location
+   */
+  public updatePlayerLocation(address: EthAddress, x: number, y: number): void {
+    this.playerLocations.set(address, { x, y });
+  }
+
   async getOrCreatePlayer(address: EthAddress): Promise<GameManager> {
     // First, check if we have a wallet for this address
     if (!this.walletManager.hasWallet(address)) {
@@ -237,6 +252,10 @@ export class PlayerRegistry {
       );
 
       this.players.set(address, player);
+      
+      // Set initial location for new player
+      this.updatePlayerLocation(address, -788, -3381);
+      // TODO: update initial location in initializePlayer() in the future
     }
     return player;
   }
