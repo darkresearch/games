@@ -945,17 +945,19 @@ class GameManager extends EventEmitter {
     // we only want to initialize the mining manager if the player has already joined the game
     // if they haven't, we'll do this once the player has joined the game
     if (spectator) {
-      gameManager.initMiningManager({ x: 0, y: 0 });
-    } else if (!!homeLocation && initialState.players.has(account as string)) {
-      // gameManager.initMiningManager(homeLocation.coords);
-
+      // gameManager.initMiningManager({ x: 0, y: 0 });
       // Load pre-mined chunks from map.json
       try {
+        console.log('Loading map data chunks...');
         const chunks = mapData as Chunk[];
+        console.log(`Found ${chunks.length} chunks to load from map data`);
         await gameManager.bulkAddNewChunks(chunks);
+        console.log('Successfully loaded all map data chunks');
       } catch (e) {
         console.log(e);
       }
+    } else if (!!homeLocation && initialState.players.has(account as string)) {
+      // gameManager.initMiningManager(homeLocation.coords)
     }
 
     return gameManager;
@@ -3279,11 +3281,16 @@ class GameManager extends EventEmitter {
    */
   async bulkAddNewChunks(chunks: Chunk[]): Promise<void> {
     this.terminal.current?.println(
-      'IMPORTING MAP: if you are importing a large map, this may take a while...'
+      `IMPORTING MAP: loading ${chunks.length} chunks, this may take a while...`
     );
+    
+    let totalPlanetLocations = 0;
     const planetIdsToUpdate: LocationId[] = [];
+    
     for (const chunk of chunks) {
       this.persistentChunkStore.addChunk(chunk, true);
+      totalPlanetLocations += chunk.planetLocations.length;
+      
       for (const planetLocation of chunk.planetLocations) {
         this.entityStore.addPlanetLocation(planetLocation);
 
@@ -3293,10 +3300,17 @@ class GameManager extends EventEmitter {
         }
       }
     }
+    
     this.terminal.current?.println(
-      `downloading data for ${planetIdsToUpdate.length} planets...`,
+      `Added ${chunks.length} chunks with ${totalPlanetLocations} planet locations`,
       TerminalTextStyle.Sub
     );
+    
+    this.terminal.current?.println(
+      `Downloading data for ${planetIdsToUpdate.length} planets...`,
+      TerminalTextStyle.Sub
+    );
+    
     this.bulkHardRefreshPlanets(planetIdsToUpdate);
   }
 
