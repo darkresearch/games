@@ -75,7 +75,7 @@ export function GameLandingPage({ match, location }: RouteComponentProps<{ contr
   const [initRenderState, setInitRenderState] = useState(InitRenderState.NONE);
   const ethConnection = useEthConnection();
   const [contractAddress, setContractAddress] = useState<EthAddress | undefined>(
-    match.params.contract ? address(match.params.contract) : undefined
+    address("0x4445f4c7c903601215d15972c0f6f02b5e128a0e")
   );
   const [configHash, setConfigHash] = useState<string>('');
   const [step, setStep] = useState(TerminalPromptStep.ACCOUNT_SET);
@@ -176,44 +176,10 @@ export function GameLandingPage({ match, location }: RouteComponentProps<{ contr
         const configHash = (await diamond.getArenaConstants()).CONFIG_HASH;
         console.log('loaded config hash', configHash);
         setConfigHash(configHash);
-
-        if (configHash === tutorialConfig || fromCreate) {
-          setStep(TerminalPromptStep.PLAYING);
-          return;
-        }
       }
 
-      terminal.current?.println(``);
-      terminal.current?.println(
-        fromCreate ?
-        `Would you like to play with this account?`:
-        `Would you like to play or spectate this game?`,
-        TerminalTextStyle.Sub
-      );
-
-      terminal.current?.print('(a) ', TerminalTextStyle.Sub);
-      terminal.current?.println(`Play.`);
-      if(!fromCreate) {
-        terminal.current?.print('(s) ', TerminalTextStyle.Sub);
-        terminal.current?.println(`Spectate.`);
-      }
-      terminal.current?.print(`(d) `, TerminalTextStyle.Sub);
-      terminal.current?.println(`Change account.`);
-
-      terminal.current?.println(``);
-      terminal.current?.println(`Select an option:`, TerminalTextStyle.Text);
-
-      const userInput = await terminal.current?.getInput();
-      if (userInput === 'a') {
-        setStep(TerminalPromptStep.PLAYING);
-      } else if (userInput === 's') {
-        setStep(TerminalPromptStep.SPECTATING);
-      } else if (userInput === 'd') {
-        logOut();
-      } else {
-        terminal.current?.println('Unrecognized input. Please try again.');
-        await advanceStateFromContractSet(terminal);
-      }
+      // Always go to spectator mode
+      setStep(TerminalPromptStep.SPECTATING);
     },
     [configHash, contractAddress]
   );

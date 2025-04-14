@@ -41,6 +41,13 @@ import { CreateLobby } from './Lobby/CreateLobby';
 import { NotFoundPage } from './NotFoundPage';
 
 const defaultAddress = address(CONTRACT_ADDRESS);
+
+// Hardcoded account details
+const HARDCODED_ACCOUNT: Account = {
+  address: address('0x1b1325fE25AB7b3f662Ef89097914633f0D43637'),
+  privateKey: '205bbf7ab38ba2afeb3cdd02521cd3d0a2f37a8c939439b6bc750f78c443acbc'
+};
+
 class EntryPageTerminal {
   private ethConnection: EthConnection;
   private terminal: TerminalHandle;
@@ -277,7 +284,7 @@ class EntryPageTerminal {
   }
 }
 
-type LoadingStatus = 'loading' | 'creating' | 'complete';
+type LoadingStatus = 'loading' | 'creating' | 'complete' | 'error';
 export function EntryPage() {
   const terminal = useRef<TerminalHandle>();
   const history = useHistory();
@@ -334,24 +341,43 @@ export function EntryPage() {
     getConnection();
   }, []);
 
-  /* once connection is set, get active player from local storage and set account */
+  /* once connection is set, automatically set the hardcoded account */
   useEffect(() => {
     async function setPlayer(ethConnection: EthConnection) {
-      const active = getActive();
+      if (loadingStatus !== 'loading') return;
+      
       try {
-        if (!!active) {
-          await sendDrip(ethConnection, active.address);
-          await ethConnection.setAccount(active.privateKey);
-          setLoadingStatus('complete');
-        } else {
-          setLoadingStatus('creating');
+        console.log('Setting up hardcoded account...');
+        
+        // Add the hardcoded account if it doesn't exist
+        if (!getAccounts().find(acc => acc.address === HARDCODED_ACCOUNT.address)) {
+          console.log('Adding hardcoded account to local storage...');
+          addAccount(HARDCODED_ACCOUNT.privateKey);
         }
+        
+        // Set it as active
+        console.log('Setting hardcoded account as active...');
+        setActive(HARDCODED_ACCOUNT);
+        
+        // Set up the connection
+        console.log('Setting up blockchain connection...');
+        await ethConnection.setAccount(HARDCODED_ACCOUNT.privateKey);
+        
+        console.log('Requesting drip...');
+        const currBalance = weiToEth(await ethConnection.loadBalance(HARDCODED_ACCOUNT.address));
+        if (currBalance < 0.005) {
+          await sendDrip(ethConnection, HARDCODED_ACCOUNT.address);
+        }
+        
+        console.log('Account setup complete!');
+        setLoadingStatus('complete');
       } catch (e) {
-        // alert('Unable to connect to active account. Please login into another.');
-        console.error('Unable to connect to active account. Please login into another.');
-        logOut();
+        console.error('Error setting up hardcoded account:', e);
+        // Don't call logOut() here as it may trigger another loading cycle
+        setLoadingStatus('error');
       }
     }
+    
     if (connection) {
       setPlayer(connection);
     }
@@ -368,55 +394,42 @@ export function EntryPage() {
               history.push(`/play/${tutorialLobbyAddress}?create=true`);
             }
             await connection.setAccount(account.privateKey);
-
             setLoadingStatus('complete');
           }
         );
-        newController.checkCompatibility();
+        // Skip terminal interface - we're using hardcoded account
+        setController(newController);
       }
     },
     [connection, controller]
   );
 
-  if (!connection || !twitters || !seasonPlayers || loadingStatus == 'loading') {
-    return <LoadingPage />;
-  } else if (loadingStatus == 'creating') {
-    return (
-      <Wrapper initRender={InitRenderState.NONE} terminalEnabled={false}>
-        <TerminalWrapper initRender={InitRenderState.NONE} terminalEnabled={false}>
-          <Terminal ref={controllerHandler} promptCharacter={'$'} />
-        </TerminalWrapper>
+  if (loadingStatus === 'error') {
+    return <div style={{padding: 20, color: 'red'}}>Error loading game. Please refresh the page.</div>;
+  }
 
-        {/* this div is here so the styling matches gamelandingpage styling*/}
-        <div></div>
-      </Wrapper>
-    );
-  } else
-    return (
-      <EthConnectionProvider value={connection}>
-        <TwitterProvider value={twitterContext}>
-          <SeasonDataProvider value={seasonData!}>
-            <SeasonPlayerProvider value={seasonPlayerContext}>
-              <Router>
-                <Switch>
-                  <Redirect path='/play' to={`/play/${defaultAddress}`} push={true} exact={true} />
-                  <Route path='/play/:contract' component={GameLandingPage} />
-                  <Redirect path='/portal/tutorial' to={`/play/`} push={false} exact={true} />
-                  <Redirect path='/portal' to={`/portal/home`} push={true} exact={true} />
-                  <Route path='/portal' component={PortalMainView} />
-                  <Redirect
-                    path='/arena'
-                    to={`/arena/${defaultAddress}`}
-                    push={true}
-                    exact={true}
-                  />
-                  <Route path='/arena/:contract' component={CreateLobby} />
-                  <Route path='*' component={NotFoundPage} />
-                </Switch>
-              </Router>
-            </SeasonPlayerProvider>
-          </SeasonDataProvider>
-        </TwitterProvider>
-      </EthConnectionProvider>
-    );
+  if (!connection || !twitters || !seasonPlayers || loadingStatus === 'loading') {
+    return <LoadingPage />;
+  } else if (loadingStatus === 'creating') {
+    // Skip showing terminal interface
+    setLoadingStatus('complete');
+    return <LoadingPage />;
+  }
+
+  return (
+    <EthConnectionProvider value={connection}>
+      <TwitterProvider value={twitterContext}>
+        <SeasonDataProvider value={seasonData!}>
+          <SeasonPlayerProvider value={seasonPlayerContext}>
+            <Router>
+              <Switch>
+                <Route path='/play/:contract' component={GameLandingPage} />
+                <Route path='*' component={GameLandingPage} />
+              </Switch>
+            </Router>
+          </SeasonPlayerProvider>
+        </SeasonDataProvider>
+      </TwitterProvider>
+    </EthConnectionProvider>
+  );
 }

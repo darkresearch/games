@@ -14,6 +14,7 @@ import { TestArtifactImages } from './TestArtifactImages';
 import { TxConfirmPopup } from './TxConfirmPopup';
 import UnsubscribePage from './UnsubscribePage';
 import { ValhallaPage } from './ValhallaPage';
+import { GameLandingPage } from './Game/GameLandingPage';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -25,8 +26,8 @@ function App() {
       <Theme color='dark' scale='medium'>
         <Router>
           <Switch>
-            <Route path='/' exact component={LandingPage} />
-            <Route path='/planet/:locationId' component={SharePlanet} />
+            <Route path='/' component={EntryPage} />
+            {/* <Route path='/planet/:locationId' component={SharePlanet} />
             <Route path='/events' component={EventsPage} />
             <Route path='/artifact/:artifactId' component={ShareArtifact} />
             <Route
@@ -37,7 +38,7 @@ function App() {
             <Route path='/valhalla' component={ValhallaPage} />
             {!isProd && <Route path='/images' component={TestArtifactImages} />}
             {!isProd && <Route path='/gifs' component={GifMaker} />}
-            {!isProd && <Route path='/bg' component={LandingPageBackground} />}
+            {!isProd && <Route path='/bg' component={LandingPageBackground} />} */}
             <Route path='*' component={EntryPage} />
           </Switch>
         </Router>
