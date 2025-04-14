@@ -6,6 +6,7 @@ import {
   TxIntent,
   TransactionId,
   WorldLocation,
+  WorldCoords,
 } from "@darkforest_eth/types";
 import { providers, Contract, } from "ethers";
 import { EventEmitter } from "events";
@@ -19,6 +20,7 @@ import { SnarkArgsHelper } from "../helpers/SnarkArgsHelper";
 import * as logger from '../helpers/logger';
 import { MiningService } from "./MiningService";
 import { PlayerRegistry } from "./PlayerRegistry";
+import { locationIdToDecStr, decodePlanet } from "@darkforest_eth/serde";
 
 // Create ES Module equivalents for __dirname and __filename
 const __filename = fileURLToPath(import.meta.url);
@@ -244,11 +246,12 @@ export class GameManager extends EventEmitter {
    * Create a new transaction
    */
   private createTransaction<T extends TxIntent>(intent: T): Transaction<T> {
+    const txId = this.txCounter++;
     return {
-      id: (this.txCounter++).toString() as TransactionId,
       intent,
+      createdAt: Date.now(),
       status: TransactionStatus.Queued,
-      createdAt: Date.now()
+      id: txId.toString() as unknown as TransactionId,
     };
   }
   
@@ -437,6 +440,140 @@ export class GameManager extends EventEmitter {
       console.error('Error executing move:', error);
       throw error;
     }
+  }
+
+  /** PLANET METHODS ================================================================== */
+
+  /**
+   * Gets a planet entity by its ID.
+   * @param locationId The ID of the planet to get
+   * @returns The planet entity, or undefined if the planet doesn't exist
+   */
+  public async getPlanetWithId(locationId: LocationId): Promise<any> {
+    try {
+      // Convert locationId to decimal string for contract call
+      const decStrId = locationIdToDecStr(locationId);
+      
+      // Make contract calls to get planet data
+      const rawPlanet = await this.contract.planets(decStrId);
+      
+      // Check if planet exists
+      if (!rawPlanet || !rawPlanet[0]) {
+        return undefined;
+      }
+      
+      // Get extended info
+      const rawExtendedInfo = await this.contract.planetsExtendedInfo(decStrId);
+      const rawExtendedInfo2 = await this.contract.planetsExtendedInfo2(decStrId);
+      const rawArenaInfo = await this.contract.planetsArenaInfo(decStrId);
+      
+      // Decode planet data
+      const planet = decodePlanet(
+        decStrId,
+        rawPlanet,
+        rawExtendedInfo,
+        rawExtendedInfo2,
+        rawArenaInfo
+      );
+      
+      return planet;
+    } catch (error) {
+      logger.error(`Error getting planet data: ${logger.formatError(error)}`);
+      return undefined;
+    }
+  }
+
+  /**
+   * Gets the planet by its ID using the contract method.
+   * This is an alias for getPlanetWithId for compatibility with CaptureZoneGenerator.
+   */
+  public async getPlanet(locationId: LocationId): Promise<any> {
+    return this.getPlanetWithId(locationId);
+  }
+
+  /**
+   * Gets the distance between two coordinates in space.
+   */
+  public getDistCoords(fromCoords: WorldCoords, toCoords: WorldCoords): number {
+    return Math.sqrt((fromCoords.x - toCoords.x) ** 2 + (fromCoords.y - toCoords.y) ** 2);
+  }
+
+  /**
+   * Calculates the time it will take to move from one location to another.
+   * @param fromId The ID of the source planet
+   * @param toId The ID of the destination planet
+   * @returns The time it will take to make the move in seconds
+   */
+  public async getTimeForMove(fromId: LocationId, toId: LocationId): Promise<number> {
+    const from = await this.getPlanetWithId(fromId);
+    if (!from) throw new Error('origin planet unknown');
+    
+    // Get coordinates for both planets to calculate distance
+    // First get from planet coordinates
+    let fromCoords, toCoords;
+    
+    if (from.location?.coords) {
+      fromCoords = from.location.coords;
+    } else if (from.coords) {
+      fromCoords = from.coords;
+    } else {
+      throw new Error('Could not get coordinates for source planet');
+    }
+    
+    // Get to planet coordinates
+    const to = await this.getPlanetWithId(toId);
+    if (to) {
+      if (to.location?.coords) {
+        toCoords = to.location.coords;
+      } else if (to.coords) {
+        toCoords = to.coords;
+      }
+    }
+    
+    if (!toCoords) {
+      throw new Error('Could not get coordinates for destination planet');
+    }
+    
+    const dist = this.getDistCoords(fromCoords, toCoords);
+    // TODO: THIS IS SIMPLIFIED AND SHOULD FACTOR IN WORMHOLES IN THE FUTURE
+    
+    const speed = typeof from.speed === 'string' ? parseFloat(from.speed) : from.speed;
+    return dist / (speed / 100);
+  }
+
+  /**
+   * Gets the maximuim distance that you can send your energy from the given planet
+   * using the given percentage of that planet's current silver.
+   * @param planetId The ID of the source planet
+   * @param sendingPercent Percentage of silver to use (0-100)
+   * @returns The maximum distance the player can move
+   */
+  public async getMaxMoveDist(planetId: LocationId, sendingPercent: number): Promise<number> {
+    const planet = await this.getPlanetWithId(planetId);
+    if (!planet) throw new Error('origin planet unknown');
+    return this.getRange(planet, sendingPercent, 1);
+  }
+
+  /**
+   * Calculate the maximum range a planet can send energy based on its stats and resources
+   * @param planet The planet object
+   * @param sendingPercent The percentage of the planet's silver to use (0-100)
+   * @param abandoning Whether the planet is being abandoned (1 = yes, 0 = no)
+   * @returns The maximum range in world coordinates
+   */
+  private getRange(planet: any, sendingPercent: number, abandoning: number): number {
+    // Default implementation - can be adjusted based on actual game mechanics
+    // This is a placeholder implementation
+    const silverFactor = sendingPercent / 100;
+    const silver = typeof planet.silver === 'string' ? parseFloat(planet.silver as string) : (planet.silver as number);
+    const silverBoost = (silverFactor * silver) / 100000;
+    const speed = typeof planet.speed === 'string' ? parseFloat(planet.speed as string) : (planet.speed as number);
+    const range = (speed / 100) * 50 * (1 + silverBoost); // Base range * silver boost
+    
+    // If abandoning, provide extra range 
+    const abandonBonus = abandoning === 1 ? 1.5 : 1;
+    
+    return range * abandonBonus;
   }
 
   /** TOOLS =========================================================================== */

@@ -14,6 +14,11 @@ export const InitPlayerSchema = AddressSchema.extend({
   biomebase: z.number().describe("Biomebase perlin value at these coordinates")
 });
 
+export const UpdateLocationSchema = AddressSchema.extend({
+  x: z.number().describe("New X coordinate for the player"),
+  y: z.number().describe("New Y coordinate for the player")
+});
+
 /**
  * Player-related tool schemas for Dark Forest MCP
  */
@@ -28,4 +33,9 @@ export const playerSchemas = [
     description: "Initialize a new player",
     inputSchema: zodToMcpSchema(InitPlayerSchema, "Initialize player")
   },
+  {
+    name: "update_location",
+    description: "Update a player's location",
+    inputSchema: zodToMcpSchema(UpdateLocationSchema, "Update player location")
+  }
 ]; 
