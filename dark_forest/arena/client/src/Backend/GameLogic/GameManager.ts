@@ -150,6 +150,7 @@ import { CaptureZoneGenerator, CaptureZonesGeneratedEvent } from './CaptureZoneG
 import { ContractsAPI, makeContractsAPI } from './ContractsAPI';
 import { GameObjects } from './GameObjects';
 import { InitialGameStateDownloader } from './InitialGameStateDownloader';
+import { mapData } from './mapData';
 
 export enum GameManagerEvent {
   PlanetUpdate = 'PlanetUpdate',
@@ -946,7 +947,15 @@ class GameManager extends EventEmitter {
     if (spectator) {
       gameManager.initMiningManager({ x: 0, y: 0 });
     } else if (!!homeLocation && initialState.players.has(account as string)) {
-      gameManager.initMiningManager(homeLocation.coords);
+      // gameManager.initMiningManager(homeLocation.coords);
+
+      // Load pre-mined chunks from map.json
+      try {
+        const chunks = mapData as Chunk[];
+        await gameManager.bulkAddNewChunks(chunks);
+      } catch (e) {
+        console.log(e);
+      }
     }
 
     return gameManager;
