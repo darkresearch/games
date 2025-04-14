@@ -200,9 +200,9 @@ export function GameWindowLayout({
 
       <MainWindow>
         <CanvasContainer>
-          <UpperLeft>
+          {/* <UpperLeft>
             <ZoomPane />
-          </UpperLeft>
+          </UpperLeft> */}
           {/* <SidebarPane
             exitHook={exitGame}
             settingsHook={[settingsVisible, setSettingsVisible]}
@@ -239,4 +239,10 @@ const TopBarPaneContainer = styled.div`
   position: absolute;
   top: 0;
   left: 0;
+  
+  @media (max-width: 576px) {
+    padding: 0 5px;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
 `;
