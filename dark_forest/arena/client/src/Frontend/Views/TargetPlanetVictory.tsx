@@ -88,6 +88,13 @@ const GameoverContainer = styled.div`
   margin: 0 auto;
   word-wrap: break-word;
   white-space: normal;
+  padding: 10px 5px;
+  
+  @media (max-width: 576px) {
+    max-width: 98%;
+    font-size: 0.85em;
+    line-height: 1.3;
+  }
 `;
 const TimeContainer = styled.div`
   font-size: 1em;

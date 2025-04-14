@@ -25,8 +25,15 @@ import Button from '../../Components/Button';
 const TopBarContainer = styled.div`
   z-index: ${DFZIndex.MenuBar};
   padding: 0 2px;
-  width: 530px;
+  width: 100%;
+  max-width: 530px;
   gap: 5px;
+  margin: 0 auto;
+  
+  @media (max-width: 576px) {
+    max-width: 95%;
+    font-size: 0.9em;
+  }
 `;
 
 const Numbers = styled.div`
