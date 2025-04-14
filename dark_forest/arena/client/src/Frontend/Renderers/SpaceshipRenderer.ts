@@ -20,7 +20,7 @@ export class SpaceshipRenderer {
     this.gl = gl;
     this.viewport = viewport;
     this.spaceshipCoords = spaceshipCoords;
-    this.size = 0.1; // Reduced from 2 to 0.1 (20x smaller)
+    this.size = 0.3; // Reduced from 2 to 0.1 (20x smaller)
     this.startTime = Date.now();
     
     autoBind(this);
