@@ -45,7 +45,7 @@ const defaultAddress = address(CONTRACT_ADDRESS);
 // Hardcoded account details
 const HARDCODED_ACCOUNT: Account = {
   address: address('0x1b1325fE25AB7b3f662Ef89097914633f0D43637'),
-  privateKey: '205bbf7ab38ba2afeb3cdd02521cd3d0a2f37a8c939439b6bc750f78c443acbc'
+  privateKey: '0x205bbf7ab38ba2afeb3cdd02521cd3d0a2f37a8c939439b6bc750f78c443acbc'
 };
 
 class EntryPageTerminal {
