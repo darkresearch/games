@@ -270,7 +270,7 @@ async def run():
                             response = await asyncio.wait_for(
                                 llm.generate_str(
                                     message=prompt,
-                                    request_params=RequestParams(maxTokens=32000)
+                                    request_params=RequestParams(maxTokens=16000)
                                 ),
                                 timeout=LLM_MAX_WAIT
                             )
