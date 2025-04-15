@@ -20,7 +20,6 @@ def update_secrets_from_env(secrets_file: str = "mcp_agent.secrets.yaml"):
     
     This function reads API keys from environment variables and updates
     the secrets file accordingly. It looks for:
-    - ANTHROPIC_API_KEY
     - OPENAI_API_KEY
     
     Args:
@@ -38,13 +37,6 @@ def update_secrets_from_env(secrets_file: str = "mcp_agent.secrets.yaml"):
         secrets["llm"] = {}
     if "provider" not in secrets["llm"]:
         secrets["llm"]["provider"] = {}
-    
-    # Update with environment variables if they exist
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-    if anthropic_key:
-        if "anthropic" not in secrets["llm"]["provider"]:
-            secrets["llm"]["provider"]["anthropic"] = {}
-        secrets["llm"]["provider"]["anthropic"]["api_key"] = anthropic_key
     
     openai_key = os.environ.get("OPENAI_API_KEY")
     if openai_key:
