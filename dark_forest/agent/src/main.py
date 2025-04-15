@@ -76,10 +76,25 @@ Remember to:
 Be clear about your reasoning and maintain your knowledge of the game world.
 """
 
+TIMEOUT_PROMPT = """
+Hello Player 0xDD8563f2B62f9c92891AB0d4Ef45350cFEa10Cc8, your last turn timed out after 2 minutes.
+
+This isn't necessarily a problem and might not be your fault - sometimes network delays or other external factors can cause this.
+However, it's important to:
+1. Note what action you were attempting when the timeout occurred
+2. Be mindful if you see a pattern of timeouts with specific actions
+3. Consider alternative strategies if you find yourself repeatedly stuck
+
+Please proceed with your next move, keeping in mind what happened in your last turn.
+
+Remember your mission is still to find the hidden target planet, and all the same game rules apply.
+"""
+
 AGENT_NAME = "SPUTNIK"
 INSTRUCTION_FILE = "instructions.md"
 STATE_FILE = "agent_state.json"
 AGENT_LOG_FILE = "agent-output.log"
+MAX_WAIT = 900  # 15 minutes, same as wait function
 
 # Update `mcp_agent.secrets.yaml` from environment variables
 update_secrets_from_env()
@@ -99,7 +114,7 @@ async def wait_function(seconds: int) -> str:
         A message confirming the wait completed
     """
     # Cap the wait time to a reasonable maximum (e.g., 15 minutes)
-    max_wait = 900  # 15 minutes
+    max_wait = MAX_WAIT  # 15 minutes
     wait_time = min(seconds, max_wait)
     
     # Wait for the specified duration
@@ -175,23 +190,20 @@ async def run():
         agent = Agent(
             name=AGENT_NAME,
             instruction=instructions,
-            server_names=["solana", "dark_forest"], # MCP servers this Agent can use
-            functions=[wait_function], # Register the wait function as a tool
+            server_names=["solana", "dark_forest"],
+            functions=[wait_function],
         )
         
         async with agent:
-            # Automatically initializes the MCP servers and adds their tools for LLM use
             tools = await agent.list_tools()
             logger.info("Tools available:", data=tools)
 
-            # Attach an OpenAI LLM to the agent
-            # Model is specified in `mcp_agent.config.py`
             llm = await agent.attach_llm(OpenAIAugmentedLLM)
 
-            # Agent's memory and notes
             agent_memory = {
                 "moves_history": [],
-                "notes": ""
+                "notes": "",
+                "timeout_count": 0  # Track number of timeouts
             }
             
             # Load previous memory if it exists
@@ -200,15 +212,20 @@ async def run():
                 try:
                     with open(memory_path, 'r') as f:
                         agent_memory = json.load(f)
+                        # Ensure timeout_count exists in loaded memory
+                        if "timeout_count" not in agent_memory:
+                            agent_memory["timeout_count"] = 0
                     logger.info("Loaded existing agent memory")
                 except Exception as e:
                     logger.error(f"Error loading agent memory: {e}")
             
             # Game loop
             while True:
-                # Determine prompt based on whether this is the first turn
+                # Determine prompt based on whether this is the first turn or after a timeout
                 if not agent_memory["moves_history"]:
                     prompt = INITIAL_PROMPT
+                elif agent_memory.get("last_turn_timeout", False):
+                    prompt = TIMEOUT_PROMPT
                 else:
                     prompt = TURN_PROMPT
                 
@@ -222,14 +239,25 @@ async def run():
                     for i, move in enumerate(agent_memory["moves_history"][-5:]):
                         prompt += f"Move {len(agent_memory['moves_history']) - 5 + i + 1}: {move}\n"
                 
-                # Generate response
+                # Generate response with timeout
                 logger.info("Generating next move")
-                response = await llm.generate_str(
-                    message=prompt,
-                    request_params=RequestParams(
-                        maxTokens=32000
+                try:
+                    response = await asyncio.wait_for(
+                        llm.generate_str(
+                            message=prompt,
+                            request_params=RequestParams(maxTokens=32000)
+                        ),
+                        timeout=MAX_WAIT
                     )
-                )
+                    agent_memory["last_turn_timeout"] = False
+                except asyncio.TimeoutError:
+                    logger.warning(f"Turn timed out after {MAX_WAIT} seconds")
+                    agent_memory["timeout_count"] += 1
+                    agent_memory["last_turn_timeout"] = True
+                    response = "TIMEOUT: The previous turn exceeded the time limit."
+                except Exception as e:
+                    logger.error(f"Error during turn: {e}")
+                    response = f"ERROR: An unexpected error occurred: {str(e)}"
                 
                 # Calculate move number and timestamp
                 move_number = len(agent_memory["moves_history"]) + 1
@@ -242,7 +270,6 @@ async def run():
                 await write_to_supabase(response, move_number, timestamp)
                 
                 # Extract notes from the response (if the agent formats them)
-                # This is a simple implementation - the agent needs to format notes consistently
                 if "## Notes" in response:
                     notes_section = response.split("## Notes")[1].split("##")[0].strip()
                     agent_memory["notes"] = notes_section

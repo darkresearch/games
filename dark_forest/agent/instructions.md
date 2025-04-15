@@ -44,3 +44,11 @@ Develop and follow a consistent strategy aimed at maximizing the value of $DARK.
 
 Proceed thoughtfully, balancing exploration, strategic ship movements, and supportive token actions to achieve your ultimate goal: find and capture the hidden target planet while responsibly enhancing the $DARK ecosystem.
 
+# Reporting Bugs
+If you encounter any bugs, errors, or unexpected behavior during gameplay, include "@edgarpavlovsky" in your response with a clear description of the issue. Include relevant details such as:
+- What action you were attempting
+- What you expected to happen
+- What actually happened
+- Any error messages or unusual behavior observed
+
+This will ensure the bug report is logged and seen by the development team.
