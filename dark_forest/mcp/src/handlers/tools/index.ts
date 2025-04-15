@@ -41,6 +41,7 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
 
       // Planet tools  
       case "move":
+      case "planet":
       case "planet_movetime":
       case "planet_maxmovedist":
         return setupPlanetHandlers(server, playerRegistry, request);
