@@ -3,7 +3,7 @@
  */
 export const pingResources = [
   {
-    uri: "/ping",
+    uri: "df:/ping",
     mimeType: "text/plain",
     name: "Ping",
     description: "Simple ping/pong test resource"

@@ -3,7 +3,7 @@
  */
 export const planetResources = [
   {
-    uri: "/planet/{planetId}",
+    uri: "df:/planet/{planetId}",
     mimeType: "application/json",
     name: "Planet",
     description: "Information about a specific planet in the game",
@@ -21,7 +21,7 @@ export const planetResources = [
     }
   },
   {
-    uri: "/planet/movetime",
+    uri: "df:/planet/movetime",
     mimeType: "application/json",
     name: "PlanetMoveTime",
     description: "Calculate the time it will take to move from one planet to another",
@@ -64,7 +64,7 @@ export const planetResources = [
     }
   },
   {
-    uri: "/planet/maxmovedist",
+    uri: "df:/planet/maxmovedist",
     mimeType: "application/json",
     name: "PlanetMaxMoveDistance",
     description: "Calculate the maximum distance a player can move from a planet using a percentage of silver",
