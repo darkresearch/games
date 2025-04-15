@@ -24,16 +24,16 @@ export function setupResourceHandlers(server: Server, playerRegistry: PlayerRegi
     logger.info(`Read resource request: ${request.params.uri}`);
     
     // Route to appropriate handler based on resource URI
-    if (request.params.uri === "/ping") {
+    if (request.params.uri === "df:/ping") {
       return setupPingHandlers(request);
     }
     
-    if (request.params.uri === "/players" || request.params.uri === "/player/location") {
+    if (request.params.uri === "df:/players" || request.params.uri === "df:/player/location") {
       return setupPlayerResourceHandlers(playerRegistry, request);
     }
     
     // Check if this is a planet resource request
-    if (request.params.uri.startsWith("/planet/")) {
+    if (request.params.uri.startsWith("df:/planet/")) {
       return setupPlanetResourceHandlers(playerRegistry, request);
     }
 

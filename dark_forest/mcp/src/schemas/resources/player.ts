@@ -3,13 +3,13 @@
  */
 export const playerResources = [
   {
-    uri: "/players",
+    uri: "df:/players",
     mimeType: "application/json",
     name: "Players",
     description: "List of all players in the game"
   },
   {
-    uri: "/player/location",
+    uri: "df:/player/location",
     mimeType: "application/json",
     name: "Player Location",
     description: "Get the current location of a player"
