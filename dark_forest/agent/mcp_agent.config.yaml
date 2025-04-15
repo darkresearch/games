@@ -18,9 +18,9 @@ mcp:
   servers:
     dark_forest:
       transport: "sse"
-      url: "https://games-346o.onrender.com/sse"
+      url: "http://games-0upq:10000/sse"
       description: "A remote MCP server that allows you to interact with the Dark Forest video game, getting information about your Dark Forest player and make moves in the game."
     solana:
       transport: "sse"
-      url: "https://solana-mcp.onrender.com/sse"
+      url: "http://solana-mcp-otfo:10000/sse"
       description: "A remote MCP server that allows you to interact with the Solana blockchain, getting information from it and interacting with it."
