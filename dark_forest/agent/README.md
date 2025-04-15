@@ -61,13 +61,13 @@ SPUTNIK is implemented as an MCP app with the following components:
 
 ## Customizing SPUTNIK
 
-While the agent name and prompt are hardcoded, you can still customize SPUTNIK's behavior by modifying the instructions in the `instructions.txt` file.
+While the agent name and prompt are hardcoded, you can still customize SPUTNIK's behavior by modifying the instructions in the `instructions.md` file. The markdown formatting in this file is preserved and passed to the agent, allowing for rich text formatting including headers, bold text, lists, and more.
 
 ## Architecture
 
 - `app.py`: Defines the MCP app and the main reflection loop
 - `__main__.py`: Entry point for running the app
-- `instructions.txt`: File containing SPUTNIK's instructions
+- `instructions.md`: File containing SPUTNIK's instructions with markdown formatting
 
 ## License
 

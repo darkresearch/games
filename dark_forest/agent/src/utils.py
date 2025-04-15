@@ -3,14 +3,17 @@
 import os
 import yaml
 
-def load_instructions(file_path: str) -> str:
-    """Load agent instructions from a file.
+def load_markdown_instructions(file_path: str) -> str:
+    """Load agent instructions from a markdown file, preserving formatting.
+    
+    This function loads instructions from a markdown file and preserves all
+    markdown formatting elements like headers, bold text, lists, etc.
     
     Args:
-        file_path: Path to the instructions file
+        file_path: Path to the markdown instructions file
         
     Returns:
-        The instructions as a string
+        The instructions as a string with markdown formatting preserved
     """
     with open(file_path, "r") as f:
         return f.read().strip()
