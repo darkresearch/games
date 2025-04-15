@@ -17,7 +17,7 @@ export const MovePlanetSchema = AddressSchema.extend({
 
 export const PlanetSchema = z.object({
   planetId: z.string().describe("The locationId of the planet in hex format"),
-  player: z.string().optional().describe("Ethereum address of the player to use for querying the planet")
+  address: z.string().optional().describe("Ethereum address of the player to use for querying the planet")
 });
 
 export const PlanetMoveTimeSchema = z.object({
