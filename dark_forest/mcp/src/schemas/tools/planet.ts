@@ -27,13 +27,13 @@ export const PlanetMoveTimeSchema = z.object({
   toY: z.number().describe("Y coordinate of the destination planet"),
   fromId: z.string().describe("LocationId of the source planet"),
   toId: z.string().describe("LocationId of the destination planet"),
-  player: z.string().optional().describe("Ethereum address of the player to use for querying the planets")
+  address: z.string().optional().describe("Ethereum address of the player to use for querying the planets")
 });
 
 export const PlanetMaxMoveDistanceSchema = z.object({
   planetId: z.string().describe("The locationId of the planet in hex format"),
   sendingPercent: z.number().describe("Percentage of the planet's current silver to use for the move"),
-  player: z.string().optional().describe("Ethereum address of the player to use for querying the planet")
+  address: z.string().optional().describe("Ethereum address of the player to use for querying the planet")
 });
 
 /**

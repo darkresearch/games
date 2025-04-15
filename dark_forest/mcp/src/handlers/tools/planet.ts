@@ -65,7 +65,7 @@ async function calculateMoveTime(playerRegistry: PlayerRegistry, args: Record<st
   // Extract parameters from arguments
   const fromId = args.fromId as LocationId;
   const toId = args.toId as LocationId;
-  const playerAddress = args.player as EthAddress | undefined;
+  const playerAddress = args.address as EthAddress | undefined;
   
   if (!fromId || !toId) {
     throw new Error("Both fromId and toId are required parameters");
@@ -130,7 +130,7 @@ async function calculateMaxMoveDistance(playerRegistry: PlayerRegistry, args: Re
   // Extract parameters from arguments
   const planetId = args.planetId as LocationId;
   const sendingPercentStr = args.sendingPercent;
-  const playerAddress = args.player as EthAddress | undefined;
+  const playerAddress = args.address as EthAddress | undefined;
   
   if (!planetId || !sendingPercentStr) {
     throw new Error("Both planetId and sendingPercent are required parameters");

@@ -134,7 +134,7 @@ export async function setupPlayerHandlers(server: Server, playerRegistry: Player
     }
 
     case "player_location": {
-      const playerAddress = args.player as EthAddress;
+      const playerAddress = args.address as EthAddress;
       
       if (!playerAddress) {
         throw new Error("Missing required 'player' parameter with player address");
