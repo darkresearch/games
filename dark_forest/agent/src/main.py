@@ -95,6 +95,7 @@ INSTRUCTION_FILE = "instructions.md"
 STATE_FILE = "agent_state.json"
 AGENT_LOG_FILE = "agent-output.log"
 MAX_WAIT = 900  # 15 minutes, same as wait function
+LLM_MAX_WAIT = 60
 
 # Update `mcp_agent.secrets.yaml` from environment variables
 update_secrets_from_env()
@@ -159,6 +160,10 @@ async def write_to_supabase(message: str, move_number: int, timestamp: datetime.
         timestamp: Timestamp of the move
     """
     if not supabase:
+        return
+        
+    # Skip writing to Supabase if the message is empty
+    if not message or message.strip() == "EMPTY":
         return
         
     try:
@@ -247,7 +252,7 @@ async def run():
                             message=prompt,
                             request_params=RequestParams(maxTokens=32000)
                         ),
-                        timeout=MAX_WAIT
+                        timeout=LLM_MAX_WAIT
                     )
                     agent_memory["last_turn_timeout"] = False
                 except asyncio.TimeoutError:
