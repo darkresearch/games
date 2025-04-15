@@ -12,8 +12,12 @@ from mcp_agent.workflows.llm.augmented_llm import RequestParams
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 from .utils import load_markdown_instructions, update_secrets_from_env
 
-# Hardcoded values
 INITIAL_PROMPT = """
+Can you get a player location if you have an address?
+"""
+
+# Hardcoded values
+INITIAL_PROMPT_OLD = """
 You are now playing the Dark Forest game. 
 
 First, use the dark_forest tool to understand your current game state (location, energy level, etc).
@@ -168,56 +172,56 @@ async def run():
                     logger.error(f"Error loading agent memory: {e}")
             
             # Game loop
-            while True:
-                # Determine prompt based on whether this is the first turn
-                if not agent_memory["moves_history"]:
-                    prompt = INITIAL_PROMPT
-                else:
-                    prompt = TURN_PROMPT
-                
-                # Add agent's own notes and recent history to the prompt
-                if agent_memory["notes"]:
-                    prompt += f"\n\n## Your Notes\n{agent_memory['notes']}\n"
-                
-                # Add recent move history (last 5 moves)
-                if agent_memory["moves_history"]:
-                    prompt += "\n## Your Recent Moves\n"
-                    for i, move in enumerate(agent_memory["moves_history"][-5:]):
-                        prompt += f"Move {len(agent_memory['moves_history']) - 5 + i + 1}: {move}\n"
-                
-                # Generate response
-                logger.info("Generating next move")
-                response = await llm.generate_str(
-                    message=prompt,
-                    request_params=RequestParams(
-                        maxTokens=128000
-                    )
+            # while True:
+            # Determine prompt based on whether this is the first turn
+            if not agent_memory["moves_history"]:
+                prompt = INITIAL_PROMPT
+            else:
+                prompt = TURN_PROMPT
+            
+            # Add agent's own notes and recent history to the prompt
+            if agent_memory["notes"]:
+                prompt += f"\n\n## Your Notes\n{agent_memory['notes']}\n"
+            
+            # Add recent move history (last 5 moves)
+            if agent_memory["moves_history"]:
+                prompt += "\n## Your Recent Moves\n"
+                for i, move in enumerate(agent_memory["moves_history"][-5:]):
+                    prompt += f"Move {len(agent_memory['moves_history']) - 5 + i + 1}: {move}\n"
+            
+            # Generate response
+            logger.info("Generating next move")
+            response = await llm.generate_str(
+                message=prompt,
+                request_params=RequestParams(
+                    maxTokens=32000
                 )
-                
-                # Calculate move number
-                move_number = len(agent_memory["moves_history"]) + 1
-                
-                # Log the response to file
-                log_to_file(response, move_number)
-                
-                # Extract notes from the response (if the agent formats them)
-                # This is a simple implementation - the agent needs to format notes consistently
-                if "## Notes" in response:
-                    notes_section = response.split("## Notes")[1].split("##")[0].strip()
-                    agent_memory["notes"] = notes_section
-                
-                # Save the move to history
-                agent_memory["moves_history"].append(response)
-                
-                # Save memory after each move
-                try:
-                    with open(memory_path, 'w') as f:
-                        json.dump(agent_memory, f, indent=2)
-                except Exception as e:
-                    logger.error(f"Error saving agent memory: {e}")
-                
-                # Log the agent's response
-                logger.info(f"Agent response: {response}")
+            )
+            
+            # Calculate move number
+            move_number = len(agent_memory["moves_history"]) + 1
+            
+            # Log the response to file
+            log_to_file(response, move_number)
+            
+            # Extract notes from the response (if the agent formats them)
+            # This is a simple implementation - the agent needs to format notes consistently
+            if "## Notes" in response:
+                notes_section = response.split("## Notes")[1].split("##")[0].strip()
+                agent_memory["notes"] = notes_section
+            
+            # Save the move to history
+            agent_memory["moves_history"].append(response)
+            
+            # Save memory after each move
+            try:
+                with open(memory_path, 'w') as f:
+                    json.dump(agent_memory, f, indent=2)
+            except Exception as e:
+                logger.error(f"Error saving agent memory: {e}")
+            
+            # Log the agent's response
+            logger.info(f"Agent response: {response}")
 
 
 if __name__ == "__main__":
