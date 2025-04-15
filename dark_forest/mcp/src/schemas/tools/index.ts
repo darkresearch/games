@@ -6,18 +6,14 @@ export * from './player';
 import { minerSchemas } from './miner';
 import { planetSchemas } from './planet';
 import { playerSchemas } from './player';
-import { pingResources } from '../resources/ping';
-import { playerResources } from '../resources/player';
-import { planetResources } from '../resources/planet';
+import { pingSchemas } from './ping';
 
 /**
  * All tool schemas for the MCP
  */
 export const toolSchemas = [
+  ...pingSchemas,
   ...minerSchemas,
   ...playerSchemas,
   ...planetSchemas,
-  ...pingResources,
-  ...playerResources,
-  ...planetResources,
 ]; 

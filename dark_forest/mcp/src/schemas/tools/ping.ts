@@ -9,12 +9,10 @@ export const PingSchema = z.object({});
 /**
  * Ping-related resource schemas for Dark Forest MCP
  */
-export const pingResources = [
+export const pingSchemas = [
   {
     uri: "ping",
-    mimeType: "text/plain",
-    name: "Ping",
     description: "Simple ping/pong test resource",
-    schema: zodToMcpSchema(PingSchema, "Ping")
+    inputSchema: zodToMcpSchema(PingSchema, "Ping")
   }
 ]; 
