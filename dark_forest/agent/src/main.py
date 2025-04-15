@@ -5,12 +5,22 @@ import json
 import os
 import datetime
 from pathlib import Path
+from supabase import create_client, Client
+from typing import Optional
 
 from mcp_agent.app import MCPApp
 from mcp_agent.agents.agent import Agent
 from mcp_agent.workflows.llm.augmented_llm import RequestParams
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 from .utils import load_markdown_instructions, update_secrets_from_env
+
+# Supabase configuration
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase: Optional[Client] = None
+
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Hardcoded values
 INITIAL_PROMPT = """
@@ -124,6 +134,29 @@ def log_to_file(message: str, move_number: int = None):
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(log_entry)
 
+async def write_to_supabase(message: str, move_number: int, timestamp: datetime.datetime):
+    """
+    Write agent's thoughts to Supabase table.
+    
+    Args:
+        message: The agent's response/thoughts
+        move_number: Current move number
+        timestamp: Timestamp of the move
+    """
+    if not supabase:
+        return
+        
+    try:
+        data = {
+            "move_number": move_number,
+            "timestamp": timestamp.isoformat(),
+            "content": message,
+        }
+        
+        supabase.table("sputnik_thoughts").insert(data).execute()
+    except Exception as e:
+        logger.error(f"Error writing to Supabase: {e}")
+
 async def run():
     async with sputnik_app.run() as app:
         context = app.context
@@ -131,6 +164,10 @@ async def run():
 
         logger.info(f"Starting SPUTNIK for Dark Forest game")
         logger.info("Current config:", data=context.config.model_dump())
+
+        # Check Supabase connection
+        if not supabase:
+            logger.warning("Supabase connection not configured. Thoughts will not be stored in database.")
 
         # Load instructions from markdown file, preserving formatting
         instructions = load_markdown_instructions(INSTRUCTION_FILE)
@@ -194,11 +231,15 @@ async def run():
                     )
                 )
                 
-                # Calculate move number
+                # Calculate move number and timestamp
                 move_number = len(agent_memory["moves_history"]) + 1
+                timestamp = datetime.datetime.now()
                 
                 # Log the response to file
                 log_to_file(response, move_number)
+                
+                # Write to Supabase
+                await write_to_supabase(response, move_number, timestamp)
                 
                 # Extract notes from the response (if the agent formats them)
                 # This is a simple implementation - the agent needs to format notes consistently

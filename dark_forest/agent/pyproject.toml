@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "mcp-agent",
     "openai",
+    "supabase>=2.15.0",
 ]
 
 [project.optional-dependencies]
