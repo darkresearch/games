@@ -117,6 +117,45 @@ export async function setupPlayerHandlers(server: Server, playerRegistry: Player
       };
     }
 
+    case "players": {
+      logger.debug("Listing all players");
+      
+      const playerAddresses = playerRegistry.getAllPlayerAddresses();
+      
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ 
+            players: playerAddresses,
+            count: playerAddresses.length
+          })
+        }]
+      };
+    }
+
+    case "player_location": {
+      const playerAddress = args.player as EthAddress;
+      
+      if (!playerAddress) {
+        throw new Error("Missing required 'player' parameter with player address");
+      }
+      
+      logger.debug(`Getting location for player: ${playerAddress}`);
+      
+      const location = playerRegistry.getPlayerLocation(playerAddress);
+      
+      if (!location) {
+        throw new Error(`Player not found: ${playerAddress}`);
+      }
+      
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(location)
+        }]
+      };
+    }
+
     default:
       throw new Error(`Unknown player tool: ${request.params.name}`);
   }

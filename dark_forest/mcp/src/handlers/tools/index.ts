@@ -7,6 +7,7 @@ import { toolSchemas } from "../../schemas/tools";
 import { setupMinerHandlers } from './miner';
 import { setupPlayerHandlers } from './player';
 import { setupPlanetHandlers } from './planet';
+import { setupPingHandlers } from './ping';
 
 /**
  * Sets up all tool handlers on the server
@@ -23,6 +24,10 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
     
     // Route to appropriate handler based on tool name
     switch (toolName) {
+      // Ping tool
+      case "ping":
+        return setupPingHandlers(request);
+
       // Mining tools
       case "mine_chunk":
         return setupMinerHandlers(playerRegistry, request);
@@ -35,6 +40,8 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
 
       // Planet tools  
       case "move":
+      case "planet_movetime":
+      case "planet_maxmovedist":
         return setupPlanetHandlers(server, playerRegistry, request);
 
       default:

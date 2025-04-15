@@ -10,8 +10,4 @@ import { planetResources } from './planet';
 /**
  * All resource schemas for the MCP
  */
-export const resourceSchemas = [
-  ...pingResources,
-  ...playerResources,
-  ...planetResources,
-]; 
+export const resourceSchemas = []; 
