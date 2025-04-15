@@ -259,7 +259,7 @@ async def run():
                     logger.warning(f"Turn timed out after {MAX_WAIT} seconds")
                     agent_memory["timeout_count"] += 1
                     agent_memory["last_turn_timeout"] = True
-                    response = "TIMEOUT: The previous turn exceeded the time limit."
+                    response = "TIMEOUT: The previous LLM call exceeded the time limit."
                 except Exception as e:
                     logger.error(f"Error during turn: {e}")
                     response = f"ERROR: An unexpected error occurred: {str(e)}"
@@ -291,6 +291,9 @@ async def run():
                 
                 # Log the agent's response
                 logger.info(f"Agent response: {response}")
+
+                # Sleep for 1 second between turns
+                await asyncio.sleep(1)
 
 
 if __name__ == "__main__":
