@@ -326,7 +326,7 @@ async def run():
                         app_logger.info(f"Agent response: {response}")
 
                         # Sleep for 1 second between turns
-                        await asyncio.sleep(1)
+                        await asyncio.sleep(10)
                     
                     # If we broke out of the game loop, we need to reconnect
                     app_logger.info("Exited game loop, will attempt to reconnect")
