@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reflective-agent"
+version = "0.1.0"
+description = "A reflective agent that has conversations with itself using MCP-Agent"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp-agent",
+    "openai",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "flake8",
+    "pytest",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.black]
+line-length = 88
+target-version = ["py311"] 

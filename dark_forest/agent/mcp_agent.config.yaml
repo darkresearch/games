@@ -1,0 +1,26 @@
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+execution:
+  durable: false
+
+llm:
+  provider:
+    openai:
+      model: "gpt-4.1"
+
+mcp:
+  servers:
+    # TODO: This is where MCP servers will go.
+    # fetch:
+    #   command: "uvx"
+    #   args: ["mcp-server-fetch"]
+    # filesystem:
+    #   command: "npx"
+    #   args:
+    #     [
+    #       "-y",
+    #       "@modelcontextprotocol/server-filesystem",
+    #       "<add_your_directories>",
+    #     ]
