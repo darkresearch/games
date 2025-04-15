@@ -49,17 +49,17 @@ export const planetSchemas = [
     inputSchema: zodToMcpSchema(MovePlanetSchema, "Move between planets")
   },
   {
-    uri: "planet",
+    name: "planet",
     description: "Information about a specific planet in the game",
-    schema: zodToMcpSchema(PlanetSchema, "Planet")
+    inputSchema: zodToMcpSchema(PlanetSchema, "Planet")
   },
   {
-    uri: "planet_movetime",
+    name: "planet_movetime",
     description: "Calculate the time it will take to move from one planet to another",
     inputSchema: zodToMcpSchema(PlanetMoveTimeSchema, "PlanetMoveTime")
   },
   {
-    uri: "planet_maxmovedist",
+    name: "planet_maxmovedist",
     description: "Calculate the maximum distance a player can move from a planet using a percentage of silver",
     inputSchema: zodToMcpSchema(PlanetMaxMoveDistanceSchema, "PlanetMaxMoveDistance")
   }

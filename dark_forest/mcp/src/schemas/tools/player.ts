@@ -45,12 +45,12 @@ export const playerSchemas = [
     inputSchema: zodToMcpSchema(UpdateLocationSchema, "Update player location")
   },
   {
-    uri: "players",
+    name: "players",
     description: "List of all players in the game",
     inputSchema: zodToMcpSchema(PlayersSchema, "Players")
   },
   {
-    uri: "player_location",
+    name: "player_location",
     description: "Get the current location of a player",
     inputSchema: zodToMcpSchema(PlayerLocationSchema, "PlayerLocation")
   }

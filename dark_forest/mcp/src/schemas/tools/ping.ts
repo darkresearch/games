@@ -11,7 +11,7 @@ export const PingSchema = z.object({});
  */
 export const pingSchemas = [
   {
-    uri: "ping",
+    name: "ping",
     description: "Simple ping/pong test resource",
     inputSchema: zodToMcpSchema(PingSchema, "Ping")
   }
