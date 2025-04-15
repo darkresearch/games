@@ -36,6 +36,7 @@ export function setupToolHandlers(server: Server, playerRegistry: PlayerRegistry
       case "generate_pubkey":
       case "init_player":
       case "update_location":
+      case "player_location":
           return setupPlayerHandlers(server, playerRegistry, request);
 
       // Planet tools  
