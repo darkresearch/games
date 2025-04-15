@@ -13,7 +13,7 @@ from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 from .utils import load_markdown_instructions, update_secrets_from_env
 
 INITIAL_PROMPT = """
-Can you get a player location if you have an address?
+Your player address is 0xDD8563f2B62f9c92891AB0d4Ef45350cFEa10Cc8. What is your location?
 """
 
 # Hardcoded values
