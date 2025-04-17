@@ -17,7 +17,7 @@ export default function GameContainer() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Increase speed with Shift key
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
-        setFlightSpeed(prev => Math.min(prev * 2, 200));
+        setFlightSpeed(prev => Math.min(prev * 2, 10000));
       }
       
       // Decrease speed with Control key
@@ -57,7 +57,7 @@ export default function GameContainer() {
           />
           
           {/* Star field with 500,000 stars */}
-          <StarField count={2500} radius={10000} />
+          <StarField count={50000} radius={20000} />
           
           {/* Planetary system with 1000 planets */}
           <PlanetarySystem planetCount={69} universeRadius={10000} />
