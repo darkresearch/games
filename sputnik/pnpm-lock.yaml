@@ -14,6 +14,9 @@ dependencies:
   '@react-three/postprocessing':
     specifier: ^3.0.4
     version: 3.0.4(@react-three/fiber@9.1.2)(@types/three@0.175.0)(react@19.1.0)(three@0.175.0)
+  '@types/three':
+    specifier: ^0.175.0
+    version: 0.175.0
   next:
     specifier: 15.3.0
     version: 15.3.0(react-dom@19.1.0)(react@19.1.0)

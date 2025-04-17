@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
-import SimplePlanet, { PlanetType, PlanetInfo } from './SimplePlanet';
-import * as THREE from 'three';
+import { useMemo, useEffect, useState, useCallback } from 'react';
+import SimplePlanet, { PlanetInfo } from './SimplePlanet';
+import { MapConfig, PlanetConfig, PlanetType } from './mapUtils';
 
 type PlanetarySystemProps = {
   planetCount?: number;
@@ -18,8 +18,8 @@ const SIZE_CLASSES = [
   40,   // Medium
   50,   // Medium-large
   75,   // Large
-  100,  // Very large
-  150   // Super massive
+  250,  // Very large
+  500   // Super massive
 ];
 
 // Planet types
@@ -40,6 +40,12 @@ const isTooClose = (
   });
 };
 
+// Check if a position is far from origin (player starting point)
+const isFarFromOrigin = (position: [number, number, number], minDistance: number): boolean => {
+  const distance = Math.sqrt(position[0] * position[0] + position[1] * position[1] + position[2] * position[2]);
+  return distance > minDistance;
+};
+
 // Generate a random position within the universe radius
 const getRandomPosition = (radius: number): [number, number, number] => [
   (Math.random() - 0.5) * radius * 2,
@@ -52,21 +58,122 @@ export default function PlanetarySystem({
   universeRadius = 10000,
   onPlanetClick
 }: PlanetarySystemProps) {
+  const [loadedPlanets, setLoadedPlanets] = useState<PlanetConfig[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Attempt to load existing map on component mount
+  useEffect(() => {
+    const loadMap = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/map');
+        
+        if (response.ok) {
+          const mapConfig: MapConfig = await response.json();
+          console.log('Loaded existing map configuration:', mapConfig);
+          setLoadedPlanets(mapConfig.planets);
+        } else {
+          console.log('No existing map found, will generate a new one');
+          setLoadedPlanets(null);
+        }
+      } catch (error) {
+        console.error('Error loading map:', error);
+        setLoadedPlanets(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadMap();
+  }, []);
+
+  // Save the generated map
+  const saveMap = useCallback(async (planets: PlanetConfig[]) => {
+    try {
+      const mapConfig: MapConfig = {
+        planets,
+        universeRadius
+      };
+      
+      const response = await fetch('/api/map', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(mapConfig),
+      });
+      
+      if (response.ok) {
+        console.log('Map configuration saved successfully');
+      } else {
+        console.error('Failed to save map configuration:', await response.json());
+      }
+    } catch (error) {
+      console.error('Error saving map configuration:', error);
+    }
+  }, [universeRadius]);
+
   // Generate planets
   const planets = useMemo(() => {
-    const generatedPlanets: Array<{
-      id: number;
-      position: [number, number, number];
-      size: number;
-      type: PlanetType;
-      rotationSpeed: number;
-    }> = [];
+    // If we're still loading or have loaded planets, don't generate new ones
+    if (isLoading) {
+      return [];
+    }
+    
+    // If we have loaded planets, use those
+    if (loadedPlanets && loadedPlanets.length > 0) {
+      console.log('Using loaded planet configuration');
+      return loadedPlanets;
+    }
+    
+    // Otherwise generate new planets
+    console.log('Generating new planets');
+    const generatedPlanets: PlanetConfig[] = [];
     
     // Minimum distance between planets (scaled based on universe size)
     const MIN_DISTANCE = universeRadius * 0.02;
-    const MAX_ATTEMPTS = 100;
+    const MIN_DISTANCE_FROM_ORIGIN = universeRadius * 0.8; // Easter egg planets should be very far from origin
+    const MAX_ATTEMPTS = 150; // More attempts to find good positions for easter eggs
     
-    for (let i = 0; i < planetCount; i++) {
+    // Add two special easter egg planets
+    const easterEggConfigs = [
+      { type: 'jupiter' as PlanetType, size: 20 }, // Small jupiter planet
+      { type: 'wif' as PlanetType, size: 15 }      // Very small wif planet
+    ];
+    
+    // Add easter egg planets first - in remote corners of the universe
+    easterEggConfigs.forEach((config, index) => {
+      let position: [number, number, number];
+      let attempts = 0;
+      
+      do {
+        // Generate positions that tend to be in the far corners of the universe
+        position = [
+          (Math.random() > 0.5 ? 0.7 : -0.7) * universeRadius + (Math.random() - 0.5) * universeRadius * 0.4,
+          (Math.random() > 0.5 ? 0.7 : -0.7) * universeRadius + (Math.random() - 0.5) * universeRadius * 0.4,
+          (Math.random() > 0.5 ? 0.7 : -0.7) * universeRadius + (Math.random() - 0.5) * universeRadius * 0.4
+        ];
+        attempts++;
+        
+        if (attempts > MAX_ATTEMPTS) {
+          console.log(`Couldn't find ideal position for easter egg planet ${index} after ${MAX_ATTEMPTS} attempts`);
+          break;
+        }
+      } while (!isFarFromOrigin(position, MIN_DISTANCE_FROM_ORIGIN) || 
+               isTooClose(position, generatedPlanets, MIN_DISTANCE));
+      
+      // Slightly faster rotation to make them marginally more noticeable if spotted
+      generatedPlanets.push({
+        id: generatedPlanets.length,
+        position,
+        size: config.size,
+        type: config.type,
+        rotationSpeed: 0.003 + Math.random() * 0.007 // Slightly faster rotation for easter eggs
+      });
+    });
+    
+    // Generate regular planets
+    for (let i = 0; i < planetCount - easterEggConfigs.length; i++) {
       // Select a random size class
       const size = SIZE_CLASSES[Math.floor(Math.random() * SIZE_CLASSES.length)];
       
@@ -89,7 +196,7 @@ export default function PlanetarySystem({
       
       // Add the planet to our collection
       generatedPlanets.push({
-        id: i,
+        id: generatedPlanets.length,
         position,
         size,
         type,
@@ -97,8 +204,11 @@ export default function PlanetarySystem({
       });
     }
     
+    // Save the newly generated planets
+    saveMap(generatedPlanets);
+    
     return generatedPlanets;
-  }, [planetCount, universeRadius]);
+  }, [planetCount, universeRadius, loadedPlanets, isLoading, saveMap]);
   
   // Handle planet clicks
   const handlePlanetClick = (info: PlanetInfo) => {
@@ -106,6 +216,11 @@ export default function PlanetarySystem({
       onPlanetClick(info);
     }
   };
+  
+  // Don't render anything while loading
+  if (isLoading) {
+    return null;
+  }
   
   return (
     <group>

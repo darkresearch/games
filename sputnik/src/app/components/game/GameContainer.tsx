@@ -4,10 +4,13 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { FlyControls } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
-import * as THREE from 'three';
 import StarField from './assets/StarField';
 import PlanetarySystem from './planets/PlanetarySystem';
 import { PlanetInfo } from './planets/SimplePlanet';
+import NavPanel from './panels/nav';
+import HelpPanel from './panels/help';
+import PlanetPanel from './panels/planet';
+import Image from 'next/image';
 
 // Component to track camera position and update coordinates
 function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
@@ -31,26 +34,53 @@ type Position = {
   z: number;
 };
 
-// Get planet type color helper
-const getPlanetColor = (type: string): string => {
-  switch (type) {
-    case 'fire': return '#ff5500';
-    case 'water': return '#0066ff';
-    case 'earth': return '#338855';
-    case 'air': return '#ddddff';
-    default: return '#ffffff';
-  }
-};
+// Logo component
+function LogoPanel() {
+  return (
+    <div className="absolute top-[27px] left-[28px] z-10">
+      <Image 
+        src="/logo.png" 
+        alt="DARK Logo" 
+        width={40} 
+        height={20} 
+        priority
+      />
+    </div>
+  );
+}
 
 export default function GameContainer() {
-  const [flightSpeed, setFlightSpeed] = useState(200);
+  const [flightSpeed, setFlightSpeed] = useState(800);
   const [position, setPosition] = useState<Position>({ x: 0, y: 5, z: 10 });
   const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
+  const [autoForward, setAutoForward] = useState(true); // Start with autoForward enabled
+  const [rotationSpeed] = useState(0.2); // Base rotation speed
   const controlsRef = useRef(null);
+  
+  // Track which arrow keys are pressed and when they were pressed
+  const keyStates = useRef({
+    ArrowUp: { pressed: false, startTime: 0 },
+    ArrowDown: { pressed: false, startTime: 0 },
+    ArrowLeft: { pressed: false, startTime: 0 },
+    ArrowRight: { pressed: false, startTime: 0 }
+  });
   
   // Handle speed control with keyboard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Disable autoForward when any movement key is pressed
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+        setAutoForward(false);
+      }
+      
+      // Track arrow key state for acceleration
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && !keyStates.current[e.code as keyof typeof keyStates.current].pressed) {
+        keyStates.current[e.code as keyof typeof keyStates.current] = {
+          pressed: true,
+          startTime: Date.now()
+        };
+      }
+      
       // Increase speed with T key
       if (e.code === 'KeyT') {
         setFlightSpeed(prev => Math.min(prev * 2, 2500));
@@ -67,14 +97,94 @@ export default function GameContainer() {
       }
     };
     
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Reset arrow key state
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+        keyStates.current[e.code as keyof typeof keyStates.current] = {
+          pressed: false,
+          startTime: 0
+        };
+      }
+    };
+    
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, []);
   
   // Handle planet click
   const handlePlanetClick = (planetInfo: PlanetInfo) => {
     setSelectedPlanet(planetInfo);
   };
+  
+  // Handle closing the planet panel
+  const handleClosePlanetPanel = () => {
+    setSelectedPlanet(null);
+  };
+
+  // Create a smoother camera control setup with acceleration
+  useEffect(() => {
+    if (controlsRef.current) {
+      // Apply custom acceleration to the controls
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const controls = controlsRef.current as any;
+      if (controls.domElement && !controls._smoothSetup) {
+        controls._smoothSetup = true;
+        
+        // Override the default update method to add custom acceleration
+        const originalUpdate = controls.update;
+        controls.update = (delta: number) => {
+          // Calculate acceleration based on how long keys have been pressed
+          const currentTime = Date.now();
+          const BASE_ROTATION = 0.2;
+          const MAX_ROTATION = 1.0;
+          const ACCELERATION_TIME = 1000; // Time in ms to reach max speed
+          
+          const calculateRotationSpeed = (keyCode: string): number => {
+            const keyState = keyStates.current[keyCode as keyof typeof keyStates.current];
+            if (!keyState.pressed) return 0;
+            
+            const heldTime = currentTime - keyState.startTime;
+            const accelerationFactor = Math.min(heldTime / ACCELERATION_TIME, 1);
+            return BASE_ROTATION + (MAX_ROTATION - BASE_ROTATION) * accelerationFactor;
+          };
+          
+          // Apply dynamic rotation speed to the appropriate axes
+          if (controls.moveState) {
+            // Up/Down controls (pitch)
+            const upAcceleration = calculateRotationSpeed('ArrowUp');
+            const downAcceleration = calculateRotationSpeed('ArrowDown');
+            if (upAcceleration > 0) {
+              controls.moveState.pitchUp = upAcceleration;
+            }
+            if (downAcceleration > 0) {
+              controls.moveState.pitchDown = downAcceleration;
+            }
+            
+            // Left/Right controls (yaw)
+            const leftAcceleration = calculateRotationSpeed('ArrowLeft');
+            const rightAcceleration = calculateRotationSpeed('ArrowRight');
+            if (leftAcceleration > 0) {
+              controls.moveState.yawLeft = leftAcceleration;
+            }
+            if (rightAcceleration > 0) {
+              controls.moveState.yawRight = rightAcceleration;
+            }
+            
+            // Update rotation quaternion with current state
+            controls.updateRotationVector();
+          }
+          
+          // Call the original update method
+          originalUpdate.call(controls, delta);
+        };
+      }
+    }
+  }, []); // No dependencies required as we only want to run this once
   
   return (
     <>
@@ -99,9 +209,9 @@ export default function GameContainer() {
           <FlyControls
             ref={controlsRef}
             movementSpeed={flightSpeed}
-            rollSpeed={0.5}
+            rollSpeed={rotationSpeed} // Base rotation speed
             dragToLook={true}
-            autoForward={false}
+            autoForward={autoForward}
           />
           
           {/* Star field with stars */}
@@ -125,94 +235,11 @@ export default function GameContainer() {
         </Suspense>
       </Canvas>
       
-      {/* Speed and controls indicator */}
-      <div style={{
-        position: 'absolute',
-        top: '20px',
-        right: '20px',
-        color: 'white',
-        background: 'rgba(0,0,0,0.5)',
-        padding: '10px',
-        borderRadius: '5px',
-        fontSize: '14px',
-        pointerEvents: 'none'
-      }}>
-        <p>Speed: {flightSpeed.toFixed(1)}</p>
-        <p>Position: X: {position.x.toFixed(1)} Y: {position.y.toFixed(1)} Z: {position.z.toFixed(1)}</p>
-        <p>W: Forward | S: Backward | A/D: Strafe</p>
-        <p>R: Up | F: Down | Q/E: Roll</p>
-        <p>T: Speed Up | G: Slow Down</p>
-      </div>
-      
-      {/* 2D panel for planet info */}
-      {selectedPlanet && (
-        <div style={{
-          position: 'absolute',
-          bottom: '20px',
-          left: '20px',
-          width: '300px',
-          color: 'white',
-          background: 'rgba(0,0,0,0.7)',
-          padding: '15px',
-          borderRadius: '10px',
-          fontSize: '16px',
-          border: `2px solid ${getPlanetColor(selectedPlanet.type)}`,
-          boxShadow: `0 0 20px ${getPlanetColor(selectedPlanet.type)}`,
-          zIndex: 1000,
-          pointerEvents: 'auto'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ 
-              color: getPlanetColor(selectedPlanet.type),
-              margin: '0 0 10px 0',
-              fontSize: '20px'
-            }}>
-              Planet {selectedPlanet.id}
-            </h2>
-            <button 
-              onClick={() => setSelectedPlanet(null)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'white',
-                fontSize: '18px',
-                cursor: 'pointer'
-              }}
-            >
-              ✕
-            </button>
-          </div>
-          
-          <div style={{ display: 'flex', marginBottom: '10px' }}>
-            <div style={{ flex: 1 }}>
-              <p style={{ margin: '5px 0' }}><strong>Type:</strong> {selectedPlanet.type.charAt(0).toUpperCase() + selectedPlanet.type.slice(1)}</p>
-              <p style={{ margin: '5px 0' }}><strong>Size:</strong> {selectedPlanet.size}</p>
-            </div>
-            <div style={{ 
-              width: '50px',
-              height: '50px',
-              borderRadius: '50%',
-              backgroundColor: getPlanetColor(selectedPlanet.type),
-              opacity: 0.6,
-              marginLeft: '10px'
-            }} />
-          </div>
-          
-          <div style={{ 
-            backgroundColor: 'rgba(255,255,255,0.1)', 
-            padding: '10px', 
-            borderRadius: '5px',
-            marginTop: '10px'
-          }}>
-            <p style={{ margin: '0 0 8px 0', fontWeight: 'bold' }}>Coordinates:</p>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <p style={{ margin: '3px 0' }}><strong>X:</strong> {selectedPlanet.position[0].toFixed(1)}</p>
-              <p style={{ margin: '3px 0' }}><strong>Y:</strong> {selectedPlanet.position[1].toFixed(1)}</p>
-              <p style={{ margin: '3px 0' }}><strong>Z:</strong> {selectedPlanet.position[2].toFixed(1)}</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* UI Panels */}
+      <NavPanel position={position} />
+      <HelpPanel />
+      <PlanetPanel selectedPlanet={selectedPlanet} onClose={handleClosePlanetPanel} />
+      <LogoPanel />
     </>
   );
 } 
