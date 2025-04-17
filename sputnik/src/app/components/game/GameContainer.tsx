@@ -1,15 +1,40 @@
 'use client';
 
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { FlyControls } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
-import { StarField } from './assets/StarField';
+import StarField from './assets/StarField';
 import PlanetarySystem from './planets/PlanetarySystem';
+import { PlanetInfo } from './planets/SimplePlanet';
+
+// Define position type
+type Position = {
+  x: number;
+  y: number;
+  z: number;
+};
+
+// Component to track camera position and update coordinates
+function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
+  const { camera } = useThree();
+  
+  useFrame(() => {
+    setPosition({
+      x: camera.position.x,
+      y: camera.position.y,
+      z: camera.position.z
+    });
+  });
+  
+  return null;
+}
 
 export default function GameContainer() {
   const [flightSpeed, setFlightSpeed] = useState(10);
+  const [position, setPosition] = useState<Position>({ x: 0, y: 5, z: 10 });
+  const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
   const controlsRef = useRef(null);
   
   // Handle speed control with keyboard
@@ -24,11 +49,32 @@ export default function GameContainer() {
       if (e.code === 'ControlLeft' || e.code === 'ControlRight') {
         setFlightSpeed(prev => Math.max(prev / 2, 1));
       }
+      
+      // Close planet info panel with Escape key
+      if (e.code === 'Escape') {
+        setSelectedPlanet(null);
+      }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+  
+  // Handle planet click
+  const handlePlanetClick = (planetInfo: PlanetInfo) => {
+    setSelectedPlanet(planetInfo);
+  };
+  
+  // Get planet type color
+  const getPlanetColor = (type: string): string => {
+    switch (type) {
+      case 'fire': return '#ff5500';
+      case 'water': return '#0066ff';
+      case 'earth': return '#338855';
+      case 'air': return '#ddddff';
+      default: return '#ffffff';
+    }
+  };
   
   return (
     <>
@@ -48,6 +94,8 @@ export default function GameContainer() {
         shadows
       >
         <Suspense fallback={null}>
+          <CameraPositionTracker setPosition={setPosition} />
+          
           <FlyControls
             ref={controlsRef}
             movementSpeed={flightSpeed}
@@ -60,7 +108,11 @@ export default function GameContainer() {
           <StarField count={50000} radius={20000} />
           
           {/* Planetary system with 1000 planets */}
-          <PlanetarySystem planetCount={69} universeRadius={10000} />
+          <PlanetarySystem 
+            planetCount={69} 
+            universeRadius={10000} 
+            onPlanetClick={handlePlanetClick}
+          />
           
           {/* Add post-processing effects */}
           <EffectComposer>
@@ -86,10 +138,57 @@ export default function GameContainer() {
         pointerEvents: 'none'
       }}>
         <p>Speed: {flightSpeed.toFixed(1)}</p>
+        <p>Position: X: {position.x.toFixed(1)} Y: {position.y.toFixed(1)} Z: {position.z.toFixed(1)}</p>
         <p>W: Forward | S: Backward | A/D: Strafe</p>
         <p>R: Up | F: Down | Q/E: Roll</p>
         <p>SHIFT: Speed Up | CTRL: Slow Down</p>
       </div>
+      
+      {/* Planet info panel (only shown when a planet is selected) */}
+      {selectedPlanet && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          color: 'white',
+          background: 'rgba(0,0,0,0.7)',
+          padding: '15px',
+          borderRadius: '10px',
+          fontSize: '16px',
+          border: `2px solid ${getPlanetColor(selectedPlanet.type)}`,
+          boxShadow: `0 0 20px ${getPlanetColor(selectedPlanet.type)}`,
+          zIndex: 1000,
+          pointerEvents: 'auto', // Enable interaction
+          minWidth: '250px',
+          textAlign: 'center'
+        }}>
+          <h2 style={{ color: getPlanetColor(selectedPlanet.type), margin: '0 0 10px 0' }}>
+            Planet {selectedPlanet.id}
+          </h2>
+          <p style={{ marginBottom: 5 }}>Type: {selectedPlanet.type.charAt(0).toUpperCase() + selectedPlanet.type.slice(1)}</p>
+          <p style={{ marginBottom: 5 }}>Size: {selectedPlanet.size}</p>
+          <div style={{ textAlign: 'left', marginTop: 10 }}>
+            <p style={{ margin: '3px 0' }}>X: {selectedPlanet.position[0].toFixed(1)}</p>
+            <p style={{ margin: '3px 0' }}>Y: {selectedPlanet.position[1].toFixed(1)}</p>
+            <p style={{ margin: '3px 0' }}>Z: {selectedPlanet.position[2].toFixed(1)}</p>
+          </div>
+          <button
+            style={{
+              background: getPlanetColor(selectedPlanet.type),
+              border: 'none',
+              borderRadius: '5px',
+              padding: '5px 10px',
+              marginTop: '10px',
+              color: '#000',
+              cursor: 'pointer'
+            }}
+            onClick={() => setSelectedPlanet(null)}
+          >
+            Close
+          </button>
+        </div>
+      )}
     </>
   );
 } 

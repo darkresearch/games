@@ -5,11 +5,20 @@ import * as THREE from 'three';
 // Planet types
 export type PlanetType = 'fire' | 'water' | 'earth' | 'air';
 
+export type PlanetInfo = {
+  id: number;
+  position: [number, number, number];
+  size: number;
+  type: PlanetType;
+};
+
 type SimplePlanetProps = {
   position: [number, number, number];
   size: number;
   type: PlanetType;
   rotationSpeed?: number;
+  id: number;
+  onPlanetClick: (info: PlanetInfo) => void;
 };
 
 // Materials for each planet type with enhanced visibility at distance
@@ -81,7 +90,9 @@ export default function SimplePlanet({
   position, 
   size, 
   type, 
-  rotationSpeed = 0.005 
+  rotationSpeed = 0.005,
+  id,
+  onPlanetClick
 }: SimplePlanetProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
@@ -89,6 +100,18 @@ export default function SimplePlanet({
   // Create the material for this planet type
   const material = useRef(createPlanetMaterial(type));
   const glowMaterial = useRef(createGlowMaterial(type));
+  
+  // Handle click on planet
+  const handleClick = (event: any) => {
+    event.stopPropagation();
+    const info: PlanetInfo = {
+      id,
+      position,
+      size,
+      type
+    };
+    onPlanetClick(info);
+  };
   
   // Rotation animation
   useFrame(() => {
@@ -105,7 +128,12 @@ export default function SimplePlanet({
   return (
     <group position={position}>
       {/* Main planet */}
-      <mesh ref={meshRef} castShadow receiveShadow>
+      <mesh 
+        ref={meshRef} 
+        castShadow 
+        receiveShadow
+        onClick={handleClick}
+      >
         <sphereGeometry args={[size, 32, 32]} />
         <primitive object={material.current} attach="material" />
       </mesh>

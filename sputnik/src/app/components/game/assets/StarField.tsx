@@ -18,7 +18,7 @@ type StarFieldProps = {
   radius?: number;
 };
 
-export const StarField = ({ 
+const StarField = ({ 
   count = 10000, 
   radius = 5000 
 }: StarFieldProps) => {
@@ -74,4 +74,6 @@ export const StarField = ({
   return (
     <points ref={pointsRef} geometry={geometry} material={starMaterial} />
   );
-}; 
+};
+
+export default StarField; 

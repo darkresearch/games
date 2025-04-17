@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
-import SimplePlanet, { PlanetType } from './SimplePlanet';
+import SimplePlanet, { PlanetType, PlanetInfo } from './SimplePlanet';
 import * as THREE from 'three';
 
 type PlanetarySystemProps = {
   planetCount?: number;
   universeRadius?: number;
+  onPlanetClick?: (planetInfo: PlanetInfo) => void;
 };
 
 // Size classes for planets
@@ -48,7 +49,8 @@ const getRandomPosition = (radius: number): [number, number, number] => [
 
 export default function PlanetarySystem({ 
   planetCount = 100, 
-  universeRadius = 10000 
+  universeRadius = 10000,
+  onPlanetClick
 }: PlanetarySystemProps) {
   // Generate planets
   const planets = useMemo(() => {
@@ -98,17 +100,36 @@ export default function PlanetarySystem({
     return generatedPlanets;
   }, [planetCount, universeRadius]);
   
+  // Handle planet clicks
+  const handlePlanetClick = (info: PlanetInfo) => {
+    if (onPlanetClick) {
+      onPlanetClick(info);
+    }
+  };
+  
   return (
     <group>
-
+      {/* Ambient light for general illumination */}
+      <ambientLight intensity={0.5} />
+      
+      {/* Directional lights from different angles */}
+      <directionalLight position={[5000, 5000, 5000]} intensity={1.0} />
+      <directionalLight position={[-5000, -5000, 5000]} intensity={0.4} />
+      <directionalLight position={[0, 5000, -5000]} intensity={0.3} />
+      
+      {/* Hemisphere light for more natural ambient lighting */}
+      <hemisphereLight args={[0x3284ff, 0xffc87f, 0.6]} />
+      
       {/* Render all planets */}
       {planets.map(planet => (
         <SimplePlanet 
           key={planet.id}
+          id={planet.id}
           position={planet.position}
           size={planet.size}
           type={planet.type}
           rotationSpeed={planet.rotationSpeed}
+          onPlanetClick={handlePlanetClick}
         />
       ))}
     </group>
