@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useState } from 'react';
-import SimplePlanet, { PlanetType, PlanetInfo } from './SimplePlanet';
+import SimplePlanet, { PlanetInfo } from './SimplePlanet';
 import * as THREE from 'three';
-import { MapConfig, PlanetConfig } from './mapUtils';
+import { MapConfig, PlanetConfig, PlanetType } from './mapUtils';
 
 type PlanetarySystemProps = {
   planetCount?: number;
@@ -39,6 +39,12 @@ const isTooClose = (
     const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
     return distance < (minDistance + planet.size);
   });
+};
+
+// Check if a position is far from origin (player starting point)
+const isFarFromOrigin = (position: [number, number, number], minDistance: number): boolean => {
+  const distance = Math.sqrt(position[0] * position[0] + position[1] * position[1] + position[2] * position[2]);
+  return distance > minDistance;
 };
 
 // Generate a random position within the universe radius
@@ -127,9 +133,48 @@ export default function PlanetarySystem({
     
     // Minimum distance between planets (scaled based on universe size)
     const MIN_DISTANCE = universeRadius * 0.02;
-    const MAX_ATTEMPTS = 100;
+    const MIN_DISTANCE_FROM_ORIGIN = universeRadius * 0.8; // Easter egg planets should be very far from origin
+    const MAX_ATTEMPTS = 150; // More attempts to find good positions for easter eggs
     
-    for (let i = 0; i < planetCount; i++) {
+    // Add two special easter egg planets
+    const easterEggConfigs = [
+      { type: 'jupiter' as PlanetType, size: 20 }, // Small jupiter planet
+      { type: 'wif' as PlanetType, size: 15 }      // Very small wif planet
+    ];
+    
+    // Add easter egg planets first - in remote corners of the universe
+    easterEggConfigs.forEach((config, index) => {
+      let position: [number, number, number];
+      let attempts = 0;
+      
+      do {
+        // Generate positions that tend to be in the far corners of the universe
+        position = [
+          (Math.random() > 0.5 ? 0.7 : -0.7) * universeRadius + (Math.random() - 0.5) * universeRadius * 0.4,
+          (Math.random() > 0.5 ? 0.7 : -0.7) * universeRadius + (Math.random() - 0.5) * universeRadius * 0.4,
+          (Math.random() > 0.5 ? 0.7 : -0.7) * universeRadius + (Math.random() - 0.5) * universeRadius * 0.4
+        ];
+        attempts++;
+        
+        if (attempts > MAX_ATTEMPTS) {
+          console.log(`Couldn't find ideal position for easter egg planet ${index} after ${MAX_ATTEMPTS} attempts`);
+          break;
+        }
+      } while (!isFarFromOrigin(position, MIN_DISTANCE_FROM_ORIGIN) || 
+               isTooClose(position, generatedPlanets, MIN_DISTANCE));
+      
+      // Slightly faster rotation to make them marginally more noticeable if spotted
+      generatedPlanets.push({
+        id: generatedPlanets.length,
+        position,
+        size: config.size,
+        type: config.type,
+        rotationSpeed: 0.003 + Math.random() * 0.007 // Slightly faster rotation for easter eggs
+      });
+    });
+    
+    // Generate regular planets
+    for (let i = 0; i < planetCount - easterEggConfigs.length; i++) {
       // Select a random size class
       const size = SIZE_CLASSES[Math.floor(Math.random() * SIZE_CLASSES.length)];
       
@@ -152,7 +197,7 @@ export default function PlanetarySystem({
       
       // Add the planet to our collection
       generatedPlanets.push({
-        id: i,
+        id: generatedPlanets.length,
         position,
         size,
         type,

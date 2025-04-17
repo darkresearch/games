@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 // Planet types
-export type PlanetType = 'fire' | 'water' | 'earth' | 'air';
+export type PlanetType = 'fire' | 'water' | 'earth' | 'air' | 'jupiter' | 'wif';
 
 export type PlanetInfo = {
   id: number;
@@ -64,6 +64,26 @@ const createPlanetMaterial = (type: PlanetType, textures: Record<string, THREE.T
         map: textures.smoke,
       });
       
+    case 'jupiter':
+      return new THREE.MeshStandardMaterial({ 
+        color: 0xffffff, // White base to show true texture color
+        emissive: 0xbb5500,
+        emissiveIntensity: 0.2,
+        roughness: 0.5,
+        metalness: 0.4,
+        map: textures.jupiter,
+      });
+      
+    case 'wif':
+      return new THREE.MeshStandardMaterial({ 
+        color: 0xffffff, // White base to show true texture color
+        emissive: 0x7733aa,
+        emissiveIntensity: 0.3,
+        roughness: 0.6,
+        metalness: 0.5,
+        map: textures.wif,
+      });
+      
     default:
       return new THREE.MeshStandardMaterial({ color: 0xffffff });
   }
@@ -76,7 +96,9 @@ const createCloudMaterial = (type: PlanetType, cloudTexture: THREE.Texture) => {
     fire: 0xff8855,
     water: 0xaaddff,
     earth: 0xccffdd,
-    air: 0xeeeeff
+    air: 0xeeeeff,
+    jupiter: 0xddbb99,
+    wif: 0xddaaee
   };
   
   return new THREE.MeshStandardMaterial({
@@ -95,7 +117,9 @@ const createGlowMaterial = (type: PlanetType) => {
     fire: 0xff4400,
     water: 0x0088ff,
     earth: 0x55aa77,
-    air: 0xaabbff
+    air: 0xaabbff,
+    jupiter: 0xffaa44,
+    wif: 0xcc77ee
   };
   
   return new THREE.MeshBasicMaterial({
@@ -127,12 +151,14 @@ export default function SimplePlanet({
     const waterTexture = loader.load('/images/planets/water texture.jpg');
     const stoneTexture = loader.load('/images/planets/stone-texture.jpg');
     const smokeTexture = loader.load('/images/planets/smoke-texture.jpg');
+    const jupiterTexture = loader.load('/images/planets/jupiter-texture.png');
+    const wifTexture = loader.load('/images/planets/wif-texture.jpg');
     
     // Load cloud texture
     const cloudTexture = loader.load('/images/planets/cloud-texture.png');
     
     // Configure texture wrapping and repeating
-    [lavaTexture, waterTexture, stoneTexture, smokeTexture, cloudTexture].forEach(texture => {
+    [lavaTexture, waterTexture, stoneTexture, smokeTexture, jupiterTexture, wifTexture, cloudTexture].forEach(texture => {
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
     });
@@ -142,6 +168,8 @@ export default function SimplePlanet({
       water: waterTexture,
       stone: stoneTexture,
       smoke: smokeTexture,
+      jupiter: jupiterTexture,
+      wif: wifTexture,
       cloud: cloudTexture
     };
   }, []);

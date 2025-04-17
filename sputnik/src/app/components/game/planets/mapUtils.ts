@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-export type PlanetType = 'fire' | 'water' | 'earth' | 'air';
+export type PlanetType = 'fire' | 'water' | 'earth' | 'air' | 'jupiter' | 'wif';
 
 export type PlanetConfig = {
   id: number;
