@@ -1,6 +1,5 @@
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useCallback } from 'react';
 import SimplePlanet, { PlanetInfo } from './SimplePlanet';
-import * as THREE from 'three';
 import { MapConfig, PlanetConfig, PlanetType } from './mapUtils';
 
 type PlanetarySystemProps = {
@@ -89,7 +88,7 @@ export default function PlanetarySystem({
   }, []);
 
   // Save the generated map
-  const saveMap = async (planets: PlanetConfig[]) => {
+  const saveMap = useCallback(async (planets: PlanetConfig[]) => {
     try {
       const mapConfig: MapConfig = {
         planets,
@@ -112,7 +111,7 @@ export default function PlanetarySystem({
     } catch (error) {
       console.error('Error saving map configuration:', error);
     }
-  };
+  }, [universeRadius]);
 
   // Generate planets
   const planets = useMemo(() => {
@@ -209,7 +208,7 @@ export default function PlanetarySystem({
     saveMap(generatedPlanets);
     
     return generatedPlanets;
-  }, [planetCount, universeRadius, loadedPlanets, isLoading]);
+  }, [planetCount, universeRadius, loadedPlanets, isLoading, saveMap]);
   
   // Handle planet clicks
   const handlePlanetClick = (info: PlanetInfo) => {

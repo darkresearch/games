@@ -35,7 +35,7 @@ export default function NavPanel({ flightSpeed, position }: NavPanelProps) {
       padding: '16px',
     }}>
       <p style={{ margin: '0 0 0 0', fontSize: '14px', color: '#fafafa' }}>
-        <span style={{ color: '#63B3ED' }}>X:</span> {position.x.toFixed(1)} <span style={{ color: '#63B3ED' }}>Y:</span> {position.y.toFixed(1)} <span style={{ color: '#63B3ED' }}>Z:</span> {position.z.toFixed(1)}
+        <span style={{ color: '#63B3ED' }}>X:</span> {position.x.toFixed(1)} <span style={{ color: '#63B3ED' }}>Y:</span> {position.y.toFixed(1)} <span style={{ color: '#63B3ED' }}>Z:</span> {position.z.toFixed(1)} <span style={{ color: '#63B3ED', marginLeft: '10px' }}>Speed:</span> {flightSpeed}
       </p>
     </div>
   );

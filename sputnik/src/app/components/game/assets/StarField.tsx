@@ -1,6 +1,5 @@
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
 
 // Create a simple point material that will look like a star
 const starMaterial = new THREE.PointsMaterial({

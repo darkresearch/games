@@ -90,26 +90,26 @@ const createPlanetMaterial = (type: PlanetType, textures: Record<string, THREE.T
 };
 
 // Create a cloud material based on planet type
-const createCloudMaterial = (type: PlanetType, cloudTexture: THREE.Texture) => {
-  // Cloud colors that complement each planet type
-  const cloudColors = {
-    fire: 0xff8855,
-    water: 0xaaddff,
-    earth: 0xccffdd,
-    air: 0xeeeeff,
-    jupiter: 0xddbb99,
-    wif: 0xddaaee
-  };
+// const createCloudMaterial = (type: PlanetType, cloudTexture: THREE.Texture) => {
+//   // Cloud colors that complement each planet type
+//   const cloudColors = {
+//     fire: 0xff8855,
+//     water: 0xaaddff,
+//     earth: 0xccffdd,
+//     air: 0xeeeeff,
+//     jupiter: 0xddbb99,
+//     wif: 0xddaaee
+//   };
   
-  return new THREE.MeshStandardMaterial({
-    color: cloudColors[type],
-    map: cloudTexture,
-    alphaMap: cloudTexture,
-    transparent: true,
-    opacity: 0.8,
-    depthWrite: false,  // Prevents z-fighting with the planet surface
-  });
-};
+//   return new THREE.MeshStandardMaterial({
+//     color: cloudColors[type],
+//     map: cloudTexture,
+//     alphaMap: cloudTexture,
+//     transparent: true,
+//     opacity: 0.8,
+//     depthWrite: false,  // Prevents z-fighting with the planet surface
+//   });
+// };
 
 // Create a glowing outline material
 const createGlowMaterial = (type: PlanetType) => {
@@ -140,7 +140,6 @@ export default function SimplePlanet({
 }: SimplePlanetProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
-  const cloudRef = useRef<THREE.Mesh>(null);
   
   // Load textures
   const textures = useMemo(() => {
@@ -177,10 +176,9 @@ export default function SimplePlanet({
   // Create the material for this planet type
   const material = useRef(createPlanetMaterial(type, textures));
   const glowMaterial = useRef(createGlowMaterial(type));
-  const cloudMaterial = useRef(createCloudMaterial(type, textures.cloud));
   
   // Handle click on planet
-  const handleClick = (event: any) => {
+  const handleClick = (event: React.MouseEvent) => {
     event.stopPropagation();
     const info: PlanetInfo = {
       id,
@@ -201,11 +199,6 @@ export default function SimplePlanet({
       if (glowRef.current) {
         glowRef.current.rotation.y = meshRef.current.rotation.y;
       }
-      
-      // Rotate clouds slightly faster than the planet
-      if (cloudRef.current) {
-        cloudRef.current.rotation.y += rotationSpeed * 1.5;
-      }
     }
   });
 
@@ -221,9 +214,6 @@ export default function SimplePlanet({
         <sphereGeometry args={[size, 32, 32]} />
         <primitive object={material.current} attach="material" />
       </mesh>
-      
-      {/* Cloud layer */}
-      
       
       {/* Glow effect */}
       <mesh ref={glowRef}>

@@ -4,7 +4,6 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { FlyControls } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
-import * as THREE from 'three';
 import StarField from './assets/StarField';
 import PlanetarySystem from './planets/PlanetarySystem';
 import { PlanetInfo } from './planets/SimplePlanet';
@@ -35,17 +34,6 @@ type Position = {
   z: number;
 };
 
-// Get planet type color helper
-const getPlanetColor = (type: string): string => {
-  switch (type) {
-    case 'fire': return '#ff5500';
-    case 'water': return '#0066ff';
-    case 'earth': return '#338855';
-    case 'air': return '#ddddff';
-    default: return '#ffffff';
-  }
-};
-
 // Logo component
 function LogoPanel() {
   return (
@@ -66,7 +54,7 @@ export default function GameContainer() {
   const [position, setPosition] = useState<Position>({ x: 0, y: 5, z: 10 });
   const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
   const [autoForward, setAutoForward] = useState(true); // Start with autoForward enabled
-  const [rotationSpeed, setRotationSpeed] = useState(0.2); // Base rotation speed
+  const [rotationSpeed] = useState(0.2); // Base rotation speed
   const controlsRef = useRef(null);
   
   // Track which arrow keys are pressed and when they were pressed
@@ -142,12 +130,10 @@ export default function GameContainer() {
   useEffect(() => {
     if (controlsRef.current) {
       // Apply custom acceleration to the controls
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const controls = controlsRef.current as any;
       if (controls.domElement && !controls._smoothSetup) {
         controls._smoothSetup = true;
-        
-        // Override the default mousemove method
-        const originalMouseMove = controls.mousemove;
         
         // Override the default update method to add custom acceleration
         const originalUpdate = controls.update;
@@ -198,7 +184,7 @@ export default function GameContainer() {
         };
       }
     }
-  }, [controlsRef.current]);
+  }, []); // No dependencies required as we only want to run this once
   
   return (
     <>
