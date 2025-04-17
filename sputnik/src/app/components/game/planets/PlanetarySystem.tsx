@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import SimplePlanet, { PlanetType, PlanetInfo } from './SimplePlanet';
-import * as THREE from 'three';
 
 type PlanetarySystemProps = {
   planetCount?: number;
