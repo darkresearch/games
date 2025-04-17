@@ -102,8 +102,11 @@ export default function SimplePlanet({
   const glowMaterial = useRef(createGlowMaterial(type));
   
   // Handle click on planet
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleClick = (event: any) => {
-    event.stopPropagation();
+    if (event.stopPropagation) {
+      event.stopPropagation();
+    }
     const info: PlanetInfo = {
       id,
       position,
