@@ -18,8 +18,8 @@ const SIZE_CLASSES = [
   40,   // Medium
   50,   // Medium-large
   75,   // Large
-  100,  // Very large
-  150   // Super massive
+  250,  // Very large
+  500   // Super massive
 ];
 
 // Planet types
