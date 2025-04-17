@@ -49,11 +49,34 @@ export default function GameContainer() {
   const [flightSpeed, setFlightSpeed] = useState(800);
   const [position, setPosition] = useState<Position>({ x: 0, y: 5, z: 10 });
   const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
+  const [autoForward, setAutoForward] = useState(true); // Start with autoForward enabled
+  const [rotationSpeed, setRotationSpeed] = useState(0.2); // Base rotation speed
   const controlsRef = useRef(null);
+  
+  // Track which arrow keys are pressed and when they were pressed
+  const keyStates = useRef({
+    ArrowUp: { pressed: false, startTime: 0 },
+    ArrowDown: { pressed: false, startTime: 0 },
+    ArrowLeft: { pressed: false, startTime: 0 },
+    ArrowRight: { pressed: false, startTime: 0 }
+  });
   
   // Handle speed control with keyboard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Disable autoForward when any movement key is pressed
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+        setAutoForward(false);
+      }
+      
+      // Track arrow key state for acceleration
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && !keyStates.current[e.code as keyof typeof keyStates.current].pressed) {
+        keyStates.current[e.code as keyof typeof keyStates.current] = {
+          pressed: true,
+          startTime: Date.now()
+        };
+      }
+      
       // Increase speed with T key
       if (e.code === 'KeyT') {
         setFlightSpeed(prev => Math.min(prev * 2, 2500));
@@ -70,8 +93,23 @@ export default function GameContainer() {
       }
     };
     
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Reset arrow key state
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+        keyStates.current[e.code as keyof typeof keyStates.current] = {
+          pressed: false,
+          startTime: 0
+        };
+      }
+    };
+    
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, []);
   
   // Handle planet click
@@ -83,6 +121,68 @@ export default function GameContainer() {
   const handleClosePlanetPanel = () => {
     setSelectedPlanet(null);
   };
+
+  // Create a smoother camera control setup with acceleration
+  useEffect(() => {
+    if (controlsRef.current) {
+      // Apply custom acceleration to the controls
+      const controls = controlsRef.current as any;
+      if (controls.domElement && !controls._smoothSetup) {
+        controls._smoothSetup = true;
+        
+        // Override the default mousemove method
+        const originalMouseMove = controls.mousemove;
+        
+        // Override the default update method to add custom acceleration
+        const originalUpdate = controls.update;
+        controls.update = (delta: number) => {
+          // Calculate acceleration based on how long keys have been pressed
+          const currentTime = Date.now();
+          const BASE_ROTATION = 0.2;
+          const MAX_ROTATION = 1.0;
+          const ACCELERATION_TIME = 1000; // Time in ms to reach max speed
+          
+          const calculateRotationSpeed = (keyCode: string): number => {
+            const keyState = keyStates.current[keyCode as keyof typeof keyStates.current];
+            if (!keyState.pressed) return 0;
+            
+            const heldTime = currentTime - keyState.startTime;
+            const accelerationFactor = Math.min(heldTime / ACCELERATION_TIME, 1);
+            return BASE_ROTATION + (MAX_ROTATION - BASE_ROTATION) * accelerationFactor;
+          };
+          
+          // Apply dynamic rotation speed to the appropriate axes
+          if (controls.moveState) {
+            // Up/Down controls (pitch)
+            const upAcceleration = calculateRotationSpeed('ArrowUp');
+            const downAcceleration = calculateRotationSpeed('ArrowDown');
+            if (upAcceleration > 0) {
+              controls.moveState.pitchUp = upAcceleration;
+            }
+            if (downAcceleration > 0) {
+              controls.moveState.pitchDown = downAcceleration;
+            }
+            
+            // Left/Right controls (yaw)
+            const leftAcceleration = calculateRotationSpeed('ArrowLeft');
+            const rightAcceleration = calculateRotationSpeed('ArrowRight');
+            if (leftAcceleration > 0) {
+              controls.moveState.yawLeft = leftAcceleration;
+            }
+            if (rightAcceleration > 0) {
+              controls.moveState.yawRight = rightAcceleration;
+            }
+            
+            // Update rotation quaternion with current state
+            controls.updateRotationVector();
+          }
+          
+          // Call the original update method
+          originalUpdate.call(controls, delta);
+        };
+      }
+    }
+  }, [controlsRef.current]);
   
   return (
     <>
@@ -107,9 +207,9 @@ export default function GameContainer() {
           <FlyControls
             ref={controlsRef}
             movementSpeed={flightSpeed}
-            rollSpeed={0.5}
+            rollSpeed={rotationSpeed} // Base rotation speed
             dragToLook={true}
-            autoForward={false}
+            autoForward={autoForward}
           />
           
           {/* Star field with stars */}

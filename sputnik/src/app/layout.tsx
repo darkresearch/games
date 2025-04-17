@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DARK SPUTNIK",
-  description: "Help SPUTNIK. Earn $DARK.",
+  title: "DARK - Sputnik",
+  description: "Help SPUTNIK. Win $DARK.",
 };
 
 export default function RootLayout({

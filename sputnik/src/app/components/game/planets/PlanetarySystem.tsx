@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import SimplePlanet, { PlanetType, PlanetInfo } from './SimplePlanet';
 import * as THREE from 'three';
+import { MapConfig, PlanetConfig } from './mapUtils';
 
 type PlanetarySystemProps = {
   planetCount?: number;
@@ -52,15 +53,77 @@ export default function PlanetarySystem({
   universeRadius = 10000,
   onPlanetClick
 }: PlanetarySystemProps) {
+  const [loadedPlanets, setLoadedPlanets] = useState<PlanetConfig[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Attempt to load existing map on component mount
+  useEffect(() => {
+    const loadMap = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/map');
+        
+        if (response.ok) {
+          const mapConfig: MapConfig = await response.json();
+          console.log('Loaded existing map configuration:', mapConfig);
+          setLoadedPlanets(mapConfig.planets);
+        } else {
+          console.log('No existing map found, will generate a new one');
+          setLoadedPlanets(null);
+        }
+      } catch (error) {
+        console.error('Error loading map:', error);
+        setLoadedPlanets(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadMap();
+  }, []);
+
+  // Save the generated map
+  const saveMap = async (planets: PlanetConfig[]) => {
+    try {
+      const mapConfig: MapConfig = {
+        planets,
+        universeRadius
+      };
+      
+      const response = await fetch('/api/map', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(mapConfig),
+      });
+      
+      if (response.ok) {
+        console.log('Map configuration saved successfully');
+      } else {
+        console.error('Failed to save map configuration:', await response.json());
+      }
+    } catch (error) {
+      console.error('Error saving map configuration:', error);
+    }
+  };
+
   // Generate planets
   const planets = useMemo(() => {
-    const generatedPlanets: Array<{
-      id: number;
-      position: [number, number, number];
-      size: number;
-      type: PlanetType;
-      rotationSpeed: number;
-    }> = [];
+    // If we're still loading or have loaded planets, don't generate new ones
+    if (isLoading) {
+      return [];
+    }
+    
+    // If we have loaded planets, use those
+    if (loadedPlanets && loadedPlanets.length > 0) {
+      console.log('Using loaded planet configuration');
+      return loadedPlanets;
+    }
+    
+    // Otherwise generate new planets
+    console.log('Generating new planets');
+    const generatedPlanets: PlanetConfig[] = [];
     
     // Minimum distance between planets (scaled based on universe size)
     const MIN_DISTANCE = universeRadius * 0.02;
@@ -97,8 +160,11 @@ export default function PlanetarySystem({
       });
     }
     
+    // Save the newly generated planets
+    saveMap(generatedPlanets);
+    
     return generatedPlanets;
-  }, [planetCount, universeRadius]);
+  }, [planetCount, universeRadius, loadedPlanets, isLoading]);
   
   // Handle planet clicks
   const handlePlanetClick = (info: PlanetInfo) => {
@@ -106,6 +172,11 @@ export default function PlanetarySystem({
       onPlanetClick(info);
     }
   };
+  
+  // Don't render anything while loading
+  if (isLoading) {
+    return null;
+  }
   
   return (
     <group>
