@@ -148,7 +148,7 @@ export default function SimplePlanet({
     
     // Load planet surface textures
     const lavaTexture = loader.load('/images/planets/lava-texture.jpg');
-    const waterTexture = loader.load('/images/planets/water texture.jpg');
+    const waterTexture = loader.load('/images/planets/water-texture.jpg');
     const stoneTexture = loader.load('/images/planets/stone-texture.jpg');
     const smokeTexture = loader.load('/images/planets/smoke-texture.jpg');
     const jupiterTexture = loader.load('/images/planets/jupiter-texture.png');

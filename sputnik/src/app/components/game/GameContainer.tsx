@@ -11,6 +11,7 @@ import { PlanetInfo } from './planets/SimplePlanet';
 import NavPanel from './panels/nav';
 import HelpPanel from './panels/help';
 import PlanetPanel from './panels/planet';
+import Image from 'next/image';
 
 // Component to track camera position and update coordinates
 function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
@@ -44,6 +45,21 @@ const getPlanetColor = (type: string): string => {
     default: return '#ffffff';
   }
 };
+
+// Logo component
+function LogoPanel() {
+  return (
+    <div className="absolute top-[27px] left-[28px] z-10">
+      <Image 
+        src="/logo.png" 
+        alt="DARK Logo" 
+        width={40} 
+        height={20} 
+        priority
+      />
+    </div>
+  );
+}
 
 export default function GameContainer() {
   const [flightSpeed, setFlightSpeed] = useState(800);
@@ -237,6 +253,7 @@ export default function GameContainer() {
       <NavPanel flightSpeed={flightSpeed} position={position} />
       <HelpPanel />
       <PlanetPanel selectedPlanet={selectedPlanet} onClose={handleClosePlanetPanel} />
+      <LogoPanel />
     </>
   );
 } 
