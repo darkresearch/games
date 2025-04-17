@@ -7,11 +7,10 @@ type Position = {
 };
 
 type NavPanelProps = {
-  flightSpeed: number;
   position: Position;
 };
 
-export default function NavPanel({ flightSpeed, position }: NavPanelProps) {
+export default function NavPanel({ position }: NavPanelProps) {
   return (
     <div style={{
       position: 'absolute',

@@ -236,7 +236,7 @@ export default function GameContainer() {
       </Canvas>
       
       {/* UI Panels */}
-      <NavPanel flightSpeed={flightSpeed} position={position} />
+      <NavPanel position={position} />
       <HelpPanel />
       <PlanetPanel selectedPlanet={selectedPlanet} onClose={handleClosePlanetPanel} />
       <LogoPanel />
