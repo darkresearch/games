@@ -4,7 +4,9 @@ import { Canvas } from '@react-three/fiber';
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { FlyControls } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
+import * as THREE from 'three';
 import { StarField } from './assets/StarField';
+import PlanetarySystem from './planets/PlanetarySystem';
 
 export default function GameContainer() {
   const [flightSpeed, setFlightSpeed] = useState(10);
@@ -31,8 +33,17 @@ export default function GameContainer() {
   return (
     <>
       <Canvas
-        camera={{ position: [0, 5, 10], fov: 70 }}
-        gl={{ antialias: true, alpha: false }}
+        camera={{ 
+          position: [0, 5, 10], 
+          fov: 45,
+          far: 100000, // Increased far clipping plane to see distant objects
+          near: 0.1
+        }}
+        gl={{ 
+          antialias: true, 
+          alpha: false,
+          logarithmicDepthBuffer: true // Better depth precision for large scenes
+        }}
         style={{ background: '#131313' }}
         shadows
       >
@@ -45,8 +56,11 @@ export default function GameContainer() {
             autoForward={false}
           />
           
-          {/* Simple physics-based star field */}
-          <StarField count={500000} radius={10000} />
+          {/* Star field with 500,000 stars */}
+          <StarField count={2500} radius={10000} />
+          
+          {/* Planetary system with 1000 planets */}
+          <PlanetarySystem planetCount={69} universeRadius={10000} />
           
           {/* Add post-processing effects */}
           <EffectComposer>
