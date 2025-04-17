@@ -8,6 +8,9 @@ import * as THREE from 'three';
 import StarField from './assets/StarField';
 import PlanetarySystem from './planets/PlanetarySystem';
 import { PlanetInfo } from './planets/SimplePlanet';
+import NavPanel from './panels/nav';
+import HelpPanel from './panels/help';
+import PlanetPanel from './panels/planet';
 
 // Component to track camera position and update coordinates
 function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
@@ -43,7 +46,7 @@ const getPlanetColor = (type: string): string => {
 };
 
 export default function GameContainer() {
-  const [flightSpeed, setFlightSpeed] = useState(200);
+  const [flightSpeed, setFlightSpeed] = useState(800);
   const [position, setPosition] = useState<Position>({ x: 0, y: 5, z: 10 });
   const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
   const controlsRef = useRef(null);
@@ -74,6 +77,11 @@ export default function GameContainer() {
   // Handle planet click
   const handlePlanetClick = (planetInfo: PlanetInfo) => {
     setSelectedPlanet(planetInfo);
+  };
+  
+  // Handle closing the planet panel
+  const handleClosePlanetPanel = () => {
+    setSelectedPlanet(null);
   };
   
   return (
@@ -125,94 +133,10 @@ export default function GameContainer() {
         </Suspense>
       </Canvas>
       
-      {/* Speed and controls indicator */}
-      <div style={{
-        position: 'absolute',
-        top: '20px',
-        right: '20px',
-        color: 'white',
-        background: 'rgba(0,0,0,0.5)',
-        padding: '10px',
-        borderRadius: '5px',
-        fontSize: '14px',
-        pointerEvents: 'none'
-      }}>
-        <p>Speed: {flightSpeed.toFixed(1)}</p>
-        <p>Position: X: {position.x.toFixed(1)} Y: {position.y.toFixed(1)} Z: {position.z.toFixed(1)}</p>
-        <p>W: Forward | S: Backward | A/D: Strafe</p>
-        <p>R: Up | F: Down | Q/E: Roll</p>
-        <p>T: Speed Up | G: Slow Down</p>
-      </div>
-      
-      {/* 2D panel for planet info */}
-      {selectedPlanet && (
-        <div style={{
-          position: 'absolute',
-          bottom: '20px',
-          left: '20px',
-          width: '300px',
-          color: 'white',
-          background: 'rgba(0,0,0,0.7)',
-          padding: '15px',
-          borderRadius: '10px',
-          fontSize: '16px',
-          border: `2px solid ${getPlanetColor(selectedPlanet.type)}`,
-          boxShadow: `0 0 20px ${getPlanetColor(selectedPlanet.type)}`,
-          zIndex: 1000,
-          pointerEvents: 'auto'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ 
-              color: getPlanetColor(selectedPlanet.type),
-              margin: '0 0 10px 0',
-              fontSize: '20px'
-            }}>
-              Planet {selectedPlanet.id}
-            </h2>
-            <button 
-              onClick={() => setSelectedPlanet(null)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'white',
-                fontSize: '18px',
-                cursor: 'pointer'
-              }}
-            >
-              ✕
-            </button>
-          </div>
-          
-          <div style={{ display: 'flex', marginBottom: '10px' }}>
-            <div style={{ flex: 1 }}>
-              <p style={{ margin: '5px 0' }}><strong>Type:</strong> {selectedPlanet.type.charAt(0).toUpperCase() + selectedPlanet.type.slice(1)}</p>
-              <p style={{ margin: '5px 0' }}><strong>Size:</strong> {selectedPlanet.size}</p>
-            </div>
-            <div style={{ 
-              width: '50px',
-              height: '50px',
-              borderRadius: '50%',
-              backgroundColor: getPlanetColor(selectedPlanet.type),
-              opacity: 0.6,
-              marginLeft: '10px'
-            }} />
-          </div>
-          
-          <div style={{ 
-            backgroundColor: 'rgba(255,255,255,0.1)', 
-            padding: '10px', 
-            borderRadius: '5px',
-            marginTop: '10px'
-          }}>
-            <p style={{ margin: '0 0 8px 0', fontWeight: 'bold' }}>Coordinates:</p>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <p style={{ margin: '3px 0' }}><strong>X:</strong> {selectedPlanet.position[0].toFixed(1)}</p>
-              <p style={{ margin: '3px 0' }}><strong>Y:</strong> {selectedPlanet.position[1].toFixed(1)}</p>
-              <p style={{ margin: '3px 0' }}><strong>Z:</strong> {selectedPlanet.position[2].toFixed(1)}</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* UI Panels */}
+      <NavPanel flightSpeed={flightSpeed} position={position} />
+      <HelpPanel />
+      <PlanetPanel selectedPlanet={selectedPlanet} onClose={handleClosePlanetPanel} />
     </>
   );
 } 
