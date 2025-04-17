@@ -9,13 +9,6 @@ import StarField from './assets/StarField';
 import PlanetarySystem from './planets/PlanetarySystem';
 import { PlanetInfo } from './planets/SimplePlanet';
 
-// Define position type
-type Position = {
-  x: number;
-  y: number;
-  z: number;
-};
-
 // Component to track camera position and update coordinates
 function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
   const { camera } = useThree();
@@ -31,8 +24,26 @@ function CameraPositionTracker({ setPosition }: { setPosition: (position: Positi
   return null;
 }
 
+// Define position type
+type Position = {
+  x: number;
+  y: number;
+  z: number;
+};
+
+// Get planet type color helper
+const getPlanetColor = (type: string): string => {
+  switch (type) {
+    case 'fire': return '#ff5500';
+    case 'water': return '#0066ff';
+    case 'earth': return '#338855';
+    case 'air': return '#ddddff';
+    default: return '#ffffff';
+  }
+};
+
 export default function GameContainer() {
-  const [flightSpeed, setFlightSpeed] = useState(10);
+  const [flightSpeed, setFlightSpeed] = useState(200);
   const [position, setPosition] = useState<Position>({ x: 0, y: 5, z: 10 });
   const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
   const controlsRef = useRef(null);
@@ -40,13 +51,13 @@ export default function GameContainer() {
   // Handle speed control with keyboard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Increase speed with Shift key
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
-        setFlightSpeed(prev => Math.min(prev * 2, 10000));
+      // Increase speed with T key
+      if (e.code === 'KeyT') {
+        setFlightSpeed(prev => Math.min(prev * 2, 2500));
       }
       
-      // Decrease speed with Control key
-      if (e.code === 'ControlLeft' || e.code === 'ControlRight') {
+      // Decrease speed with G key
+      if (e.code === 'KeyG') {
         setFlightSpeed(prev => Math.max(prev / 2, 1));
       }
       
@@ -63,17 +74,6 @@ export default function GameContainer() {
   // Handle planet click
   const handlePlanetClick = (planetInfo: PlanetInfo) => {
     setSelectedPlanet(planetInfo);
-  };
-  
-  // Get planet type color
-  const getPlanetColor = (type: string): string => {
-    switch (type) {
-      case 'fire': return '#ff5500';
-      case 'water': return '#0066ff';
-      case 'earth': return '#338855';
-      case 'air': return '#ddddff';
-      default: return '#ffffff';
-    }
   };
   
   return (
@@ -104,10 +104,10 @@ export default function GameContainer() {
             autoForward={false}
           />
           
-          {/* Star field with 500,000 stars */}
-          <StarField count={50000} radius={20000} />
+          {/* Star field with stars */}
+          <StarField count={25000} radius={20000} />
           
-          {/* Planetary system with 1000 planets */}
+          {/* Planetary system */}
           <PlanetarySystem 
             planetCount={69} 
             universeRadius={10000} 
@@ -141,16 +141,16 @@ export default function GameContainer() {
         <p>Position: X: {position.x.toFixed(1)} Y: {position.y.toFixed(1)} Z: {position.z.toFixed(1)}</p>
         <p>W: Forward | S: Backward | A/D: Strafe</p>
         <p>R: Up | F: Down | Q/E: Roll</p>
-        <p>SHIFT: Speed Up | CTRL: Slow Down</p>
+        <p>T: Speed Up | G: Slow Down</p>
       </div>
       
-      {/* Planet info panel (only shown when a planet is selected) */}
+      {/* 2D panel for planet info */}
       {selectedPlanet && (
         <div style={{
           position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
+          bottom: '20px',
+          left: '20px',
+          width: '300px',
           color: 'white',
           background: 'rgba(0,0,0,0.7)',
           padding: '15px',
@@ -159,34 +159,58 @@ export default function GameContainer() {
           border: `2px solid ${getPlanetColor(selectedPlanet.type)}`,
           boxShadow: `0 0 20px ${getPlanetColor(selectedPlanet.type)}`,
           zIndex: 1000,
-          pointerEvents: 'auto', // Enable interaction
-          minWidth: '250px',
-          textAlign: 'center'
+          pointerEvents: 'auto'
         }}>
-          <h2 style={{ color: getPlanetColor(selectedPlanet.type), margin: '0 0 10px 0' }}>
-            Planet {selectedPlanet.id}
-          </h2>
-          <p style={{ marginBottom: 5 }}>Type: {selectedPlanet.type.charAt(0).toUpperCase() + selectedPlanet.type.slice(1)}</p>
-          <p style={{ marginBottom: 5 }}>Size: {selectedPlanet.size}</p>
-          <div style={{ textAlign: 'left', marginTop: 10 }}>
-            <p style={{ margin: '3px 0' }}>X: {selectedPlanet.position[0].toFixed(1)}</p>
-            <p style={{ margin: '3px 0' }}>Y: {selectedPlanet.position[1].toFixed(1)}</p>
-            <p style={{ margin: '3px 0' }}>Z: {selectedPlanet.position[2].toFixed(1)}</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ 
+              color: getPlanetColor(selectedPlanet.type),
+              margin: '0 0 10px 0',
+              fontSize: '20px'
+            }}>
+              Planet {selectedPlanet.id}
+            </h2>
+            <button 
+              onClick={() => setSelectedPlanet(null)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'white',
+                fontSize: '18px',
+                cursor: 'pointer'
+              }}
+            >
+              ✕
+            </button>
           </div>
-          <button
-            style={{
-              background: getPlanetColor(selectedPlanet.type),
-              border: 'none',
-              borderRadius: '5px',
-              padding: '5px 10px',
-              marginTop: '10px',
-              color: '#000',
-              cursor: 'pointer'
-            }}
-            onClick={() => setSelectedPlanet(null)}
-          >
-            Close
-          </button>
+          
+          <div style={{ display: 'flex', marginBottom: '10px' }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: '5px 0' }}><strong>Type:</strong> {selectedPlanet.type.charAt(0).toUpperCase() + selectedPlanet.type.slice(1)}</p>
+              <p style={{ margin: '5px 0' }}><strong>Size:</strong> {selectedPlanet.size}</p>
+            </div>
+            <div style={{ 
+              width: '50px',
+              height: '50px',
+              borderRadius: '50%',
+              backgroundColor: getPlanetColor(selectedPlanet.type),
+              opacity: 0.6,
+              marginLeft: '10px'
+            }} />
+          </div>
+          
+          <div style={{ 
+            backgroundColor: 'rgba(255,255,255,0.1)', 
+            padding: '10px', 
+            borderRadius: '5px',
+            marginTop: '10px'
+          }}>
+            <p style={{ margin: '0 0 8px 0', fontWeight: 'bold' }}>Coordinates:</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <p style={{ margin: '3px 0' }}><strong>X:</strong> {selectedPlanet.position[0].toFixed(1)}</p>
+              <p style={{ margin: '3px 0' }}><strong>Y:</strong> {selectedPlanet.position[1].toFixed(1)}</p>
+              <p style={{ margin: '3px 0' }}><strong>Z:</strong> {selectedPlanet.position[2].toFixed(1)}</p>
+            </div>
+          </div>
         </div>
       )}
     </>

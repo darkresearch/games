@@ -110,6 +110,7 @@ export default function SimplePlanet({
       size,
       type
     };
+    console.log("Planet clicked:", info);
     onPlanetClick(info);
   };
   
