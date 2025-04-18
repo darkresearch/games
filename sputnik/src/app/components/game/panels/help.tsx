@@ -81,7 +81,7 @@ export default function HelpPanel() {
           fontSize: '16px', 
           fontWeight: '600' 
         }}>
-          Camera Controls
+          Your Controls
         </h3>
         <button 
           onClick={togglePanel}
@@ -126,10 +126,10 @@ export default function HelpPanel() {
         <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}>D</span> Right
         </p>
         <p style={{ margin: '6px 0', color: 'rgba(255,255,255,0.9)' }}>
-        <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}>D</span> Right
+        <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}> ⬆️ ⬅️ ➡️ ⬇️ </span> Turn
         </p>
         <p style={{ margin: '6px 0', color: 'rgba(255,255,255,0.9)' }}>
-        <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}> ⬆️ ⬅️ ➡️ ⬇️ </span> Turn
+        <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}> Q/E </span> Rotate
         </p>
       </div>
     </div>

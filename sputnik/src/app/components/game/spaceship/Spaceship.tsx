@@ -216,7 +216,7 @@ export default function Spaceship({
       {/* GLB model of the spaceship */}
       <primitive 
         object={model} 
-        scale={[0.5, 0.5, 0.5]} // Adjust scale as needed for your model
+        scale={[1, 1, 1]} // Adjust scale as needed for your model
         rotation={[0, Math.PI/2, 0]} // May need to adjust rotation based on model orientation
         castShadow
       />

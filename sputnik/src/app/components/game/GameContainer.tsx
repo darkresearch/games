@@ -16,6 +16,7 @@ import PlanetPanel from './panels/planet';
 import SpaceshipPanel from './panels/spaceship';
 import Image from 'next/image';
 import { spaceshipState } from '@/lib/supabase';
+import * as THREE from 'three';
 
 // Component to track camera position and update coordinates
 function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
@@ -28,6 +29,128 @@ function CameraPositionTracker({ setPosition }: { setPosition: (position: Positi
       z: camera.position.z
     });
   });
+  
+  return null;
+}
+
+// Camera transition animation component
+function CameraTransition({
+  isTransitioning,
+  spaceshipStatus,
+  transitionProgress,
+  setTransitionProgress,
+  setIsTransitioning,
+  setFollowSpaceship,
+  setAutoForward,
+  controlsRef,
+  easeInOutCubic
+}: {
+  isTransitioning: boolean;
+  spaceshipStatus: SpaceshipStatus | null;
+  transitionProgress: number;
+  setTransitionProgress: (progress: number) => void;
+  setIsTransitioning: (transitioning: boolean) => void;
+  setFollowSpaceship: (following: boolean) => void;
+  setAutoForward: (auto: boolean) => void;
+  controlsRef: React.RefObject<any>;
+  easeInOutCubic: (t: number) => number;
+}) {
+  // Get reference to camera
+  const { camera } = useThree();
+  // Store the initial camera position and rotation when transition starts
+  const startPosRef = useRef<THREE.Vector3 | null>(null);
+  const startQuatRef = useRef<THREE.Quaternion | null>(null);
+  
+  useFrame((state, delta) => {
+    if (!isTransitioning || !spaceshipStatus) return;
+    
+    // Get controls
+    const controls = controlsRef.current as any;
+    
+    // Initialize start position and rotation if not set
+    if (!startPosRef.current && transitionProgress === 0) {
+      // Store initial camera position and rotation
+      startPosRef.current = camera.position.clone();
+      startQuatRef.current = camera.quaternion.clone();
+      
+      // Disable controls during transition
+      if (controls) {
+        controls.enabled = false;
+      }
+    }
+    
+    // Use our stored start position
+    const startPos = startPosRef.current || camera.position;
+    
+    // Calculate target position (slightly behind and above the spaceship)
+    const targetPosition = new THREE.Vector3(
+      spaceshipStatus.position.x,
+      spaceshipStatus.position.y + 5, // Above
+      spaceshipStatus.position.z - 15  // Behind
+    );
+    
+    // Calculate target rotation (looking at spaceship)
+    const targetQuaternion = new THREE.Quaternion();
+    const lookTarget = new THREE.Vector3(
+      spaceshipStatus.position.x,
+      spaceshipStatus.position.y,
+      spaceshipStatus.position.z
+    );
+    
+    // Create a matrix to look at the target
+    const lookMatrix = new THREE.Matrix4();
+    lookMatrix.lookAt(targetPosition, lookTarget, new THREE.Vector3(0, 1, 0));
+    const targetRotation = new THREE.Quaternion().setFromRotationMatrix(lookMatrix);
+    
+    // Duration of transition in seconds
+    const transitionDuration = 1.5;
+    
+    // Update transition progress
+    const newProgress = Math.min(transitionProgress + (delta / transitionDuration), 1);
+    setTransitionProgress(newProgress);
+    
+    // Smoothly interpolate between start and target positions using easing
+    const t = easeInOutCubic(newProgress);
+    
+    // Interpolate position
+    const newX = startPos.x + (targetPosition.x - startPos.x) * t;
+    const newY = startPos.y + (targetPosition.y - startPos.y) * t;
+    const newZ = startPos.z + (targetPosition.z - startPos.z) * t;
+    camera.position.set(newX, newY, newZ);
+    
+    // Interpolate rotation (if we have a start quaternion)
+    if (startQuatRef.current) {
+      camera.quaternion.slerpQuaternions(startQuatRef.current, targetRotation, t);
+    }
+    
+    // If transition is complete, switch to normal follow mode
+    if (newProgress >= 1) {
+      setIsTransitioning(false);
+      setFollowSpaceship(true);
+      setAutoForward(false);
+      
+      // Reset references for next transition
+      startPosRef.current = null;
+      startQuatRef.current = null;
+      
+      // Re-enable controls after transition
+      if (controls) {
+        controls.enabled = true;
+      }
+    }
+  });
+  
+  // Make sure to re-enable controls if component unmounts during transition
+  useEffect(() => {
+    return () => {
+      if (isTransitioning && controlsRef.current) {
+        const controls = controlsRef.current as any;
+        if (controls) {
+          controls.enabled = true;
+        }
+      }
+    };
+  }, [isTransitioning, controlsRef]);
   
   return null;
 }
@@ -55,13 +178,16 @@ function LogoPanel() {
 }
 
 export default function GameContainer() {
-  const [flightSpeed, setFlightSpeed] = useState(10);
+  const [flightSpeed, setFlightSpeed] = useState(200);
   const [position, setPosition] = useState<Position>({ x: 0, y: 5, z: 10 });
   const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
   const [autoForward, setAutoForward] = useState(true); // Start with autoForward enabled
   const [rotationSpeed] = useState(0.2); // Base rotation speed
   const [spaceshipStatus, setSpaceshipStatus] = useState<SpaceshipStatus | null>(null);
   const [spaceshipPosition, setSpaceshipPosition] = useState<Vector3>({ x: 0, y: 0, z: 0 });
+  const [followSpaceship, setFollowSpaceship] = useState(false); // Track if camera should follow spaceship
+  const [isTransitioning, setIsTransitioning] = useState(false); // Track if camera is moving to spaceship
+  const [transitionProgress, setTransitionProgress] = useState(0); // Progress of transition animation (0-1)
   const controlsRef = useRef(null);
   
   // Track which arrow keys are pressed and when they were pressed
@@ -75,9 +201,11 @@ export default function GameContainer() {
   // Handle speed control with keyboard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Disable autoForward when any movement key is pressed
+      // Disable autoForward, followSpaceship and transitions when any movement key is pressed
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         setAutoForward(false);
+        setFollowSpaceship(false);
+        setIsTransitioning(false);
       }
       
       // Track arrow key state for acceleration
@@ -263,6 +391,64 @@ export default function GameContainer() {
     setSpaceshipPosition(newPosition);
   };
 
+  // Toggle follow spaceship mode
+  const handleFollowSpaceship = () => {
+    if (followSpaceship) {
+      // If already following, just turn it off
+      setFollowSpaceship(false);
+      return;
+    }
+    
+    if (!spaceshipStatus) return;
+    
+    // Simply start the transition - we'll capture the exact camera position in the component
+    setTransitionProgress(0);
+    setIsTransitioning(true);
+    // We'll set followSpaceship to true when the transition is complete
+  };
+  
+  // Easing function for smoother animation
+  const easeInOutCubic = (t: number) => {
+    return t < 0.5
+      ? 4 * t * t * t
+      : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  };
+  
+  // Regular camera follow logic (once transition is complete)
+  useEffect(() => {
+    if (isTransitioning || !followSpaceship || !controlsRef.current || !spaceshipStatus) return;
+    
+    // Position camera slightly behind and above the spaceship
+    const controls = controlsRef.current as any;
+    if (controls && controls.object) {
+      // Disable controls while we're in follow mode
+      controls.enabled = false;
+      
+      const offset = { x: 0, y: 5, z: -15 }; // Adjust these values to change camera position relative to ship
+      controls.object.position.x = spaceshipStatus.position.x + offset.x;
+      controls.object.position.y = spaceshipStatus.position.y + offset.y;
+      controls.object.position.z = spaceshipStatus.position.z + offset.z;
+      
+      // Make camera look at spaceship
+      const target = new THREE.Vector3(
+        spaceshipStatus.position.x,
+        spaceshipStatus.position.y,
+        spaceshipStatus.position.z
+      );
+      controls.object.lookAt(target);
+    }
+    
+    // Re-enable controls when exiting follow mode
+    return () => {
+      if (controlsRef.current) {
+        const controls = controlsRef.current as any;
+        if (controls) {
+          controls.enabled = true;
+        }
+      }
+    };
+  }, [followSpaceship, spaceshipStatus, isTransitioning]);
+
   return (
     <>
       <Canvas
@@ -282,6 +468,19 @@ export default function GameContainer() {
       >
         <Suspense fallback={null}>
           <CameraPositionTracker setPosition={setPosition} />
+          
+          {/* Add the camera transition component */}
+          <CameraTransition
+            isTransitioning={isTransitioning}
+            spaceshipStatus={spaceshipStatus}
+            transitionProgress={transitionProgress}
+            setTransitionProgress={setTransitionProgress}
+            setIsTransitioning={setIsTransitioning}
+            setFollowSpaceship={setFollowSpaceship}
+            setAutoForward={setAutoForward}
+            controlsRef={controlsRef}
+            easeInOutCubic={easeInOutCubic}
+          />
           
           <FlyControls
             ref={controlsRef}
@@ -322,7 +521,11 @@ export default function GameContainer() {
       <NavPanel position={position} />
       <HelpPanel />
       <PlanetPanel selectedPlanet={selectedPlanet} onClose={handleClosePlanetPanel} />
-      <SpaceshipPanel status={spaceshipStatus} />
+      <SpaceshipPanel 
+        status={spaceshipStatus} 
+        onFollowSpaceship={handleFollowSpaceship} 
+        isFollowing={followSpaceship}
+      />
       <LogoPanel />
     </>
   );
