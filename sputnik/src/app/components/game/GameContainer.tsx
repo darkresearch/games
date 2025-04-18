@@ -55,7 +55,7 @@ function LogoPanel() {
 }
 
 export default function GameContainer() {
-  const [flightSpeed, setFlightSpeed] = useState(800);
+  const [flightSpeed, setFlightSpeed] = useState(10);
   const [position, setPosition] = useState<Position>({ x: 0, y: 5, z: 10 });
   const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
   const [autoForward, setAutoForward] = useState(true); // Start with autoForward enabled

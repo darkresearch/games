@@ -6,6 +6,10 @@ import * as THREE from 'three';
 import { Vector3, PhysicsSystem } from './PhysicsSystem';
 import { SpaceshipStatus, spaceshipAPI } from './api';
 import { spaceshipState, SpaceshipStateData } from '@/lib/supabase';
+import { useGLTF } from '@react-three/drei';
+
+// Preload the model to improve initial load performance
+useGLTF.preload('/models/spaceship.glb');
 
 // Convert between PhysicsSystem Vector3 and THREE.Vector3
 const toThreeVector = (v: Vector3): THREE.Vector3 => new THREE.Vector3(v.x, v.y, v.z);
@@ -27,7 +31,7 @@ export default function Spaceship({
   initialPosition = { x: 0, y: 0, z: 0 },
   onPositionUpdate
 }: SpaceshipProps) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
   const physicsRef = useRef<PhysicsSystem>(new PhysicsSystem(initialPosition));
   const lastUpdateTime = useRef<number>(Date.now());
   const [thrusterActive, setThrusterActive] = useState(false);
@@ -35,6 +39,11 @@ export default function Spaceship({
   
   // Direction the spaceship is facing
   const directionRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
+  
+  // Load the GLB model
+  const { scene } = useGLTF('/models/spaceship.glb');
+  // Create a clone of the scene to avoid modifying the cached original
+  const model = scene.clone();
   
   // Load initial state and subscribe to updates from Supabase
   useEffect(() => {
@@ -168,7 +177,7 @@ export default function Spaceship({
   
   // Update physics and visuals each frame for smooth interpolation
   useFrame(() => {
-    if (!meshRef.current) return;
+    if (!groupRef.current) return;
     
     // Calculate delta time for physics update
     const now = Date.now();
@@ -179,7 +188,7 @@ export default function Spaceship({
     
     // Update mesh position
     const { position } = physicsRef.current;
-    meshRef.current.position.set(position.x, position.y, position.z);
+    groupRef.current.position.set(position.x, position.y, position.z);
     
     // Update rotation to face direction of travel
     if (physicsRef.current.getCurrentSpeed() > 1) {
@@ -191,8 +200,8 @@ export default function Spaceship({
       
       // Smoothly rotate to align with velocity
       directionRef.current.lerp(velocity, 0.05);
-      meshRef.current.lookAt(
-        meshRef.current.position.clone().add(directionRef.current)
+      groupRef.current.lookAt(
+        groupRef.current.position.clone().add(directionRef.current)
       );
     }
     
@@ -203,31 +212,28 @@ export default function Spaceship({
   });
   
   return (
-    <group>
-      {/* Main spaceship body (placeholder cube) */}
-      <mesh ref={meshRef} castShadow>
-        <boxGeometry args={[3, 1.5, 5]} /> {/* Simple spaceship shape */}
-        <meshStandardMaterial 
-          color={0x444488} 
-          emissive={0x111122}
-          roughness={0.5}
-          metalness={0.8}
-        />
-        
-        {/* Position lights to make it look more like a spaceship */}
-        <pointLight position={[0, 1, 0]} intensity={0.5} color={0x88aaff} distance={10} />
-      </mesh>
+    <group ref={groupRef}>
+      {/* GLB model of the spaceship */}
+      <primitive 
+        object={model} 
+        scale={[0.5, 0.5, 0.5]} // Adjust scale as needed for your model
+        rotation={[0, Math.PI/2, 0]} // May need to adjust rotation based on model orientation
+        castShadow
+      />
       
       {/* Thruster effect (only visible when moving) */}
       {thrusterActive && (
         <mesh 
-          position={[0, 0, -3]} 
+          position={[0, 0, -3]} // Adjust position based on your model's thruster location
           scale={[1, 1, 2]}
         >
           <coneGeometry args={[1, 2, 8]} />
           <meshBasicMaterial color={0x88aaff} transparent opacity={0.7} />
         </mesh>
       )}
+      
+      {/* Add a point light to make the ship more visible */}
+      <pointLight position={[0, 1, 0]} intensity={0.5} color={0x88aaff} distance={10} />
     </group>
   );
 } 

@@ -2,6 +2,7 @@
 // Handles communication with the Python backend service
 
 import { Vector3 } from './PhysicsSystem';
+import { spaceshipState } from '@/lib/supabase';
 
 // Types for API requests and responses
 export type SpaceshipCommand = {
@@ -22,16 +23,21 @@ export type SpaceshipStatus = {
 // The target planet is fixed for the entire game
 export const TARGET_PLANET_ID = 42; // Replace with actual target planet ID 
 
+// Convert Supabase array format to Vector3
+const arrayToVector3 = (arr: [number, number, number]): Vector3 => ({ 
+  x: arr[0], 
+  y: arr[1], 
+  z: arr[2] 
+});
+
 class SpaceshipAPI {
   private baseUrl: string;
   private controlEndpoint: string;
-  private statusEndpoint: string;
   
   constructor() {
     // In production, this would point to the actual backend service
     this.baseUrl = '/api/spaceship';
     this.controlEndpoint = `${this.baseUrl}/control`;
-    this.statusEndpoint = `${this.baseUrl}/status`;
   }
   
   // Send a command to the backend
@@ -60,18 +66,29 @@ class SpaceshipAPI {
     }
   }
   
-  // Get current spaceship status
+  // Get current spaceship status directly from Supabase
   async getStatus(): Promise<SpaceshipStatus | null> {
     try {
-      const response = await fetch(this.statusEndpoint);
+      const state = await spaceshipState.getState();
       
-      if (!response.ok) {
-        throw new Error('Failed to get spaceship status');
+      if (!state) {
+        console.warn('No spaceship state found in Supabase');
+        return null;
       }
       
-      return await response.json();
+      // Convert the Supabase state format to our API format
+      return {
+        position: arrayToVector3(state.position),
+        velocity: arrayToVector3(state.velocity),
+        rotation: {
+          x: state.rotation[0],
+          y: state.rotation[1],
+          z: state.rotation[2]
+        },
+        fuel: state.fuel
+      };
     } catch (error) {
-      console.error('Error getting spaceship status:', error);
+      console.error('Error getting spaceship status from Supabase:', error);
       return null;
     }
   }
