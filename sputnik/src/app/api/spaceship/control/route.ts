@@ -39,24 +39,25 @@ export async function POST(request: NextRequest) {
     }
     
     // Process the command and update Supabase state
-    let newState: any = {};
+    const newState: Record<string, unknown> = {};
     let success = false;
     
     switch (command.command) {
       case 'move':
         if (command.direction && command.magnitude) {
           // Update velocity based on direction and magnitude
-          newState.velocity = [
+          const velocity = [
             command.direction.x * command.magnitude,
             command.direction.y * command.magnitude,
             command.direction.z * command.magnitude
           ];
+          newState.velocity = velocity;
           
           // Update position based on velocity (simplified physics)
           newState.position = [
-            currentState.position[0] + newState.velocity[0] * 0.1,
-            currentState.position[1] + newState.velocity[1] * 0.1,
-            currentState.position[2] + newState.velocity[2] * 0.1
+            currentState.position[0] + velocity[0] * 0.1,
+            currentState.position[1] + velocity[1] * 0.1,
+            currentState.position[2] + velocity[2] * 0.1
           ];
           // Decrease fuel slightly
           newState.fuel = Math.max(0, currentState.fuel - 0.5);
@@ -84,11 +85,12 @@ export async function POST(request: NextRequest) {
             };
             
             // Set velocity based on direction and desired speed
-            newState.velocity = [
+            const velocity = [
               normalizedDirection.x * command.speed,
               normalizedDirection.y * command.speed,
               normalizedDirection.z * command.speed
             ];
+            newState.velocity = velocity;
             
             // Decrease fuel slightly
             newState.fuel = Math.max(0, currentState.fuel - 0.5);
