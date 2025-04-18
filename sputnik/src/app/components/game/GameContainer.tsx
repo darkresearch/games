@@ -9,7 +9,7 @@ import PlanetarySystem from './planets/PlanetarySystem';
 import { PlanetInfo } from './planets/SimplePlanet';
 import Spaceship from './spaceship/Spaceship';
 import { Vector3 } from './spaceship/PhysicsSystem';
-import { spaceshipAPI, SpaceshipStatus, TARGET_PLANET_ID } from './spaceship/api';
+import { SpaceshipStatus } from './spaceship/api';
 import NavPanel from './panels/nav';
 import HelpPanel from './panels/help';
 import PlanetPanel from './panels/planet';
@@ -52,6 +52,7 @@ function CameraTransition({
   setIsTransitioning: (transitioning: boolean) => void;
   setFollowSpaceship: (following: boolean) => void;
   setAutoForward: (auto: boolean) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   controlsRef: React.RefObject<any>;
   easeInOutCubic: (t: number) => number;
 }) {
@@ -65,7 +66,7 @@ function CameraTransition({
     if (!isTransitioning || !spaceshipStatus) return;
     
     // Get controls
-    const controls = controlsRef.current as any;
+    const controls = controlsRef.current;
     
     // Initialize start position and rotation if not set
     if (!startPosRef.current && transitionProgress === 0) {
@@ -90,7 +91,6 @@ function CameraTransition({
     );
     
     // Calculate target rotation (looking at spaceship)
-    const targetQuaternion = new THREE.Quaternion();
     const lookTarget = new THREE.Vector3(
       spaceshipStatus.position.x,
       spaceshipStatus.position.y,
@@ -142,12 +142,12 @@ function CameraTransition({
   
   // Make sure to re-enable controls if component unmounts during transition
   useEffect(() => {
+    // Capture ref value inside the effect
+    const currentControls = controlsRef.current;
+    
     return () => {
-      if (isTransitioning && controlsRef.current) {
-        const controls = controlsRef.current as any;
-        if (controls) {
-          controls.enabled = true;
-        }
+      if (isTransitioning && currentControls) {
+        currentControls.enabled = true;
       }
     };
   }, [isTransitioning, controlsRef]);
@@ -188,7 +188,8 @@ export default function GameContainer() {
   const [followSpaceship, setFollowSpaceship] = useState(false); // Track if camera should follow spaceship
   const [isTransitioning, setIsTransitioning] = useState(false); // Track if camera is moving to spaceship
   const [transitionProgress, setTransitionProgress] = useState(0); // Progress of transition animation (0-1)
-  const controlsRef = useRef(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const controlsRef = useRef<any>(null);
   
   // Track which arrow keys are pressed and when they were pressed
   const keyStates = useRef({
@@ -265,8 +266,7 @@ export default function GameContainer() {
   useEffect(() => {
     if (controlsRef.current) {
       // Apply custom acceleration to the controls
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const controls = controlsRef.current as any;
+      const controls = controlsRef.current;
       if (controls.domElement && !controls._smoothSetup) {
         controls._smoothSetup = true;
         
@@ -418,8 +418,10 @@ export default function GameContainer() {
   useEffect(() => {
     if (isTransitioning || !followSpaceship || !controlsRef.current || !spaceshipStatus) return;
     
+    // Capture current controls ref value inside the effect
+    const controls = controlsRef.current;
+    
     // Position camera slightly behind and above the spaceship
-    const controls = controlsRef.current as any;
     if (controls && controls.object) {
       // Disable controls while we're in follow mode
       controls.enabled = false;
@@ -440,11 +442,8 @@ export default function GameContainer() {
     
     // Re-enable controls when exiting follow mode
     return () => {
-      if (controlsRef.current) {
-        const controls = controlsRef.current as any;
-        if (controls) {
-          controls.enabled = true;
-        }
+      if (controls) {
+        controls.enabled = true;
       }
     };
   }, [followSpaceship, spaceshipStatus, isTransitioning]);
