@@ -1,85 +1,102 @@
-# Sputnik: Full-Screen 3D Space Game
+# SPUTNIK Space Exploration Game
 
-An immersive, high-fidelity 3D space game where you pilot a ship through an infinite universe, navigating between themed planets while managing your fuel resources.
+SPUTNIK is a space exploration game where an AI agent pilots a spaceship through a procedurally generated universe. The objective is to navigate from a starting planet to a target planet. Human users can assist the AI agent by providing guidance through a chat interface.
 
-## Features
+## Game Features
 
-- **Full-screen immersive experience** with high-fidelity 3D graphics
-- **Procedurally themed planets** (Fire, Water, Air, Earth)
-- **Physics-based ship controls** with intuitive keyboard/touch inputs
-- **Fuel management** system with refueling in planet atmospheres
-- **60 FPS performance** with optimized rendering
-- **Responsive design** that works on mobile and desktop
-- **Post-processing effects** (bloom, depth-of-field) for cinematic polish
+- Procedurally generated universe with 69+ planets of different types
+- AI-controlled spaceship that navigates through the universe
+- Resource management (fuel, health)
+- Planet interactions
+- User assistance through chat
 
-## Getting Started
+## Technical Architecture
 
-### Prerequisites
+The SPUTNIK game uses a multi-service architecture:
 
-- Node.js 21+ recommended
+1. **Next.js Frontend**: Visualizes the universe and spaceship in 3D
+2. **Supabase**: Stores and synchronizes spaceship state in real-time
+3. **Python AI Service**: Controls the spaceship via API calls
 
-### Installation
+The architecture flows like this:
+- Python AI agent → calls API endpoints → Next.js backend
+- Next.js backend → updates → Supabase database
+- Supabase → real-time updates → Frontend components
+
+## Technical Stack
+
+- **Frontend**: Next.js 15.3.0 with React 19
+- **3D Rendering**: Three.js with React Three Fiber
+- **3D Helpers**: @react-three/drei
+- **Post-processing**: @react-three/postprocessing
+- **State Management**: Supabase real-time database
+- **Styling**: TailwindCSS
+
+## AI Agent Integration
+
+The AI agent controls the spaceship through authenticated API endpoints:
+
+- `GET /api/spaceship/status`: Get the current state of the spaceship
+- `POST /api/spaceship/control`: Send commands to control the spaceship
+
+API documentation is available in [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
+
+## Implementation Details
+
+### Frontend Components
+
+- **Physics System**: Handles interpolation between state updates
+- **Spaceship Component**: Visualization with real-time state subscription
+- **Supabase Integration**: Real-time state management
+- **API Routes**: Authentication and command processing
+
+### Directory Structure
+
+```
+/src/app/components/game/spaceship/
+├── PhysicsSystem.ts    # Physics interpolation for smooth movement
+├── Spaceship.tsx       # Visual representation of spaceship
+├── api.ts              # API client for local API communication
+
+/src/app/api/spaceship/
+├── control/route.ts    # API endpoint for receiving commands from Python
+├── status/route.ts     # API endpoint for status retrieval
+
+/src/lib/
+├── supabase.ts         # Supabase client and state management utilities
+
+/src/app/components/game/panels/
+├── spaceship.tsx       # UI panel showing spaceship status
+```
+
+## Running the Game
 
 ```bash
-# Clone the repository
-git clone [repository-url]
-cd sputnik
-
 # Install dependencies
 npm install
+
+# Set up environment variables
+cp .env.example .env.local
+# Edit .env.local with your Supabase credentials and API key
 
 # Start the development server
 npm run dev
 ```
 
-Then open [http://localhost:3000](http://localhost:3000) in your browser.
+## Environment Variables
 
-## Controls
+- `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anonymous key
+- `SPACESHIP_CONTROL_API_KEY`: API key for authenticating Python backend requests
 
-- **W / ↑**: Thrust forward
-- **S / ↓**: Thrust backward
-- **A / ←**: Rotate left
-- **D / →**: Rotate right
+## Future Enhancements
 
-Mobile controls use touch-based quadrants of the screen for the same actions.
-
-## Gameplay
-
-1. You start near the **Fire Planet** with a full fuel tank
-2. Navigate to the **Water Planet** while managing your fuel
-3. Enter planet atmospheres to refuel
-4. Successfully reach the target planet to win
-
-## Project Structure
-
-```
-src/
-├── app/
-│   ├── components/
-│   │   └── game/
-│   │       ├── core/           # Core game components
-│   │       │   ├── Game.tsx    # Main game logic
-│   │       │   └── Ship.tsx    # Player ship controls
-│   │       ├── planets/        # Planet components
-│   │       │   ├── Planet.tsx  # Planet rendering
-│   │       │   └── AtmosphereZone.tsx # Refueling zones
-│   │       ├── ui/             # User interface
-│   │       │   └── HUD.tsx     # Heads-up display
-│   │       └── utils/          # Utility functions
-│   │           ├── GameManager.ts     # Game state management
-│   │           └── useKeyControls.ts  # Input handling
-│   ├── page.tsx         # Main entry page
-│   └── layout.tsx       # Root layout
-└── ...
-```
-
-## Technologies Used
-
-- **Next.js** with React 18+
-- **Three.js** for 3D rendering
-- **React Three Fiber** for React/Three.js integration
-- **TypeScript** for type safety
-- **Tailwind CSS** for UI styling
+- Replace the placeholder cube with a detailed spaceship model
+- Implement full physics-based movement with inertia and gravity
+- Add a fuel recharge mechanism on planets
+- Add a chat interface for communication with the AI agent
+- Implement collision detection
+- Add mission objectives and challenges
 
 ## License
 

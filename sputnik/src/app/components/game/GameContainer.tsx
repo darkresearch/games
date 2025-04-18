@@ -7,10 +7,15 @@ import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import StarField from './assets/StarField';
 import PlanetarySystem from './planets/PlanetarySystem';
 import { PlanetInfo } from './planets/SimplePlanet';
+import Spaceship from './spaceship/Spaceship';
+import { Vector3 } from './spaceship/PhysicsSystem';
+import { spaceshipAPI, SpaceshipStatus, TARGET_PLANET_ID } from './spaceship/api';
 import NavPanel from './panels/nav';
 import HelpPanel from './panels/help';
 import PlanetPanel from './panels/planet';
+import SpaceshipPanel from './panels/spaceship';
 import Image from 'next/image';
+import { spaceshipState } from '@/lib/supabase';
 
 // Component to track camera position and update coordinates
 function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
@@ -55,6 +60,8 @@ export default function GameContainer() {
   const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
   const [autoForward, setAutoForward] = useState(true); // Start with autoForward enabled
   const [rotationSpeed] = useState(0.2); // Base rotation speed
+  const [spaceshipStatus, setSpaceshipStatus] = useState<SpaceshipStatus | null>(null);
+  const [spaceshipPosition, setSpaceshipPosition] = useState<Vector3>({ x: 0, y: 0, z: 0 });
   const controlsRef = useRef(null);
   
   // Track which arrow keys are pressed and when they were pressed
@@ -186,6 +193,76 @@ export default function GameContainer() {
     }
   }, []); // No dependencies required as we only want to run this once
   
+  // Use Supabase real-time subscription instead of polling
+  useEffect(() => {
+    // Initial state fetch
+    const fetchInitialState = async () => {
+      try {
+        const initialState = await spaceshipState.getState();
+        if (initialState) {
+          // Convert Supabase state format to SpaceshipStatus format
+          const status: SpaceshipStatus = {
+            position: {
+              x: initialState.position[0],
+              y: initialState.position[1],
+              z: initialState.position[2]
+            },
+            velocity: {
+              x: initialState.velocity[0],
+              y: initialState.velocity[1],
+              z: initialState.velocity[2]
+            },
+            rotation: {
+              x: initialState.rotation[0],
+              y: initialState.rotation[1],
+              z: initialState.rotation[2]
+            },
+            fuel: initialState.fuel
+          };
+          setSpaceshipStatus(status);
+        }
+      } catch (error) {
+        console.error('Error fetching initial spaceship state:', error);
+      }
+    };
+
+    fetchInitialState();
+
+    // Set up real-time subscription
+    const subscription = spaceshipState.subscribeToState((newState) => {
+      // Convert Supabase state format to SpaceshipStatus format
+      const status: SpaceshipStatus = {
+        position: {
+          x: newState.position[0],
+          y: newState.position[1],
+          z: newState.position[2]
+        },
+        velocity: {
+          x: newState.velocity[0],
+          y: newState.velocity[1],
+          z: newState.velocity[2]
+        },
+        rotation: {
+          x: newState.rotation[0],
+          y: newState.rotation[1],
+          z: newState.rotation[2]
+        },
+        fuel: newState.fuel
+      };
+      setSpaceshipStatus(status);
+    });
+
+    return () => {
+      // Clean up subscription on unmount
+      subscription.unsubscribe();
+    };
+  }, []);
+  
+  // Handle spaceship position updates
+  const handleSpaceshipPositionUpdate = (newPosition: Vector3) => {
+    setSpaceshipPosition(newPosition);
+  };
+
   return (
     <>
       <Canvas
@@ -224,6 +301,12 @@ export default function GameContainer() {
             onPlanetClick={handlePlanetClick}
           />
           
+          {/* AI-controlled spaceship */}
+          <Spaceship 
+            initialPosition={spaceshipPosition}
+            onPositionUpdate={handleSpaceshipPositionUpdate}
+          />
+          
           {/* Add post-processing effects */}
           <EffectComposer>
             <Bloom 
@@ -239,6 +322,7 @@ export default function GameContainer() {
       <NavPanel position={position} />
       <HelpPanel />
       <PlanetPanel selectedPlanet={selectedPlanet} onClose={handleClosePlanetPanel} />
+      <SpaceshipPanel status={spaceshipStatus} />
       <LogoPanel />
     </>
   );

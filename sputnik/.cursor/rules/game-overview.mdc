@@ -1,0 +1,61 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# SPUTNIK Game Overview
+
+## Concept
+SPUTNIK is a space exploration game where an AI agent pilots a spaceship through a procedurally generated universe. The objective is to navigate from a starting planet to a target planet. Human users can assist the AI agent by providing guidance through a chat interface - sharing information about the universe, target locations, navigation advice, and more.
+
+## Core Gameplay Mechanics
+- **AI-Controlled Spaceship**: The central gameplay revolves around an AI agent piloting a spacecraft
+- **Resource Management**: The spaceship has limited fuel that depletes during flight
+- **Planet Interactions**: The agent can land on planets to recharge fuel
+- **User Assistance**: Players communicate with the AI through chat to help guide its journey
+- **Exploration**: Navigate through a vast universe containing numerous planets of different types
+
+## Universe Structure
+- Procedurally generated universe with 69+ planets
+- Planet types include: fire, water, earth, air, jupiter, and wif
+- Each planet has unique characteristics that affect gameplay
+- Planets are positioned in 3D space with massive distance between them
+
+## Technical Stack
+- **Frontend Framework**: Next.js 15.3.0 with React 19
+- **3D Rendering**: Three.js with React Three Fiber (@react-three/fiber)
+- **3D Helpers**: @react-three/drei for enhanced Three.js components
+- **Post-processing**: @react-three/postprocessing for visual effects
+- **Styling**: TailwindCSS for UI components
+- **Build Tools**: TypeScript, Turbopack
+
+## Key Components
+- `GameContainer.tsx`: Main game component that sets up the 3D scene
+- `PlanetarySystem.tsx`: Manages the universe and planet generation
+- `SimplePlanet.tsx`: Individual planet implementation
+- `FlyControls`: User camera movement system
+- Navigation panel: Shows current position in 3D space
+- Planet panel: Displays information about selected planets
+- Help panel: Provides game instructions
+
+## Game Controls
+- WASD/Arrow keys for spaceship movement
+- T/G keys for speed adjustment
+- Click on planets to view information
+- ESC to close planet information panel
+
+## AI Agent Implementation (Planned)
+- The AI agent will need to:
+  - Process user chat messages for guidance
+  - Navigate through 3D space with pathfinding capabilities
+  - Manage fuel consumption and plan refueling stops
+  - Make decisions about route planning and target identification
+  - Adapt to changing conditions and new information
+  - Communicate its status, plans, and needs to the user
+
+## Project Structure
+- `/src/app`: Main application code
+- `/src/app/components/game`: Core game components
+- `/src/app/components/game/planets`: Planet-related components
+- `/src/app/components/game/panels`: UI panels and information displays
+- `/src/app/components/game/assets`: Game assets like star fields
