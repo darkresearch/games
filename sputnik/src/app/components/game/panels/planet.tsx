@@ -30,7 +30,7 @@ export default function PlanetPanel({ selectedPlanet, onClose }: PlanetPanelProp
       position: 'absolute',
       bottom: '20px',
       left: '20px',
-      height: '290px',
+      height: '345px',
       width: '280px',
       color: 'white',
       background: '#131313',

@@ -93,6 +93,7 @@ export default function SpaceshipPanel({
       fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
       boxShadow: '0 0 20px rgba(0,0,0,0.5), 0 0 5px rgba(66, 153, 225, 0.3)',
       border: '1px solid rgba(250, 250, 250, 0.2)',
+      height: '345px',
       width: '280px',
       letterSpacing: '0.3px',
       lineHeight: '1.5',
