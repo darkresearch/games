@@ -4,7 +4,7 @@ import { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Vector3, PhysicsSystem } from './PhysicsSystem';
-import { SpaceshipStatus, spaceshipAPI } from './api';
+import { spaceshipAPI } from './api';
 import { spaceshipState, SpaceshipStateData } from '@/lib/supabase';
 import { useGLTF } from '@react-three/drei';
 
@@ -13,7 +13,8 @@ useGLTF.preload('/models/spaceship.glb');
 
 // Convert between PhysicsSystem Vector3 and THREE.Vector3
 const toThreeVector = (v: Vector3): THREE.Vector3 => new THREE.Vector3(v.x, v.y, v.z);
-const fromThreeVector = (v: THREE.Vector3): Vector3 => ({ x: v.x, y: v.y, z: v.z });
+// Uncomment if needed in the future
+// const fromThreeVector = (v: THREE.Vector3): Vector3 => ({ x: v.x, y: v.y, z: v.z });
 
 // Convert from array to Vector3
 const arrayToVector3 = (arr: [number, number, number]): Vector3 => ({ 
