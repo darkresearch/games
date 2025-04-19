@@ -111,13 +111,13 @@ export default function SpaceshipPanel({
   }, [position, hasDestination, isActuallyMoving]);
   
   // Calculate speed from velocity
-  const speed = velocity.x !== 'N/A'
-    ? Math.sqrt(
-        Number(velocity.x) * Number(velocity.x) + 
-        Number(velocity.y) * Number(velocity.y) + 
-        Number(velocity.z) * Number(velocity.z)
-      ).toFixed(1)
-    : (currentPosition ? '3.0' : '0.0'); // Use default speed if we have current position but no velocity
+  // const speed = velocity.x !== 'N/A'
+  //   ? Math.sqrt(
+  //       Number(velocity.x) * Number(velocity.x) + 
+  //       Number(velocity.y) * Number(velocity.y) + 
+  //       Number(velocity.z) * Number(velocity.z)
+  //     ).toFixed(1)
+  //   : (currentPosition ? '3.0' : '0.0'); // Use default speed if we have current position but no velocity
   
   // Get fuel value
   const fuel = propStatus?.fuel !== undefined 
