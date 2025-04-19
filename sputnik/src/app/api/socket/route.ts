@@ -3,6 +3,12 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
 import { NextResponse } from 'next/server';
 import { getInterpolator } from '../spaceship/interpolator';
+import { DefaultEventsMap } from 'socket.io/dist/typed-events';
+
+// Define a custom type for our server that includes Socket.io
+type ServerWithIO = {
+  io?: Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap>;
+};
 
 // Global variables to maintain server instance
 let io: Server;
@@ -62,8 +68,9 @@ export async function GET() {
     }
     
     // Check if server already has socket.io instance
-    if (res.socket.server.io) {
-      io = res.socket.server.io;
+    const serverWithIO = res.socket.server as unknown as ServerWithIO;
+    if (serverWithIO.io) {
+      io = serverWithIO.io;
       return NextResponse.json(
         { message: 'Socket server is already running' },
         { status: 200 }
@@ -87,7 +94,8 @@ export async function GET() {
       transports: ['websocket', 'polling'],
     });
     
-    res.socket.server.io = io;
+    // Store the io instance on the server
+    serverWithIO.io = io;
     
     // Apply Redis adapter
     io.adapter(createAdapter(pubClient, subClient));
