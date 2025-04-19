@@ -240,7 +240,7 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
       // Since the model is rotated [0, Math.PI/2, 0], we need to account for this
       // The thruster direction is opposite to the facing direction
       const thrusterDirection = directionRef.current.clone().multiplyScalar(-1);
-      // @ts-ignore - Adding custom property
+      // @ts-expect-error - Adding custom property
       groupRef.current.thrusterDirection = thrusterDirection;
     }
     

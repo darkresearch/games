@@ -89,9 +89,9 @@ function CameraTransition({
     let thrusterDirection = defaultDirection;
     
     if (spaceship) {
-      // @ts-ignore - Access the custom property we added
+      // @ts-expect-error - Access the custom property we added
       if (spaceship.thrusterDirection) {
-        // @ts-ignore
+        // @ts-expect-error - Access the custom property we added
         thrusterDirection = spaceship.thrusterDirection;
       }
     }
@@ -192,9 +192,9 @@ function CameraFollowSpaceship({
     let thrusterDirection = defaultDirection;
     
     if (spaceship) {
-      // @ts-ignore - Access the custom property we added
+      // @ts-expect-error - Access the custom property we added
       if (spaceship.thrusterDirection) {
-        // @ts-ignore
+        // @ts-expect-error - Access the custom property we added
         thrusterDirection = spaceship.thrusterDirection;
       }
     }
