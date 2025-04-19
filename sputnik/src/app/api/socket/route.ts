@@ -53,7 +53,6 @@ export async function GET() {
     ]);
     
     // Create Socket.io server
-    // @ts-expect-error - Next.js API routes handling for Socket.io
     const res = await tryToGetServerResponse();
     if (!res?.socket?.server) {
       return NextResponse.json(
@@ -72,7 +71,7 @@ export async function GET() {
     }
     
     // Set up new Socket.io server with configuration for production
-    io = new Server(res.socket.server, {
+    io = new Server(res.socket.server as any, {
       connectionStateRecovery: {
         // the backup duration of the sessions and the packets
         maxDisconnectionDuration: 2 * 60 * 1000,
