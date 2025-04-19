@@ -102,7 +102,7 @@ function CameraTransition({
     // Calculate offset position based on direction of travel
     const offset = {
       x: -directionRef.current.x * 15,
-      y: 5, // Always 5 units above
+      y: 0, // Directly behind, no vertical offset
       z: -directionRef.current.z * 15
     };
     
@@ -160,12 +160,12 @@ function CameraTransition({
   
   // Make sure to re-enable controls if component unmounts during transition
   useEffect(() => {
-    // Capture ref value inside the effect
-    const currentControls = controlsRef.current;
+    // Capture the current value of controlsRef.current inside the effect
+    const controls = controlsRef.current;
     
     return () => {
-      if (isTransitioning && currentControls) {
-        currentControls.enabled = true;
+      if (isTransitioning && controls) {
+        controls.enabled = true;
       }
     };
   }, [isTransitioning, controlsRef]);
@@ -229,10 +229,10 @@ function CameraFollowSpaceship({
     controls.enabled = false;
     
     // Calculate offset position based on direction of travel
-    // We'll position the camera 15 units behind the spaceship and 5 units above
+    // We'll position the camera 15 units directly behind the spaceship
     const offset = {
       x: -directionRef.current.x * 15,
-      y: 5, // Always stay 5 units above
+      y: 0, // Directly behind, no vertical offset
       z: -directionRef.current.z * 15
     };
     
@@ -253,9 +253,12 @@ function CameraFollowSpaceship({
   
   // Re-enable controls when component unmounts
   useEffect(() => {
+    // Capture the current value of controlsRef.current inside the effect
+    const controls = controlsRef.current;
+    
     return () => {
-      if (controlsRef.current) {
-        controlsRef.current.enabled = true;
+      if (controls) {
+        controls.enabled = true;
       }
     };
   }, [controlsRef]);

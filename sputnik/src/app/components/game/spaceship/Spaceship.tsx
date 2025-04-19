@@ -22,7 +22,6 @@ type SpaceshipProps = {
 
 export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const [thrusterActive, setThrusterActive] = useState(false);
   const [supabaseState, setSupabaseState] = useState<SpaceshipStateData | null>(null);
   
   // Current position and destination
@@ -102,7 +101,6 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
           // Set destination if one exists
           if (state.destination) {
             destination.current = arrayToVector3(state.destination);
-            setThrusterActive(true);
           }
         }
       } catch (error) {
@@ -127,13 +125,11 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
         // If destination is set and we're not already moving somewhere
         if (state.destination && !destination.current) {
           destination.current = arrayToVector3(state.destination);
-          setThrusterActive(true);
         }
         
         // If destination is cleared externally
         if (!state.destination && destination.current) {
           destination.current = null;
-          setThrusterActive(false);
         }
       }
     });
@@ -200,7 +196,6 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
         }
         
         destination.current = null;
-        setThrusterActive(false);
       } else {
         // Move toward destination
         const movementThisFrame = Math.min(moveDistance, distanceToDestination);

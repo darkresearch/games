@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { SpaceshipStatus, TARGET_PLANET_ID } from '../spaceship/api';
 import { spaceshipState, SpaceshipStateData } from '@/lib/supabase';
 
@@ -22,6 +22,8 @@ export default function SpaceshipPanel({
   currentPosition = null
 }: SpaceshipPanelProps) {
   const [supabaseState, setSupabaseState] = useState<SpaceshipStateData | null>(null);
+  const [isMoving, setIsMoving] = useState(false);
+  const prevPositionRef = useRef<{ x: number | string, y: number | string, z: number | string } | null>(null);
   
   // Subscribe to Supabase state updates
   useEffect(() => {
@@ -35,6 +37,10 @@ export default function SpaceshipPanel({
         const state = await spaceshipState.getState();
         if (state && isMounted) {
           setSupabaseState(state);
+          // Check if there's a destination set initially
+          if (state.destination) {
+            setIsMoving(true);
+          }
         }
       } catch (error) {
         console.error('Error loading initial spaceship state:', error);
@@ -47,6 +53,8 @@ export default function SpaceshipPanel({
     const subscription = spaceshipState.subscribeToState((state) => {
       if (isMounted) {
         setSupabaseState(state);
+        // Update moving state based on whether there's a destination
+        setIsMoving(!!state.destination);
       }
     });
     
@@ -62,6 +70,45 @@ export default function SpaceshipPanel({
   
   const velocity = propStatus?.velocity || 
     (supabaseState?.velocity ? toPositionObject(supabaseState.velocity) : { x: 'N/A', y: 'N/A', z: 'N/A' });
+  
+  // Create stable references for dependencies
+  const hasDestination = supabaseState?.destination !== null && 
+                        supabaseState?.destination !== undefined;
+  
+  // Check if velocity is non-zero (meaning Sputnik is actually moving)
+  const isActuallyMoving = 
+    typeof velocity.x === 'number' && 
+    typeof velocity.y === 'number' && 
+    typeof velocity.z === 'number' && 
+    (Math.abs(velocity.x) > 0.01 || Math.abs(velocity.y) > 0.01 || Math.abs(velocity.z) > 0.01);
+  
+  // Combined effect for movement detection
+  useEffect(() => {
+    // Only pulse if:
+    // 1. Sputnik has a destination AND it's actually moving, OR
+    // 2. Position has changed significantly (for client-side movement detection)
+    
+    // Position change detection
+    if (!prevPositionRef.current) {
+      prevPositionRef.current = { ...position };
+      return;
+    }
+    
+    const isPositionChanged = 
+      position.x !== prevPositionRef.current.x ||
+      position.y !== prevPositionRef.current.y ||
+      position.z !== prevPositionRef.current.z;
+    
+    // Update the movement state based on actual velocity or position changes
+    if (isActuallyMoving || (isPositionChanged && hasDestination)) {
+      setIsMoving(true);
+    } else {
+      setIsMoving(false);
+    }
+    
+    // Store new position
+    prevPositionRef.current = { ...position };
+  }, [position, hasDestination, isActuallyMoving]);
   
   // Calculate speed from velocity
   const speed = velocity.x !== 'N/A'
@@ -82,6 +129,14 @@ export default function SpaceshipPanel({
   // Fuel percentage for bar display
   const fuelPercentage = propStatus?.fuel ?? supabaseState?.fuel ?? 0;
 
+  // CSS Animation for pulsing effect
+  const pulsingStyle = isMoving ? {
+    animation: 'pulse 1.5s infinite',
+    borderLeft: '2px solid #2B8BFF'  // Brighter blue when pulsing
+  } : {
+    borderLeft: '2px solid #63B3ED'
+  };
+
   return (
     <div style={{
       position: 'absolute',
@@ -101,6 +156,22 @@ export default function SpaceshipPanel({
       lineHeight: '1.5',
       padding: '16px',
     }}>
+      <style jsx>{`
+        @keyframes pulse {
+          0% {
+            box-shadow: 0 0 0 0 rgba(99, 179, 237, 0.4);
+            background: rgba(0,0,0,0.2);
+          }
+          70% {
+            box-shadow: 0 0 0 6px rgba(99, 179, 237, 0);
+            background: rgba(43, 139, 255, 0.15);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(99, 179, 237, 0);
+            background: rgba(0,0,0,0.2);
+          }
+        }
+      `}</style>
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -154,8 +225,9 @@ export default function SpaceshipPanel({
         padding: '12px', 
         background: 'rgba(0,0,0,0.2)', 
         borderRadius: '8px',
-        borderLeft: '2px solid #63B3ED',
-        marginBottom: '12px'
+        ...pulsingStyle,
+        marginBottom: '12px',
+        transition: 'all 0.3s ease'
       }}>
         <p style={{ 
           margin: '0 0 8px 0', 
