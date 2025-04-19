@@ -3,212 +3,215 @@
 import { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Vector3, PhysicsSystem } from './PhysicsSystem';
-import { spaceshipAPI } from './api';
 import { spaceshipState, SpaceshipStateData } from '@/lib/supabase';
 import { useGLTF } from '@react-three/drei';
 
 // Preload the model to improve initial load performance
 useGLTF.preload('/models/spaceship.glb');
 
-// Convert between PhysicsSystem Vector3 and THREE.Vector3
-const toThreeVector = (v: Vector3): THREE.Vector3 => new THREE.Vector3(v.x, v.y, v.z);
-// Uncomment if needed in the future
-// const fromThreeVector = (v: THREE.Vector3): Vector3 => ({ x: v.x, y: v.y, z: v.z });
+// Convert from array to THREE.Vector3
+const arrayToVector3 = (arr: [number, number, number]): THREE.Vector3 => 
+  new THREE.Vector3(arr[0], arr[1], arr[2]);
 
-// Convert from array to Vector3
-const arrayToVector3 = (arr: [number, number, number]): Vector3 => ({ 
-  x: arr[0], 
-  y: arr[1], 
-  z: arr[2] 
-});
+// Calculate distance between two points
+const calculateDistance = (a: THREE.Vector3, b: THREE.Vector3): number => a.distanceTo(b);
 
 type SpaceshipProps = {
-  initialPosition?: Vector3;
-  onPositionUpdate?: (position: Vector3) => void;
+  onPositionUpdate?: (position: THREE.Vector3) => void;
 };
 
-export default function Spaceship({ 
-  initialPosition = { x: 0, y: 0, z: 0 },
-  onPositionUpdate
-}: SpaceshipProps) {
+export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const physicsRef = useRef<PhysicsSystem>(new PhysicsSystem(initialPosition));
-  const lastUpdateTime = useRef<number>(Date.now());
   const [thrusterActive, setThrusterActive] = useState(false);
   const [supabaseState, setSupabaseState] = useState<SpaceshipStateData | null>(null);
   
+  // Current position and destination
+  const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
+  const destination = useRef<THREE.Vector3 | null>(null);
+  
   // Direction the spaceship is facing
   const directionRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
+  
+  // Movement speed (units per second)
+  const MOVEMENT_SPEED = 3;
+  const ARRIVAL_THRESHOLD = 1.0;
   
   // Load the GLB model
   const { scene } = useGLTF('/models/spaceship.glb');
   // Create a clone of the scene to avoid modifying the cached original
   const model = scene.clone();
   
+  // Function to notify the server when we reach the destination
+  const notifyArrival = async (id: string, position: [number, number, number]) => {
+    try {
+      console.log('🚀 SPUTNIK: Notifying arrival at position:', position);
+      
+      const response = await fetch('/api/spaceship/arrival', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id,
+          position
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to notify server of arrival:', errorText);
+      } else {
+        console.log('🚀 SPUTNIK: Successfully notified server of arrival');
+        
+        // Update local state immediately rather than waiting for subscription
+        if (supabaseState) {
+          setSupabaseState({
+            ...supabaseState,
+            position: position,
+            destination: null,
+            velocity: [0, 0, 0]
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error notifying arrival:', error);
+    }
+  };
+  
   // Load initial state and subscribe to updates from Supabase
   useEffect(() => {
     let isMounted = true;
+    
+    console.log('🚀 SPUTNIK: Initializing spaceship and setting up subscription');
     
     // Get initial state
     const loadInitialState = async () => {
       if (!isMounted) return;
       
       try {
+        console.log('🚀 SPUTNIK: Fetching initial state from Supabase');
         const state = await spaceshipState.getState();
         
         if (state && isMounted) {
+          console.log('🚀 SPUTNIK: Received initial state:', state);
           setSupabaseState(state);
           
-          // Convert array format to Vector3 format
-          const posVector = arrayToVector3(state.position);
-          const velVector = arrayToVector3(state.velocity);
+          // Set current position
+          currentPosition.current = arrayToVector3(state.position);
           
-          // Update our physics system with the initial state
-          physicsRef.current.setPosition(posVector);
-          physicsRef.current.setVelocity(velVector);
-          
-          // Calculate direction from velocity if moving
-          if (velVector.x !== 0 || velVector.y !== 0 || velVector.z !== 0) {
-            directionRef.current.copy(toThreeVector(velVector).normalize());
+          // Set destination if one exists
+          if (state.destination) {
+            destination.current = arrayToVector3(state.destination);
+            setThrusterActive(true);
           }
-          
-          // Update thruster visual effect
-          const speed = Math.sqrt(
-            velVector.x * velVector.x + 
-            velVector.y * velVector.y + 
-            velVector.z * velVector.z
-          );
-          setThrusterActive(speed > 10);
-          
-          lastUpdateTime.current = Date.now();
         }
       } catch (error) {
-        console.error('Error loading initial spaceship state:', error);
+        console.error('🚀 SPUTNIK ERROR: Error loading initial spaceship state:', error);
       }
     };
     
     loadInitialState();
     
     // Subscribe to state changes
+    console.log('🚀 SPUTNIK: Setting up Supabase real-time subscription');
     const subscription = spaceshipState.subscribeToState((state) => {
+      console.log('🚀 SPUTNIK: Subscription callback received state update:', state);
       if (isMounted) {
         setSupabaseState(state);
         
-        // Convert array format to Vector3 format
-        const posVector = arrayToVector3(state.position);
-        const velVector = arrayToVector3(state.velocity);
-        
-        // Update our physics system with the new state
-        physicsRef.current.setPosition(posVector);
-        physicsRef.current.setVelocity(velVector);
-        
-        // Calculate direction from velocity if moving
-        if (velVector.x !== 0 || velVector.y !== 0 || velVector.z !== 0) {
-          directionRef.current.copy(toThreeVector(velVector).normalize());
+        // Only update position if we're not already moving to a destination
+        if (!destination.current) {
+          currentPosition.current = arrayToVector3(state.position);
         }
         
-        // Update thruster visual effect
-        const speed = Math.sqrt(
-          velVector.x * velVector.x + 
-          velVector.y * velVector.y + 
-          velVector.z * velVector.z
-        );
-        setThrusterActive(speed > 10);
+        // If destination is set and we're not already moving somewhere
+        if (state.destination && !destination.current) {
+          destination.current = arrayToVector3(state.destination);
+          setThrusterActive(true);
+        }
         
-        lastUpdateTime.current = Date.now();
+        // If destination is cleared externally
+        if (!state.destination && destination.current) {
+          destination.current = null;
+          setThrusterActive(false);
+        }
       }
     });
     
     return () => {
+      console.log('🚀 SPUTNIK: Cleaning up subscription');
       isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
   
-  // Fallback to our API polling if Supabase isn't set up or there's no state
-  useEffect(() => {
-    let isMounted = true;
-    const pollInterval = 1000; // Poll every second as a fallback
-    let timeoutId: NodeJS.Timeout;
-    
-    const pollBackend = async () => {
-      if (!isMounted || supabaseState) return;
-      
-      try {
-        const status = await spaceshipAPI.getStatus();
-        
-        if (status && isMounted) {
-          // Update local physics state with data from API
-          physicsRef.current.setPosition(status.position);
-          physicsRef.current.setVelocity(status.velocity);
-          
-          // Calculate direction from velocity if moving
-          if (status.velocity.x !== 0 || status.velocity.y !== 0 || status.velocity.z !== 0) {
-            const velocity = toThreeVector(status.velocity).normalize();
-            directionRef.current.copy(velocity);
-          }
-          
-          // Update thruster visual effect
-          const speed = physicsRef.current.getCurrentSpeed();
-          setThrusterActive(speed > 10);
-          
-          lastUpdateTime.current = Date.now();
-        }
-      } catch (error) {
-        console.error('Error polling spaceship status:', error);
-      }
-      
-      // Continue polling if we still don't have Supabase data
-      if (!supabaseState) {
-        timeoutId = setTimeout(pollBackend, pollInterval);
-      }
-    };
-    
-    // Start polling if we don't have Supabase data
-    if (!supabaseState) {
-      pollBackend();
-    }
-    
-    return () => {
-      isMounted = false;
-      clearTimeout(timeoutId);
-    };
-  }, [supabaseState]);
-  
-  // Update physics and visuals each frame for smooth interpolation
-  useFrame(() => {
+  // Update movement and visuals each frame
+  useFrame((state, delta) => {
     if (!groupRef.current) return;
     
-    // Calculate delta time for physics update
-    const now = Date.now();
-    const deltaTime = (now - lastUpdateTime.current) / 1000; // Convert to seconds
+    // Update mesh position to current position
+    groupRef.current.position.copy(currentPosition.current);
     
-    // Use physics system to interpolate movement between updates
-    physicsRef.current.update(deltaTime);
-    
-    // Update mesh position
-    const { position } = physicsRef.current;
-    groupRef.current.position.set(position.x, position.y, position.z);
-    
-    // Update rotation to face direction of travel
-    if (physicsRef.current.getCurrentSpeed() > 1) {
-      const velocity = new THREE.Vector3(
-        physicsRef.current.velocity.x,
-        physicsRef.current.velocity.y,
-        physicsRef.current.velocity.z
-      ).normalize();
+    // If we have a destination, move toward it
+    if (destination.current) {
+      // Log current status every 30 frames to avoid console flood
+      if (Math.random() < 0.03) {
+        console.log('🚀 MOVEMENT: Current position:', 
+          [currentPosition.current.x, currentPosition.current.y, currentPosition.current.z]);
+        console.log('🚀 MOVEMENT: Moving toward:', 
+          [destination.current.x, destination.current.y, destination.current.z]);
+      }
       
-      // Smoothly rotate to align with velocity
-      directionRef.current.lerp(velocity, 0.05);
-      groupRef.current.lookAt(
-        groupRef.current.position.clone().add(directionRef.current)
+      // Calculate direction to destination
+      const moveDirection = new THREE.Vector3()
+        .subVectors(destination.current, currentPosition.current)
+        .normalize();
+      
+      // Calculate movement distance this frame
+      const moveDistance = MOVEMENT_SPEED * delta;
+      
+      // Calculate distance to destination
+      const distanceToDestination = calculateDistance(
+        currentPosition.current,
+        destination.current
       );
+      
+      // Smoothly face the direction of travel
+      directionRef.current.lerp(moveDirection, 0.1);
+      groupRef.current.lookAt(
+        currentPosition.current.clone().add(directionRef.current)
+      );
+      
+      // Check if we've reached the destination
+      if (distanceToDestination <= ARRIVAL_THRESHOLD) {
+        // We've arrived! Stop movement
+        currentPosition.current.copy(destination.current);
+        
+        // Mark as arrived in the database via the API
+        if (supabaseState) {
+          notifyArrival(
+            supabaseState.id, 
+            [
+              currentPosition.current.x,
+              currentPosition.current.y,
+              currentPosition.current.z
+            ]
+          );
+        }
+        
+        destination.current = null;
+        setThrusterActive(false);
+      } else {
+        // Move toward destination
+        const movementThisFrame = Math.min(moveDistance, distanceToDestination);
+        const movement = moveDirection.multiplyScalar(movementThisFrame);
+        currentPosition.current.add(movement);
+      }
     }
     
     // Notify parent component of position update
     if (onPositionUpdate) {
-      onPositionUpdate(position);
+      onPositionUpdate(currentPosition.current);
     }
   });
   
@@ -221,17 +224,6 @@ export default function Spaceship({
         rotation={[0, Math.PI/2, 0]} // May need to adjust rotation based on model orientation
         castShadow
       />
-      
-      {/* Thruster effect (only visible when moving) */}
-      {thrusterActive && (
-        <mesh 
-          position={[0, 0, -3]} // Adjust position based on your model's thruster location
-          scale={[1, 1, 2]}
-        >
-          <coneGeometry args={[1, 2, 8]} />
-          <meshBasicMaterial color={0x88aaff} transparent opacity={0.7} />
-        </mesh>
-      )}
       
       {/* Add a point light to make the ship more visible */}
       <pointLight position={[0, 1, 0]} intensity={0.5} color={0x88aaff} distance={10} />

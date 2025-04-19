@@ -44,6 +44,8 @@ export type SpaceshipStateData = {
   rotation: [number, number, number, number];
   fuel: number;
   target_planet_id: string | null;
+  destination: [number, number, number] | null;
+  timestamp?: number; // Add timestamp for ordering updates
   updated_at: string;
 };
 
@@ -68,31 +70,26 @@ export const spaceshipState = {
 
   // Subscribe to changes in the spaceship state (client-side only)
   subscribeToState(callback: (state: SpaceshipStateData) => void) {
+    console.log('🚀 SPUTNIK: Attempting to establish Supabase real-time connection');
     return supabaseClient
       .channel('spaceship_state_changes')
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
           schema: 'public',
-          table: 'spaceship_state',
+          table: 'spaceship_state'
         },
         (payload) => {
-          callback(payload.new as SpaceshipStateData);
+          console.log('🚀 SPUTNIK: Received real-time update:', payload);
+          if (payload.new) {
+            callback(payload.new as SpaceshipStateData);
+          }
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'spaceship_state',
-        },
-        (payload) => {
-          callback(payload.new as SpaceshipStateData);
-        }
-      )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('🚀 SPUTNIK: Subscription status:', status);
+      });
   },
 
   // Update the spaceship state (server-side only)
@@ -107,5 +104,5 @@ export const spaceshipState = {
     return await supabaseAdmin.from('spaceship_state').upsert(newState, {
       onConflict: 'id'
     });
-  },
+  }
 }; 

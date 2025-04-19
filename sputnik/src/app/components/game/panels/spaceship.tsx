@@ -6,6 +6,7 @@ type SpaceshipPanelProps = {
   status?: SpaceshipStatus | null;
   onFollowSpaceship?: () => void;
   isFollowing?: boolean;
+  currentPosition?: { x: number, y: number, z: number } | null;
 };
 
 // Helper function to convert array position to object with x,y,z properties
@@ -17,7 +18,8 @@ const toPositionObject = (pos: [number, number, number] | undefined) => {
 export default function SpaceshipPanel({ 
   status: propStatus,
   onFollowSpaceship,
-  isFollowing = false
+  isFollowing = false,
+  currentPosition = null
 }: SpaceshipPanelProps) {
   const [supabaseState, setSupabaseState] = useState<SpaceshipStateData | null>(null);
   
@@ -54,8 +56,8 @@ export default function SpaceshipPanel({
     };
   }, []);
   
-  // Handle different position formats between Supabase and API
-  const position = propStatus?.position || 
+  // Use current position from props if available, otherwise use database values
+  const position = currentPosition || propStatus?.position || 
     (supabaseState?.position ? toPositionObject(supabaseState.position) : { x: 'N/A', y: 'N/A', z: 'N/A' });
   
   const velocity = propStatus?.velocity || 
@@ -68,7 +70,7 @@ export default function SpaceshipPanel({
         Number(velocity.y) * Number(velocity.y) + 
         Number(velocity.z) * Number(velocity.z)
       ).toFixed(1)
-    : 'N/A';
+    : (currentPosition ? '3.0' : '0.0'); // Use default speed if we have current position but no velocity
   
   // Get fuel value
   const fuel = propStatus?.fuel !== undefined 

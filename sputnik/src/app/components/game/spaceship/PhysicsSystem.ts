@@ -17,6 +17,21 @@ export class PhysicsSystem {
   // Current acceleration (units per second squared)
   acceleration: Vector3;
   
+  // Target position for interpolation
+  targetPosition: Vector3;
+  
+  // Target velocity for interpolation
+  targetVelocity: Vector3;
+  
+  // Timestamp of the last server update
+  lastUpdateTimestamp: number;
+  
+  // Interpolation speed factor (1.0 = instant, 0.1 = slow)
+  interpolationFactor: number;
+  
+  // Maximum interpolation time in milliseconds
+  maxInterpolationTime: number;
+  
   // Maximum speed in units per second
   maxSpeed: number;
   
@@ -26,13 +41,19 @@ export class PhysicsSystem {
   constructor(
     initialPosition: Vector3 = { x: 0, y: 0, z: 0 },
     initialVelocity: Vector3 = { x: 0, y: 0, z: 0 },
-    maxSpeed: number = 2000
+    maxSpeed: number = 2000,
+    interpolationFactor: number = 0.1
   ) {
     this.position = { ...initialPosition };
     this.velocity = { ...initialVelocity };
     this.acceleration = { x: 0, y: 0, z: 0 };
+    this.targetPosition = { ...initialPosition };
+    this.targetVelocity = { ...initialVelocity };
+    this.lastUpdateTimestamp = Date.now();
     this.maxSpeed = maxSpeed;
     this.drag = 0.01; // Very low drag in space
+    this.interpolationFactor = interpolationFactor;
+    this.maxInterpolationTime = 1000; // Maximum 1 second of interpolation
   }
   
   // Apply a force to change acceleration (in the given direction)
@@ -49,6 +70,9 @@ export class PhysicsSystem {
   
   // Update the physics simulation by the given time step (in seconds)
   update(deltaTime: number) {
+    // Interpolate position and velocity toward target values
+    this.interpolateToTargets(deltaTime);
+    
     // Update velocity based on acceleration
     this.velocity.x += this.acceleration.x * deltaTime;
     this.velocity.y += this.acceleration.y * deltaTime;
@@ -84,6 +108,34 @@ export class PhysicsSystem {
     this.acceleration.z = 0;
   }
   
+  // Interpolate current position and velocity toward target values
+  private interpolateToTargets(deltaTime: number) {
+    // Check if we're beyond the max interpolation time
+    const now = Date.now();
+    const timeSinceUpdate = now - this.lastUpdateTimestamp;
+    
+    if (timeSinceUpdate > this.maxInterpolationTime) {
+      // If we're past the max time, just snap to the target
+      this.position = { ...this.targetPosition };
+      this.velocity = { ...this.targetVelocity };
+      return;
+    }
+    
+    // Calculate interpolation amount for this frame
+    // Higher values = faster interpolation
+    const lerpAmount = Math.min(1.0, this.interpolationFactor * deltaTime * 10);
+    
+    // Interpolate position
+    this.position.x += (this.targetPosition.x - this.position.x) * lerpAmount;
+    this.position.y += (this.targetPosition.y - this.position.y) * lerpAmount;
+    this.position.z += (this.targetPosition.z - this.position.z) * lerpAmount;
+    
+    // Interpolate velocity
+    this.velocity.x += (this.targetVelocity.x - this.velocity.x) * lerpAmount;
+    this.velocity.y += (this.targetVelocity.y - this.velocity.y) * lerpAmount;
+    this.velocity.z += (this.targetVelocity.z - this.velocity.z) * lerpAmount;
+  }
+  
   // Get the current speed
   getCurrentSpeed(): number {
     return Math.sqrt(
@@ -95,17 +147,44 @@ export class PhysicsSystem {
   
   // Set position directly (useful for teleporting or initialization)
   setPosition(position: Vector3) {
-    this.position = { ...position };
+    this.targetPosition = { ...position };
+    this.lastUpdateTimestamp = Date.now();
+    
+    // For large changes (e.g. initial positioning), set immediately
+    const distance = Math.sqrt(
+      Math.pow(position.x - this.position.x, 2) +
+      Math.pow(position.y - this.position.y, 2) +
+      Math.pow(position.z - this.position.z, 2)
+    );
+    
+    // If we're far from the target (>100 units) or this is first update, snap directly
+    if (distance > 100 || this.position.x === 0 && this.position.y === 0 && this.position.z === 0) {
+      this.position = { ...position };
+    }
   }
   
   // Set velocity directly
   setVelocity(velocity: Vector3) {
-    this.velocity = { ...velocity };
+    this.targetVelocity = { ...velocity };
+    
+    // For initial velocity or stopped state, set immediately
+    const currentSpeed = this.getCurrentSpeed();
+    const targetSpeed = Math.sqrt(
+      velocity.x * velocity.x +
+      velocity.y * velocity.y +
+      velocity.z * velocity.z
+    );
+    
+    // If we're stopped or just starting, update immediately
+    if (currentSpeed < 0.1 || targetSpeed < 0.1) {
+      this.velocity = { ...velocity };
+    }
   }
   
   // Reset all motion
   stop() {
     this.velocity = { x: 0, y: 0, z: 0 };
+    this.targetVelocity = { x: 0, y: 0, z: 0 };
     this.acceleration = { x: 0, y: 0, z: 0 };
   }
 } 

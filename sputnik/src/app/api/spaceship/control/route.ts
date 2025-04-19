@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spaceshipState } from '@/lib/supabase';
 
 // API key for authentication (should be in environment variables)
-const API_KEY = process.env.SPACESHIP_CONTROL_API_KEY || 'dev-api-key';
+const API_KEY = process.env.SPACESHIP_CONTROL_API_KEY || '1234';
 
 // POST endpoint to receive control commands
 export async function POST(request: NextRequest) {
@@ -43,93 +43,27 @@ export async function POST(request: NextRequest) {
     let success = false;
     
     switch (command.command) {
-      case 'move':
-        if (command.direction && command.magnitude) {
-          // Update velocity based on direction and magnitude
-          const velocity = [
-            command.direction.x * command.magnitude,
-            command.direction.y * command.magnitude,
-            command.direction.z * command.magnitude
-          ];
-          newState.velocity = velocity;
+      case 'move_to':
+        if (command.destination && 
+            Array.isArray(command.destination) && 
+            command.destination.length === 3) {
           
-          // Update position based on velocity (simplified physics)
-          newState.position = [
-            currentState.position[0] + velocity[0] * 0.1,
-            currentState.position[1] + velocity[1] * 0.1,
-            currentState.position[2] + velocity[2] * 0.1
-          ];
+          // Store the destination coordinates
+          newState.destination = command.destination;
+          
+          // Set velocity to zero - UI will handle movement
+          newState.velocity = [0, 0, 0];
+          
           // Decrease fuel slightly
+          // TODO: Make this dynamic based on distance to destination
           newState.fuel = Math.max(0, currentState.fuel - 0.5);
           success = true;
-        } else if (command.target && command.speed) {
-          // Calculate direction to target
-          const direction = {
-            x: command.target[0] - currentState.position[0],
-            y: command.target[1] - currentState.position[1],
-            z: command.target[2] - currentState.position[2]
-          };
-          
-          // Normalize direction
-          const magnitude = Math.sqrt(
-            direction.x * direction.x + 
-            direction.y * direction.y + 
-            direction.z * direction.z
-          );
-          
-          if (magnitude > 0) {
-            const normalizedDirection = {
-              x: direction.x / magnitude,
-              y: direction.y / magnitude,
-              z: direction.z / magnitude
-            };
-            
-            // Set velocity based on direction and desired speed
-            const velocity = [
-              normalizedDirection.x * command.speed,
-              normalizedDirection.y * command.speed,
-              normalizedDirection.z * command.speed
-            ];
-            newState.velocity = velocity;
-            
-            // Decrease fuel slightly
-            newState.fuel = Math.max(0, currentState.fuel - 0.5);
-            success = true;
-          }
         }
-        break;
-        
-      case 'stop':
-        // Stop the spaceship
-        newState.velocity = [0, 0, 0];
-        success = true;
-        break;
-        
-      case 'set_target':
-        // Set target planet
-        if (command.target_planet_id !== undefined) {
-          newState.target_planet_id = command.target_planet_id;
-          success = true;
-        }
-        break;
-        
-      case 'set_state':
-        // Directly set state (useful for the Python AI to update position, fuel, etc.)
-        // Only allow specific fields to be updated for security
-        const allowedFields = ['position', 'velocity', 'rotation', 'fuel', 'target_planet_id'];
-        
-        for (const field of allowedFields) {
-          if (command[field] !== undefined) {
-            newState[field] = command[field];
-          }
-        }
-        
-        success = Object.keys(newState).length > 0;
         break;
         
       default:
         return NextResponse.json(
-          { error: 'Unknown command' }, 
+          { error: 'Unknown command. Available commands: move_to' }, 
           { status: 400 }
         );
     }
@@ -141,12 +75,28 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Ensure all required fields are present by preserving existing values if not explicitly changed
+    const completeState: Record<string, unknown> = {
+      // Start with current values as defaults
+      id: currentState.id,
+      position: currentState.position,
+      velocity: currentState.velocity,
+      rotation: currentState.rotation,
+      fuel: currentState.fuel,
+      target_planet_id: currentState.target_planet_id,
+      
+      // Then override with any new values
+      ...newState
+    };
+    
+    console.log('Updating spaceship state with:', completeState);
+    
     // Update state in Supabase
-    const response = await spaceshipState.updateState(newState);
+    const response = await spaceshipState.updateState(completeState);
     
     if (response.error) {
       return NextResponse.json(
-        { error: 'Failed to update spaceship state', details: response.error.message }, 
+        { error: 'Failed to update spaceship state', details: response.error?.message || 'Unknown error' }, 
         { status: 500 }
       );
     }
@@ -169,6 +119,7 @@ export async function POST(request: NextRequest) {
         velocity: updatedState.velocity,
         rotation: updatedState.rotation,
         fuel: updatedState.fuel,
+        destination: updatedState.destination,
         targetPlanet: updatedState.target_planet_id
       }
     });

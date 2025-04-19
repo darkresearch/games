@@ -36,7 +36,7 @@ function CameraPositionTracker({ setPosition }: { setPosition: (position: Positi
 // Camera transition animation component
 function CameraTransition({
   isTransitioning,
-  spaceshipStatus,
+  spaceshipPosition,
   transitionProgress,
   setTransitionProgress,
   setIsTransitioning,
@@ -46,7 +46,7 @@ function CameraTransition({
   easeInOutCubic
 }: {
   isTransitioning: boolean;
-  spaceshipStatus: SpaceshipStatus | null;
+  spaceshipPosition: Vector3;
   transitionProgress: number;
   setTransitionProgress: (progress: number) => void;
   setIsTransitioning: (transitioning: boolean) => void;
@@ -62,8 +62,12 @@ function CameraTransition({
   const startPosRef = useRef<THREE.Vector3 | null>(null);
   const startQuatRef = useRef<THREE.Quaternion | null>(null);
   
+  // Store the previous position to calculate direction
+  const prevPositionRef = useRef<Vector3>({ ...spaceshipPosition });
+  const directionRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
+  
   useFrame((state, delta) => {
-    if (!isTransitioning || !spaceshipStatus) return;
+    if (!isTransitioning) return;
     
     // Get controls
     const controls = controlsRef.current;
@@ -78,23 +82,42 @@ function CameraTransition({
       if (controls) {
         controls.enabled = false;
       }
+      
+      // Initialize direction based on movement if available, otherwise use z-axis
+      if (prevPositionRef.current.x !== spaceshipPosition.x ||
+          prevPositionRef.current.y !== spaceshipPosition.y ||
+          prevPositionRef.current.z !== spaceshipPosition.z) {
+        directionRef.current.set(
+          spaceshipPosition.x - prevPositionRef.current.x,
+          spaceshipPosition.y - prevPositionRef.current.y,
+          spaceshipPosition.z - prevPositionRef.current.z
+        ).normalize();
+      }
+      prevPositionRef.current = { ...spaceshipPosition };
     }
     
     // Use our stored start position
     const startPos = startPosRef.current || camera.position;
     
-    // Calculate target position (slightly behind and above the spaceship)
+    // Calculate offset position based on direction of travel
+    const offset = {
+      x: -directionRef.current.x * 15,
+      y: 5, // Always 5 units above
+      z: -directionRef.current.z * 15
+    };
+    
+    // Calculate target position (behind and above the spaceship in direction of travel)
     const targetPosition = new THREE.Vector3(
-      spaceshipStatus.position.x,
-      spaceshipStatus.position.y + 5, // Above
-      spaceshipStatus.position.z - 15  // Behind
+      spaceshipPosition.x + offset.x,
+      spaceshipPosition.y + offset.y,
+      spaceshipPosition.z + offset.z
     );
     
     // Calculate target rotation (looking at spaceship)
     const lookTarget = new THREE.Vector3(
-      spaceshipStatus.position.x,
-      spaceshipStatus.position.y,
-      spaceshipStatus.position.z
+      spaceshipPosition.x,
+      spaceshipPosition.y,
+      spaceshipPosition.z
     );
     
     // Create a matrix to look at the target
@@ -132,11 +155,6 @@ function CameraTransition({
       // Reset references for next transition
       startPosRef.current = null;
       startQuatRef.current = null;
-      
-      // Re-enable controls after transition
-      if (controls) {
-        controls.enabled = true;
-      }
     }
   });
   
@@ -151,6 +169,96 @@ function CameraTransition({
       }
     };
   }, [isTransitioning, controlsRef]);
+  
+  return null;
+}
+
+// Camera follow component that continuously updates in the render loop
+function CameraFollowSpaceship({
+  isActive,
+  spaceshipPosition,
+  controlsRef,
+}: {
+  isActive: boolean;
+  spaceshipPosition: Vector3;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  controlsRef: React.RefObject<any>;
+}) {
+  const { camera } = useThree();
+  
+  // Store the previous position to calculate direction
+  const prevPositionRef = useRef<Vector3>({ ...spaceshipPosition });
+  // Direction vector
+  const directionRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
+  
+  useFrame(() => {
+    if (!isActive || !controlsRef.current) return;
+    
+    // Calculate direction of travel
+    if (
+      prevPositionRef.current.x !== spaceshipPosition.x ||
+      prevPositionRef.current.y !== spaceshipPosition.y ||
+      prevPositionRef.current.z !== spaceshipPosition.z
+    ) {
+      // Only calculate direction if the ship is actually moving
+      const moveDistance = Math.sqrt(
+        Math.pow(spaceshipPosition.x - prevPositionRef.current.x, 2) +
+        Math.pow(spaceshipPosition.y - prevPositionRef.current.y, 2) +
+        Math.pow(spaceshipPosition.z - prevPositionRef.current.z, 2)
+      );
+      
+      if (moveDistance > 0.01) {
+        const newDirection = new THREE.Vector3(
+          spaceshipPosition.x - prevPositionRef.current.x,
+          spaceshipPosition.y - prevPositionRef.current.y,
+          spaceshipPosition.z - prevPositionRef.current.z
+        ).normalize();
+        
+        // Smoothly interpolate direction change to avoid sudden camera jumps
+        directionRef.current.lerp(newDirection, 0.1);
+      }
+      
+      // Update previous position
+      prevPositionRef.current = { ...spaceshipPosition };
+    }
+    
+    // Capture controls
+    const controls = controlsRef.current;
+    
+    // Disable controls while in follow mode
+    controls.enabled = false;
+    
+    // Calculate offset position based on direction of travel
+    // We'll position the camera 15 units behind the spaceship and 5 units above
+    const offset = {
+      x: -directionRef.current.x * 15,
+      y: 5, // Always stay 5 units above
+      z: -directionRef.current.z * 15
+    };
+    
+    camera.position.set(
+      spaceshipPosition.x + offset.x,
+      spaceshipPosition.y + offset.y,
+      spaceshipPosition.z + offset.z
+    );
+    
+    // Make camera look at spaceship
+    const target = new THREE.Vector3(
+      spaceshipPosition.x,
+      spaceshipPosition.y,
+      spaceshipPosition.z
+    );
+    camera.lookAt(target);
+  });
+  
+  // Re-enable controls when component unmounts
+  useEffect(() => {
+    return () => {
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true;
+      }
+    };
+  }, [controlsRef]);
   
   return null;
 }
@@ -327,6 +435,7 @@ export default function GameContainer() {
     const fetchInitialState = async () => {
       try {
         const initialState = await spaceshipState.getState();
+        console.log('Initial state:', initialState);
         if (initialState) {
           // Convert Supabase state format to SpaceshipStatus format
           const status: SpaceshipStatus = {
@@ -389,6 +498,10 @@ export default function GameContainer() {
   // Handle spaceship position updates
   const handleSpaceshipPositionUpdate = (newPosition: Vector3) => {
     setSpaceshipPosition(newPosition);
+    // Log position updates
+    if (Math.random() < 0.05) {
+      console.log('🚀 SPUTNIK GameContainer: Updated position:', newPosition);
+    }
   };
 
   // Toggle follow spaceship mode
@@ -399,9 +512,7 @@ export default function GameContainer() {
       return;
     }
     
-    if (!spaceshipStatus) return;
-    
-    // Simply start the transition - we'll capture the exact camera position in the component
+    // Start the transition
     setTransitionProgress(0);
     setIsTransitioning(true);
     // We'll set followSpaceship to true when the transition is complete
@@ -413,40 +524,6 @@ export default function GameContainer() {
       ? 4 * t * t * t
       : 1 - Math.pow(-2 * t + 2, 3) / 2;
   };
-  
-  // Regular camera follow logic (once transition is complete)
-  useEffect(() => {
-    if (isTransitioning || !followSpaceship || !controlsRef.current || !spaceshipStatus) return;
-    
-    // Capture current controls ref value inside the effect
-    const controls = controlsRef.current;
-    
-    // Position camera slightly behind and above the spaceship
-    if (controls && controls.object) {
-      // Disable controls while we're in follow mode
-      controls.enabled = false;
-      
-      const offset = { x: 0, y: 5, z: -15 }; // Adjust these values to change camera position relative to ship
-      controls.object.position.x = spaceshipStatus.position.x + offset.x;
-      controls.object.position.y = spaceshipStatus.position.y + offset.y;
-      controls.object.position.z = spaceshipStatus.position.z + offset.z;
-      
-      // Make camera look at spaceship
-      const target = new THREE.Vector3(
-        spaceshipStatus.position.x,
-        spaceshipStatus.position.y,
-        spaceshipStatus.position.z
-      );
-      controls.object.lookAt(target);
-    }
-    
-    // Re-enable controls when exiting follow mode
-    return () => {
-      if (controls) {
-        controls.enabled = true;
-      }
-    };
-  }, [followSpaceship, spaceshipStatus, isTransitioning]);
 
   return (
     <>
@@ -471,7 +548,7 @@ export default function GameContainer() {
           {/* Add the camera transition component */}
           <CameraTransition
             isTransitioning={isTransitioning}
-            spaceshipStatus={spaceshipStatus}
+            spaceshipPosition={spaceshipPosition}
             transitionProgress={transitionProgress}
             setTransitionProgress={setTransitionProgress}
             setIsTransitioning={setIsTransitioning}
@@ -501,7 +578,6 @@ export default function GameContainer() {
           
           {/* AI-controlled spaceship */}
           <Spaceship 
-            initialPosition={spaceshipPosition}
             onPositionUpdate={handleSpaceshipPositionUpdate}
           />
           
@@ -513,6 +589,13 @@ export default function GameContainer() {
               luminanceSmoothing={0.9}
             />
           </EffectComposer>
+          
+          {/* Camera follow component */}
+          <CameraFollowSpaceship
+            isActive={followSpaceship}
+            spaceshipPosition={spaceshipPosition}
+            controlsRef={controlsRef}
+          />
         </Suspense>
       </Canvas>
       
@@ -524,6 +607,7 @@ export default function GameContainer() {
         status={spaceshipStatus} 
         onFollowSpaceship={handleFollowSpaceship} 
         isFollowing={followSpaceship}
+        currentPosition={spaceshipPosition}
       />
       <LogoPanel />
     </>
