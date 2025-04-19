@@ -32,10 +32,11 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   const directionRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
   
   // Movement speed (units per second)
-  // Calculated for a 15-minute journey from origin to destination:
-  // Distance = sqrt(7342.8² + (-6994.2)² + 5638.3²) = 11601.55 units
-  // Speed = Distance / (15 minutes * 60 seconds) = 11601.55 / 900 = 12.8906 units/sec
-  const MOVEMENT_SPEED = 12.8906;
+  // Calculated for a 15-minute journey from [-6517.0, 6208.0, -5004.0] to [7342.8, -6994.2, 5638.3]:
+  // Distance = sqrt((7342.8-(-6517.0))² + (-6994.2-6208.0)² + (5638.3-(-5004.0))²)
+  // Distance = sqrt((13859.8)² + (-13202.2)² + (10642.3)²) = 21901.0 units
+  // Speed = Distance / (15 minutes * 60 seconds) = 21901.0 / 900 = 24.33 units/sec
+  const MOVEMENT_SPEED = 24.33;
   const ARRIVAL_THRESHOLD = 1.0;
   
   // Load the GLB model
@@ -204,6 +205,32 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
         const movementThisFrame = Math.min(moveDistance, distanceToDestination);
         const movement = moveDirection.multiplyScalar(movementThisFrame);
         currentPosition.current.add(movement);
+        
+        // Calculate current velocity (direction * speed)
+        const currentVelocity = moveDirection.clone().multiplyScalar(MOVEMENT_SPEED);
+        
+        // Update local state with the current velocity for UI display
+        if (supabaseState) {
+          // Only update if velocity has changed significantly to avoid unnecessary updates
+          const prevVelocity = supabaseState.velocity || [0, 0, 0];
+          const significantChange = 
+            Math.abs(currentVelocity.x - prevVelocity[0]) > 0.01 ||
+            Math.abs(currentVelocity.y - prevVelocity[1]) > 0.01 ||
+            Math.abs(currentVelocity.z - prevVelocity[2]) > 0.01;
+            
+          if (significantChange && Math.random() < 0.05) { // Throttle updates
+            setSupabaseState({
+              ...supabaseState,
+              velocity: [currentVelocity.x, currentVelocity.y, currentVelocity.z]
+            });
+            
+            // Only log occasionally to avoid console spam
+            if (Math.random() < 0.1) {
+              console.log('🚀 SPUTNIK: Updated velocity:', 
+                [currentVelocity.x, currentVelocity.y, currentVelocity.z]);
+            }
+          }
+        }
       }
     }
     
