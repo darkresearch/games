@@ -207,6 +207,16 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
       }
     }
     
+    // Expose the orientation as a property on the group for external access
+    if (groupRef.current) {
+      // Add a backward vector property that points directly from the thruster
+      // Since the model is rotated [0, Math.PI/2, 0], we need to account for this
+      // The thruster direction is opposite to the facing direction
+      const thrusterDirection = directionRef.current.clone().multiplyScalar(-1);
+      // @ts-ignore - Adding custom property
+      groupRef.current.thrusterDirection = thrusterDirection;
+    }
+    
     // Notify parent component of position update
     if (onPositionUpdate) {
       onPositionUpdate(currentPosition.current);
@@ -214,7 +224,7 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   });
   
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} name="Spaceship">
       {/* GLB model of the spaceship */}
       <primitive 
         object={model} 

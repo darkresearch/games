@@ -54,35 +54,14 @@ function CameraTransition({
   controlsRef: React.RefObject<any>;
   easeInOutCubic: (t: number) => number;
 }) {
-  // Get reference to camera
-  const { camera } = useThree();
+  // Get reference to camera and scene
+  const { camera, scene } = useThree();
   // Store the initial camera position and rotation when transition starts
   const startPosRef = useRef<THREE.Vector3 | null>(null);
   const startQuatRef = useRef<THREE.Quaternion | null>(null);
-  
-  // Store the previous position to calculate direction
-  const prevPositionRef = useRef<Vector3>({ ...spaceshipPosition });
-  const directionRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
-  
-  // Place camera behind spaceship immediately on component mount
-  useEffect(() => {
-    // Initial camera positioning (only once on mount)
-    if (spaceshipPosition && camera) {
-      // Set camera position behind spaceship
-      camera.position.set(
-        spaceshipPosition.x,
-        spaceshipPosition.y, // Slightly above
-        spaceshipPosition.z + 15 // Behind
-      );
-      
-      // Make camera look at spaceship
-      camera.lookAt(
-        spaceshipPosition.x,
-        spaceshipPosition.y,
-        spaceshipPosition.z
-      );
-    }
-  }, []);
+
+  // Default direction if we can't get actual thruster direction
+  const defaultDirection = new THREE.Vector3(0, 0, -1);
   
   useFrame((state, delta) => {
     if (!isTransitioning) return;
@@ -100,35 +79,31 @@ function CameraTransition({
       if (controls) {
         controls.enabled = false;
       }
-      
-      // Initialize direction based on movement if available, otherwise use z-axis
-      if (prevPositionRef.current.x !== spaceshipPosition.x ||
-          prevPositionRef.current.y !== spaceshipPosition.y ||
-          prevPositionRef.current.z !== spaceshipPosition.z) {
-        directionRef.current.set(
-          spaceshipPosition.x - prevPositionRef.current.x,
-          spaceshipPosition.y - prevPositionRef.current.y,
-          spaceshipPosition.z - prevPositionRef.current.z
-        ).normalize();
-      }
-      prevPositionRef.current = { ...spaceshipPosition };
     }
     
     // Use our stored start position
     const startPos = startPosRef.current || camera.position;
     
-    // Calculate offset position based on direction of travel
-    const offset = {
-      x: -directionRef.current.x * 15,
-      y: 0, // Directly behind, no vertical offset
-      z: -directionRef.current.z * 15
-    };
+    // Find the spaceship in the scene to get its thruster direction
+    const spaceship = scene.getObjectByName('Spaceship');
+    let thrusterDirection = defaultDirection;
     
-    // Calculate target position (behind and above the spaceship in direction of travel)
+    if (spaceship) {
+      // @ts-ignore - Access the custom property we added
+      if (spaceship.thrusterDirection) {
+        // @ts-ignore
+        thrusterDirection = spaceship.thrusterDirection;
+      }
+    }
+    
+    // Distance behind the thrusters
+    const cameraDistance = 15;
+    
+    // Calculate target position directly behind thrusters
     const targetPosition = new THREE.Vector3(
-      spaceshipPosition.x + offset.x,
-      spaceshipPosition.y + offset.y,
-      spaceshipPosition.z + offset.z
+      spaceshipPosition.x + (thrusterDirection.x * cameraDistance),
+      spaceshipPosition.y + (thrusterDirection.y * cameraDistance),
+      spaceshipPosition.z + (thrusterDirection.z * cameraDistance)
     );
     
     // Calculate target rotation (looking at spaceship)
@@ -201,78 +176,53 @@ function CameraFollowSpaceship({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   controlsRef: React.RefObject<any>;
 }) {
-  const { camera } = useThree();
+  const { camera, scene } = useThree();
   
-  // Store the previous position to calculate direction
-  const prevPositionRef = useRef<Vector3>({ ...spaceshipPosition });
-  // Direction vector
-  const directionRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
+  // Default direction if we can't get actual thruster direction
+  const defaultDirection = new THREE.Vector3(0, 0, -1);
   
   useFrame(() => {
     if (!isActive || !controlsRef.current) return;
     
-    // Calculate direction of travel
-    if (
-      prevPositionRef.current.x !== spaceshipPosition.x ||
-      prevPositionRef.current.y !== spaceshipPosition.y ||
-      prevPositionRef.current.z !== spaceshipPosition.z
-    ) {
-      // Only calculate direction if the ship is actually moving
-      const moveDistance = Math.sqrt(
-        Math.pow(spaceshipPosition.x - prevPositionRef.current.x, 2) +
-        Math.pow(spaceshipPosition.y - prevPositionRef.current.y, 2) +
-        Math.pow(spaceshipPosition.z - prevPositionRef.current.z, 2)
-      );
-      
-      if (moveDistance > 0.01) {
-        const newDirection = new THREE.Vector3(
-          spaceshipPosition.x - prevPositionRef.current.x,
-          spaceshipPosition.y - prevPositionRef.current.y,
-          spaceshipPosition.z - prevPositionRef.current.z
-        ).normalize();
-        
-        // Smoothly interpolate direction change to avoid sudden camera jumps
-        directionRef.current.lerp(newDirection, 0.1);
+    // Disable controls while in follow mode
+    controlsRef.current.enabled = false;
+    
+    // Find the spaceship in the scene to get its thruster direction
+    const spaceship = scene.getObjectByName('Spaceship');
+    let thrusterDirection = defaultDirection;
+    
+    if (spaceship) {
+      // @ts-ignore - Access the custom property we added
+      if (spaceship.thrusterDirection) {
+        // @ts-ignore
+        thrusterDirection = spaceship.thrusterDirection;
       }
-      
-      // Update previous position
-      prevPositionRef.current = { ...spaceshipPosition };
     }
     
-    // Capture controls
-    const controls = controlsRef.current;
+    // Distance behind the thrusters
+    const cameraDistance = 15;
     
-    // Disable controls while in follow mode
-    controls.enabled = false;
-    
-    // Calculate offset position based on direction of travel
-    // We'll position the camera 15 units directly behind the spaceship
-    const offset = {
-      x: -directionRef.current.x * 15,
-      y: 0, // Directly behind, no vertical offset
-      z: -directionRef.current.z * 15
-    };
-    
-    camera.position.set(
-      spaceshipPosition.x + offset.x,
-      spaceshipPosition.y + offset.y,
-      spaceshipPosition.z + offset.z
+    // Position camera directly behind thrusters
+    const cameraPosition = new THREE.Vector3(
+      spaceshipPosition.x + (thrusterDirection.x * cameraDistance),
+      spaceshipPosition.y + (thrusterDirection.y * cameraDistance),
+      spaceshipPosition.z + (thrusterDirection.z * cameraDistance)
     );
     
+    // Update camera position
+    camera.position.copy(cameraPosition);
+    
     // Make camera look at spaceship
-    const target = new THREE.Vector3(
+    camera.lookAt(
       spaceshipPosition.x,
       spaceshipPosition.y,
       spaceshipPosition.z
     );
-    camera.lookAt(target);
   });
   
   // Re-enable controls when component unmounts
   useEffect(() => {
-    // Capture the current value of controlsRef.current inside the effect
     const controls = controlsRef.current;
-    
     return () => {
       if (controls) {
         controls.enabled = true;
