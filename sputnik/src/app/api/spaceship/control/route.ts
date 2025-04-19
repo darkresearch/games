@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spaceshipState } from '@/lib/supabase';
+import { getInterpolator } from '../interpolator';
 
 // API key for authentication (should be in environment variables)
 const API_KEY = process.env.SPACESHIP_CONTROL_API_KEY || '1234';
@@ -51,13 +52,22 @@ export async function POST(request: NextRequest) {
           // Store the destination coordinates
           newState.destination = command.destination;
           
-          // Set velocity to zero - UI will handle movement
+          // Set velocity to zero - server-side interpolator will handle movement
           newState.velocity = [0, 0, 0];
           
           // Decrease fuel slightly
           // TODO: Make this dynamic based on distance to destination
           newState.fuel = Math.max(0, currentState.fuel - 0.5);
           success = true;
+          
+          // Get the interpolator and server updates will take it from here
+          try {
+            await getInterpolator();
+            console.log('🚀 CONTROL API: Interpolator notified of new destination');
+          } catch (error) {
+            console.error('Failed to notify interpolator:', error);
+            // Continue anyway, it will pick up the destination from Supabase
+          }
         }
         break;
         

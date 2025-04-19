@@ -5,6 +5,14 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { spaceshipState, SpaceshipStateData } from '@/lib/supabase';
 import { useGLTF } from '@react-three/drei';
+import { io, Socket } from 'socket.io-client';
+
+// Vector3 type for socket communication
+type Vector3Position = {
+  x: number;
+  y: number;
+  z: number;
+};
 
 // Preload the model to improve initial load performance
 useGLTF.preload('/models/spaceship.glb');
@@ -13,73 +21,26 @@ useGLTF.preload('/models/spaceship.glb');
 const arrayToVector3 = (arr: [number, number, number]): THREE.Vector3 => 
   new THREE.Vector3(arr[0], arr[1], arr[2]);
 
-// Calculate distance between two points
-const calculateDistance = (a: THREE.Vector3, b: THREE.Vector3): number => a.distanceTo(b);
-
 type SpaceshipProps = {
   onPositionUpdate?: (position: THREE.Vector3) => void;
 };
 
 export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const [supabaseState, setSupabaseState] = useState<SpaceshipStateData | null>(null);
+  const [, setSupabaseState] = useState<SpaceshipStateData | null>(null);
   
-  // Current position and destination
+  // Current position and destination reference
   const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
   const destination = useRef<THREE.Vector3 | null>(null);
   
   // Direction the spaceship is facing
   const directionRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
-  
-  // Movement speed (units per second)
-  // Calculated for a 15-minute journey from [-6517.0, 6208.0, -5004.0] to [7342.8, -6994.2, 5638.3]:
-  // Distance = sqrt((7342.8-(-6517.0))² + (-6994.2-6208.0)² + (5638.3-(-5004.0))²)
-  // Distance = sqrt((13859.8)² + (-13202.2)² + (10642.3)²) = 21901.0 units
-  // Speed = Distance / (15 minutes * 60 seconds) = 21901.0 / 900 = 24.33 units/sec
-  const MOVEMENT_SPEED = 24.33;
-  const ARRIVAL_THRESHOLD = 1.0;
+  const socketRef = useRef<Socket | null>(null);
   
   // Load the GLB model
   const { scene } = useGLTF('/models/spaceship.glb');
   // Create a clone of the scene to avoid modifying the cached original
   const model = scene.clone();
-  
-  // Function to notify the server when we reach the destination
-  const notifyArrival = async (id: string, position: [number, number, number]) => {
-    try {
-      console.log('🚀 SPUTNIK: Notifying arrival at position:', position);
-      
-      const response = await fetch('/api/spaceship/arrival', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id,
-          position
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Failed to notify server of arrival:', errorText);
-      } else {
-        console.log('🚀 SPUTNIK: Successfully notified server of arrival');
-        
-        // Update local state immediately rather than waiting for subscription
-        if (supabaseState) {
-          setSupabaseState({
-            ...supabaseState,
-            position: position,
-            destination: null,
-            velocity: [0, 0, 0]
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error notifying arrival:', error);
-    }
-  };
   
   // Load initial state and subscribe to updates from Supabase
   useEffect(() => {
@@ -121,117 +82,85 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
       if (isMounted) {
         setSupabaseState(state);
         
-        // Only update position if we're not already moving to a destination
-        if (!destination.current) {
-          currentPosition.current = arrayToVector3(state.position);
-        }
-        
-        // If destination is set and we're not already moving somewhere
+        // If destination is set or cleared, update our reference
         if (state.destination && !destination.current) {
           destination.current = arrayToVector3(state.destination);
-        }
-        
-        // If destination is cleared externally
-        if (!state.destination && destination.current) {
+        } else if (!state.destination && destination.current) {
           destination.current = null;
         }
       }
     });
     
+    // Initialize Socket.io connection
+    try {
+      console.log('🚀 SPUTNIK: Setting up Socket.io connection');
+      const socket = io('/api/socket');
+      socketRef.current = socket;
+      
+      // Listen for position updates
+      socket.on('spaceship:position', (position: Vector3Position) => {
+        if (isMounted) {
+          // Update our position from the server
+          currentPosition.current.set(position.x, position.y, position.z);
+          
+          // Log occasionally
+          if (Math.random() < 0.01) {
+            console.log('🚀 SPUTNIK SOCKET: Position update:', position);
+          }
+          
+          // Notify parent component
+          if (onPositionUpdate) {
+            onPositionUpdate(currentPosition.current);
+          }
+        }
+      });
+      
+      socket.on('connect', () => {
+        console.log('🚀 SPUTNIK SOCKET: Connected to server');
+      });
+      
+      socket.on('disconnect', () => {
+        console.log('🚀 SPUTNIK SOCKET: Disconnected from server');
+      });
+      
+      socket.on('error', (error: Error) => {
+        console.error('🚀 SPUTNIK SOCKET ERROR:', error);
+      });
+    } catch (error) {
+      console.error('🚀 SPUTNIK ERROR: Failed to connect to Socket.io:', error);
+    }
+    
     return () => {
-      console.log('🚀 SPUTNIK: Cleaning up subscription');
+      console.log('🚀 SPUTNIK: Cleaning up subscription and socket');
       isMounted = false;
       subscription.unsubscribe();
+      
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     };
-  }, []);
+  }, [onPositionUpdate]);
   
-  // Update movement and visuals each frame
-  useFrame((state, delta) => {
+  // Update visuals each frame
+  useFrame(() => {
     if (!groupRef.current) return;
     
     // Update mesh position to current position
     groupRef.current.position.copy(currentPosition.current);
     
-    // If we have a destination, move toward it
+    // If we have a destination, update ship orientation
     if (destination.current) {
-      // Log current status every 30 frames to avoid console flood
-      if (Math.random() < 0.03) {
-        console.log('🚀 MOVEMENT: Current position:', 
-          [currentPosition.current.x, currentPosition.current.y, currentPosition.current.z]);
-        console.log('🚀 MOVEMENT: Moving toward:', 
-          [destination.current.x, destination.current.y, destination.current.z]);
-      }
-      
       // Calculate direction to destination
       const moveDirection = new THREE.Vector3()
         .subVectors(destination.current, currentPosition.current)
         .normalize();
-      
-      // Calculate movement distance this frame
-      const moveDistance = MOVEMENT_SPEED * delta;
-      
-      // Calculate distance to destination
-      const distanceToDestination = calculateDistance(
-        currentPosition.current,
-        destination.current
-      );
       
       // Smoothly face the direction of travel
       directionRef.current.lerp(moveDirection, 0.1);
       groupRef.current.lookAt(
         currentPosition.current.clone().add(directionRef.current)
       );
-      
-      // Check if we've reached the destination
-      if (distanceToDestination <= ARRIVAL_THRESHOLD) {
-        // We've arrived! Stop movement
-        currentPosition.current.copy(destination.current);
-        
-        // Mark as arrived in the database via the API
-        if (supabaseState) {
-          notifyArrival(
-            supabaseState.id, 
-            [
-              currentPosition.current.x,
-              currentPosition.current.y,
-              currentPosition.current.z
-            ]
-          );
-        }
-        
-        destination.current = null;
-      } else {
-        // Move toward destination
-        const movementThisFrame = Math.min(moveDistance, distanceToDestination);
-        const movement = moveDirection.multiplyScalar(movementThisFrame);
-        currentPosition.current.add(movement);
-        
-        // Calculate current velocity (direction * speed)
-        const currentVelocity = moveDirection.clone().multiplyScalar(MOVEMENT_SPEED);
-        
-        // Update local state with the current velocity for UI display
-        if (supabaseState) {
-          // Only update if velocity has changed significantly to avoid unnecessary updates
-          const prevVelocity = supabaseState.velocity || [0, 0, 0];
-          const significantChange = 
-            Math.abs(currentVelocity.x - prevVelocity[0]) > 0.01 ||
-            Math.abs(currentVelocity.y - prevVelocity[1]) > 0.01 ||
-            Math.abs(currentVelocity.z - prevVelocity[2]) > 0.01;
-            
-          if (significantChange && Math.random() < 0.05) { // Throttle updates
-            setSupabaseState({
-              ...supabaseState,
-              velocity: [currentVelocity.x, currentVelocity.y, currentVelocity.z]
-            });
-            
-            // Only log occasionally to avoid console spam
-            if (Math.random() < 0.1) {
-              console.log('🚀 SPUTNIK: Updated velocity:', 
-                [currentVelocity.x, currentVelocity.y, currentVelocity.z]);
-            }
-          }
-        }
-      }
     }
     
     // Expose the orientation as a property on the group for external access
@@ -242,11 +171,6 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
       const thrusterDirection = directionRef.current.clone().multiplyScalar(-1);
       // @ts-expect-error - Adding custom property
       groupRef.current.thrusterDirection = thrusterDirection;
-    }
-    
-    // Notify parent component of position update
-    if (onPositionUpdate) {
-      onPositionUpdate(currentPosition.current);
     }
   });
   

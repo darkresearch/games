@@ -12,6 +12,7 @@
     "@react-three/drei": "^10.0.6",
     "@react-three/fiber": "^9.1.2",
     "@react-three/postprocessing": "^3.0.4",
+    "@socket.io/redis-adapter": "^8.3.0",
     "@supabase/supabase-js": "^2.49.4",
     "@types/three": "^0.175.0",
     "@vercel/analytics": "^1.5.0",
@@ -19,6 +20,9 @@
     "postprocessing": "^6.37.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "redis": "^4.7.0",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "three": "^0.175.0"
   },
   "devDependencies": {
