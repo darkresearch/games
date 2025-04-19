@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 export default function HelpPanel() {
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
   
   const togglePanel = () => {
     setIsVisible(!isVisible);
@@ -63,7 +63,7 @@ export default function HelpPanel() {
       boxShadow: '0 0 20px rgba(0,0,0,0.5), 0 0 5px rgba(66, 153, 225, 0.3)',
       border: '1px solid rgba(250, 250, 250, 0.2)',
       pointerEvents: 'auto',
-      height: '290px',
+      height: '345px',
       width: '280px',
       letterSpacing: '0.3px',
       lineHeight: '1.5',
@@ -81,7 +81,7 @@ export default function HelpPanel() {
           fontSize: '16px', 
           fontWeight: '600' 
         }}>
-          Camera Controls
+          Camera Controls 🎥
         </h3>
         <button 
           onClick={togglePanel}
@@ -114,22 +114,28 @@ export default function HelpPanel() {
         borderLeft: '2px solid #63B3ED'
       }}>
         <p style={{ margin: '6px 0', color: 'rgba(255,255,255,0.9)' }}>
-        <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}>W</span> Forward
+            <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}>W</span> Forward
         </p>
         <p style={{ margin: '6px 0', color: 'rgba(255,255,255,0.9)' }}>
-        <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}>S</span> Backwards
+            <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}>S</span> Backwards
         </p>
         <p style={{ margin: '6px 0', color: 'rgba(255,255,255,0.9)' }}>
-        <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}>A</span> Left
+            <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}>A</span> Left
         </p>
         <p style={{ margin: '6px 0', color: 'rgba(255,255,255,0.9)' }}>
-        <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}>D</span> Right
+            <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}>D</span> Right
         </p>
         <p style={{ margin: '6px 0', color: 'rgba(255,255,255,0.9)' }}>
-        <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}>D</span> Right
+            <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}> ⬆️ ⬅️ ➡️ ⬇️ </span> Turn
         </p>
         <p style={{ margin: '6px 0', color: 'rgba(255,255,255,0.9)' }}>
-        <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}> ⬆️ ⬅️ ➡️ ⬇️ </span> Turn
+            <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}> Q/E </span> Rotate
+        </p>
+        <p style={{ margin: '6px 0', color: 'rgba(255,255,255,0.9)' }}>
+            <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}> T </span> Move faster
+        </p>
+        <p style={{ margin: '6px 0', color: 'rgba(255,255,255,0.9)' }}>
+            <span style={{ color: '#90CDF4', width: '45px', display: 'inline-block' }}> G </span> Move slower
         </p>
       </div>
     </div>
