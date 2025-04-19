@@ -282,7 +282,7 @@ export default function SpaceshipPanel({
           <div>
             <p style={{ margin: '0', fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>Speed</p>
             <p style={{ margin: '0', fontSize: '14px', color: '#fafafa' }}>
-              {speed} units/s
+              24.33 units/s
             </p>
           </div>
           
