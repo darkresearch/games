@@ -32,7 +32,10 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   const directionRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
   
   // Movement speed (units per second)
-  const MOVEMENT_SPEED = 3;
+  // Calculated for a 24-hour journey from origin to destination:
+  // Distance = sqrt(7342.8² + (-6994.2)² + 5638.3²) = 11601.55 units
+  // Speed = Distance / (24 hours * 60 mins * 60 secs) = 11601.55 / 86400 = 0.1343 units/sec
+  const MOVEMENT_SPEED = 0.1343;
   const ARRIVAL_THRESHOLD = 1.0;
   
   // Load the GLB model
