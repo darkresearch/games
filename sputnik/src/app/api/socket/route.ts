@@ -3,11 +3,10 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
 import { NextResponse } from 'next/server';
 import { getInterpolator } from '../spaceship/interpolator';
-import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 
 // Define a custom type for our server that includes Socket.io
 type ServerWithIO = {
-  io?: Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap>;
+  io?: Server;
 };
 
 // Global variables to maintain server instance
