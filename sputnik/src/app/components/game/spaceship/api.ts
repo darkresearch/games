@@ -21,7 +21,7 @@ export type SpaceshipStatus = {
 };
 
 // The target planet is fixed for the entire game
-export const TARGET_PLANET_ID = 42; // Replace with actual target planet ID 
+export const TARGET_PLANET_ID = 'JUPITER'; // Replace with actual target planet ID 
 
 // Convert Supabase array format to Vector3
 const arrayToVector3 = (arr: [number, number, number]): Vector3 => ({ 

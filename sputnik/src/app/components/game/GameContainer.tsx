@@ -41,7 +41,6 @@ function CameraTransition({
   setTransitionProgress,
   setIsTransitioning,
   setFollowSpaceship,
-  setAutoForward,
   controlsRef,
   easeInOutCubic
 }: {
@@ -51,7 +50,6 @@ function CameraTransition({
   setTransitionProgress: (progress: number) => void;
   setIsTransitioning: (transitioning: boolean) => void;
   setFollowSpaceship: (following: boolean) => void;
-  setAutoForward: (auto: boolean) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   controlsRef: React.RefObject<any>;
   easeInOutCubic: (t: number) => number;
@@ -65,6 +63,26 @@ function CameraTransition({
   // Store the previous position to calculate direction
   const prevPositionRef = useRef<Vector3>({ ...spaceshipPosition });
   const directionRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
+  
+  // Place camera behind spaceship immediately on component mount
+  useEffect(() => {
+    // Initial camera positioning (only once on mount)
+    if (spaceshipPosition && camera) {
+      // Set camera position behind spaceship
+      camera.position.set(
+        spaceshipPosition.x,
+        spaceshipPosition.y, // Slightly above
+        spaceshipPosition.z + 15 // Behind
+      );
+      
+      // Make camera look at spaceship
+      camera.lookAt(
+        spaceshipPosition.x,
+        spaceshipPosition.y,
+        spaceshipPosition.z
+      );
+    }
+  }, []);
   
   useFrame((state, delta) => {
     if (!isTransitioning) return;
@@ -126,7 +144,7 @@ function CameraTransition({
     const targetRotation = new THREE.Quaternion().setFromRotationMatrix(lookMatrix);
     
     // Duration of transition in seconds
-    const transitionDuration = 1.5;
+    const transitionDuration = 3;
     
     // Update transition progress
     const newProgress = Math.min(transitionProgress + (delta / transitionDuration), 1);
@@ -150,7 +168,6 @@ function CameraTransition({
     if (newProgress >= 1) {
       setIsTransitioning(false);
       setFollowSpaceship(true);
-      setAutoForward(false);
       
       // Reset references for next transition
       startPosRef.current = null;
@@ -290,15 +307,16 @@ function LogoPanel() {
 
 export default function GameContainer() {
   const [flightSpeed, setFlightSpeed] = useState(200);
-  const [position, setPosition] = useState<Position>({ x: 0, y: 5, z: 10 });
+  const [position, setPosition] = useState<Position>({ x: 0, y: 0, z: 0 });
   const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
-  const [autoForward, setAutoForward] = useState(true); // Start with autoForward enabled
   const [rotationSpeed] = useState(0.2); // Base rotation speed
   const [spaceshipStatus, setSpaceshipStatus] = useState<SpaceshipStatus | null>(null);
   const [spaceshipPosition, setSpaceshipPosition] = useState<Vector3>({ x: 0, y: 0, z: 0 });
-  const [followSpaceship, setFollowSpaceship] = useState(false); // Track if camera should follow spaceship
+  const [followSpaceship, setFollowSpaceship] = useState(true); // Follow spaceship by default
   const [isTransitioning, setIsTransitioning] = useState(false); // Track if camera is moving to spaceship
   const [transitionProgress, setTransitionProgress] = useState(0); // Progress of transition animation (0-1)
+  const [isLoading, setIsLoading] = useState(true); // Track if initial state is loaded
+  const [isFullyInitialized, setIsFullyInitialized] = useState(false); // Track if camera is positioned
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
   
@@ -313,9 +331,8 @@ export default function GameContainer() {
   // Handle speed control with keyboard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Disable autoForward, followSpaceship and transitions when any movement key is pressed
+      // Disable followSpaceship and transitions when any movement key is pressed
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
-        setAutoForward(false);
         setFollowSpaceship(false);
         setIsTransitioning(false);
       }
@@ -436,7 +453,11 @@ export default function GameContainer() {
   useEffect(() => {
     // Initial state fetch
     const fetchInitialState = async () => {
+      // Record start time to ensure minimum loading screen duration
+      const startTime = Date.now();
+      
       try {
+        setIsLoading(true);
         const initialState = await spaceshipState.getState();
         console.log('Initial state:', initialState);
         if (initialState) {
@@ -460,9 +481,61 @@ export default function GameContainer() {
             fuel: initialState.fuel
           };
           setSpaceshipStatus(status);
+          
+          // Update spaceshipPosition for camera tracking
+          setSpaceshipPosition({
+            x: initialState.position[0],
+            y: initialState.position[1],
+            z: initialState.position[2]
+          });
+          
+          // Also manually update the position for nav display
+          // Set position to be 15 units behind the spaceship in Z direction
+          setPosition({
+            x: initialState.position[0],
+            y: initialState.position[1],
+            z: initialState.position[2] - 15
+          });
+          
+          // Calculate how long we've been loading
+          const elapsedTime = Date.now() - startTime;
+          // Ensure loading screen shows for at least 1000ms (1 seconds)
+          const remainingTime = Math.max(0, 1000 - elapsedTime);
+          
+          // First hide the loading screen after minimum time
+          setTimeout(() => {
+            setIsLoading(false);
+            
+            // Wait a bit to ensure camera is positioned before starting position tracking
+            setTimeout(() => {
+              setIsFullyInitialized(true);
+            }, 500);
+          }, remainingTime);
+        } else {
+          // Calculate minimum loading time
+          const elapsedTime = Date.now() - startTime;
+          const remainingTime = Math.max(0, 1000 - elapsedTime);
+          
+          setTimeout(() => {
+            setIsLoading(false);
+            setTimeout(() => {
+              setIsFullyInitialized(true);
+            }, 500);
+          }, remainingTime);
         }
       } catch (error) {
         console.error('Error fetching initial spaceship state:', error);
+        
+        // Calculate minimum loading time
+        const elapsedTime = Date.now() - startTime;
+        const remainingTime = Math.max(0, 1000 - elapsedTime);
+        
+        setTimeout(() => {
+          setIsLoading(false);
+          setTimeout(() => {
+            setIsFullyInitialized(true);
+          }, 500);
+        }, remainingTime);
       }
     };
 
@@ -528,11 +601,92 @@ export default function GameContainer() {
       : 1 - Math.pow(-2 * t + 2, 3) / 2;
   };
 
+  // Effect to position camera behind spaceship immediately on first render
+  useEffect(() => {
+    // We need a brief timeout to ensure controls are initialized
+    const timer = setTimeout(() => {
+      // Set initial camera position behind Sputnik
+      if (controlsRef.current) {
+        controlsRef.current.enabled = false;
+      }
+      // Force transition to complete
+      setIsTransitioning(true);
+      setTransitionProgress(1);
+    }, 0);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Render loading state if still loading data
+  if (isLoading) {
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#131313',
+        color: 'white',
+        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+        zIndex: 1000
+      }}>
+        <div style={{ marginBottom: '16px' }}>
+          <Image 
+            src="/logo.png" 
+            alt="DARK Logo" 
+            width={60} 
+            height={30} 
+            priority
+          />
+        </div>
+        <h2 style={{ 
+          color: '#63B3ED', 
+          fontSize: '24px', 
+          fontWeight: '600',
+          margin: '0 0 16px 0'
+        }}>
+          SPUTNIK
+        </h2>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{ 
+            width: '16px', 
+            height: '16px', 
+            borderRadius: '50%', 
+            background: '#63B3ED',
+            margin: '0 12px 0 0',
+            animation: 'pulse 1.5s infinite'
+          }} />
+          <p>Initializing navigation system...</p>
+        </div>
+        <style jsx>{`
+          @keyframes pulse {
+            0% {
+              opacity: 0.2;
+              transform: scale(0.95);
+            }
+            50% {
+              opacity: 1;
+              transform: scale(1.05);
+            }
+            100% {
+              opacity: 0.2;
+              transform: scale(0.95);
+            }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   return (
     <>
       <Canvas
         camera={{ 
-          position: [0, 5, 10], 
           fov: 45,
           far: 100000, // Increased far clipping plane to see distant objects
           near: 0.1
@@ -546,7 +700,7 @@ export default function GameContainer() {
         shadows
       >
         <Suspense fallback={null}>
-          <CameraPositionTracker setPosition={setPosition} />
+          {isFullyInitialized && <CameraPositionTracker setPosition={setPosition} />}
           
           {/* Add the camera transition component */}
           <CameraTransition
@@ -556,7 +710,6 @@ export default function GameContainer() {
             setTransitionProgress={setTransitionProgress}
             setIsTransitioning={setIsTransitioning}
             setFollowSpaceship={setFollowSpaceship}
-            setAutoForward={setAutoForward}
             controlsRef={controlsRef}
             easeInOutCubic={easeInOutCubic}
           />
@@ -566,7 +719,7 @@ export default function GameContainer() {
             movementSpeed={flightSpeed}
             rollSpeed={rotationSpeed} // Base rotation speed
             dragToLook={true}
-            autoForward={autoForward}
+            autoForward={false}
           />
           
           {/* Star field with stars */}
@@ -602,8 +755,8 @@ export default function GameContainer() {
         </Suspense>
       </Canvas>
       
-      {/* UI Panels */}
-      <NavPanel position={position} />
+      {/* UI Panels - only show when fully initialized */}
+      {isFullyInitialized && <NavPanel position={position} />}
       <HelpPanel />
       <PlanetPanel selectedPlanet={selectedPlanet} onClose={handleClosePlanetPanel} />
       <SpaceshipPanel 

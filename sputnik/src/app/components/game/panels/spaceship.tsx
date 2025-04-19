@@ -290,7 +290,7 @@ export default function SpaceshipPanel({
           <div>
             <p style={{ margin: '0', fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>Target</p>
             <p style={{ margin: '0', fontSize: '14px', color: '#fafafa' }}>
-              Planet {TARGET_PLANET_ID}
+              {TARGET_PLANET_ID}
             </p>
           </div>
         </div>
