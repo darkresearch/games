@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { SpaceshipStatus, TARGET_PLANET_ID } from '../spaceship/api';
 import { spaceshipState, SpaceshipStateData } from '@/lib/supabase';
+import { io, Socket } from 'socket.io-client';
 
 type SpaceshipPanelProps = {
   status?: SpaceshipStatus | null;
@@ -15,6 +16,13 @@ const toPositionObject = (pos: [number, number, number] | undefined) => {
   return { x: pos[0], y: pos[1], z: pos[2] };
 };
 
+// Vector3 type for socket communication
+type Vector3Position = {
+  x: number;
+  y: number;
+  z: number;
+};
+
 export default function SpaceshipPanel({ 
   status: propStatus,
   onFollowSpaceship,
@@ -24,16 +32,112 @@ export default function SpaceshipPanel({
   const [supabaseState, setSupabaseState] = useState<SpaceshipStateData | null>(null);
   const [isMoving, setIsMoving] = useState(false);
   const prevPositionRef = useRef<{ x: number | string, y: number | string, z: number | string } | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   
-  // Fetch initial state from Supabase only once, no realtime subscription
+  // State for realtime data from Redis/Socket.io
+  const [velocity, setVelocity] = useState<Vector3Position>({ x: 0, y: 0, z: 0 });
+  const [destination, setDestination] = useState<Vector3Position | null>(null);
+  
+  // Connect to Socket.io for realtime updates
   useEffect(() => {
     let isMounted = true;
+    console.log('🚀 PANEL: Setting up Socket.io connection');
     
+    // Only create a connection if we don't already have one
+    if (!socketRef.current) {
+      try {
+        // Configure with optimal settings
+        const socket = io({
+          transports: ['polling'],
+          forceNew: false,
+          reconnection: true,
+          reconnectionAttempts: 3,
+          reconnectionDelay: 1000,
+        });
+        
+        socketRef.current = socket;
+        
+        // Listen for state updates from Redis
+        socket.on('spaceship:state', (state: any) => {
+          if (isMounted) {
+            if (state.velocity) {
+              setVelocity({
+                x: state.velocity[0],
+                y: state.velocity[1],
+                z: state.velocity[2]
+              });
+            }
+            
+            if (state.destination) {
+              setDestination({
+                x: state.destination[0],
+                y: state.destination[1],
+                z: state.destination[2]
+              });
+              setIsMoving(true);
+            } else {
+              setDestination(null);
+              // Only set isMoving to false if velocity is near zero
+              if (isVelocityNearZero(state.velocity)) {
+                setIsMoving(false);
+              }
+            }
+          }
+        });
+        
+        // Also listen for position updates to detect movement
+        socket.on('spaceship:position', (position: Vector3Position) => {
+          if (isMounted && prevPositionRef.current) {
+            // Check if position changed significantly
+            const prev = prevPositionRef.current;
+            const isChanged = 
+              (typeof prev.x === 'number' && typeof position.x === 'number' && Math.abs(position.x - prev.x) > 0.01) ||
+              (typeof prev.y === 'number' && typeof position.y === 'number' && Math.abs(position.y - prev.y) > 0.01) ||
+              (typeof prev.z === 'number' && typeof position.z === 'number' && Math.abs(position.z - prev.z) > 0.01);
+              
+            if (isChanged) {
+              setIsMoving(true);
+            }
+          }
+        });
+        
+        socket.on('connect', () => {
+          console.log('🚀 PANEL SOCKET: Connected');
+        });
+        
+        socket.on('disconnect', () => {
+          console.log('🚀 PANEL SOCKET: Disconnected');
+        });
+      } catch (error) {
+        console.error('🚀 PANEL ERROR: Failed to connect to Socket.io:', error);
+      }
+    }
+    
+    // Also fetch initial state from Supabase for backup data
     const fetchInitialState = async () => {
       try {
         const state = await spaceshipState.getState();
         if (state && isMounted) {
           setSupabaseState(state);
+          
+          // Initialize velocity from Supabase if available
+          if (state.velocity) {
+            setVelocity({
+              x: state.velocity[0], 
+              y: state.velocity[1], 
+              z: state.velocity[2]
+            });
+          }
+          
+          // Initialize destination from Supabase if available
+          if (state.destination) {
+            setDestination({
+              x: state.destination[0],
+              y: state.destination[1],
+              z: state.destination[2]
+            });
+            setIsMoving(true);
+          }
         }
       } catch (error) {
         console.error("Error fetching spaceship state:", error);
@@ -44,33 +148,33 @@ export default function SpaceshipPanel({
     
     return () => {
       isMounted = false;
+      
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     };
   }, []);
+  
+  // Helper function to check if velocity is near zero
+  const isVelocityNearZero = (vel: [number, number, number] | Vector3Position | undefined | null) => {
+    if (!vel) return true;
+    
+    // Handle array format
+    if (Array.isArray(vel)) {
+      return Math.abs(vel[0]) < 0.01 && Math.abs(vel[1]) < 0.01 && Math.abs(vel[2]) < 0.01;
+    }
+    
+    // Handle object format
+    return Math.abs(vel.x) < 0.01 && Math.abs(vel.y) < 0.01 && Math.abs(vel.z) < 0.01;
+  };
   
   // Use current position from props if available, otherwise use database values
   const position = currentPosition || propStatus?.position || 
     (supabaseState?.position ? toPositionObject(supabaseState.position) : { x: 'N/A', y: 'N/A', z: 'N/A' });
   
-  const velocity = propStatus?.velocity || 
-    (supabaseState?.velocity ? toPositionObject(supabaseState.velocity) : { x: 'N/A', y: 'N/A', z: 'N/A' });
-  
-  // Create stable references for dependencies
-  const hasDestination = supabaseState?.destination !== null && 
-                        supabaseState?.destination !== undefined;
-  
-  // Check if velocity is non-zero (meaning Sputnik is actually moving)
-  const isActuallyMoving = 
-    typeof velocity.x === 'number' && 
-    typeof velocity.y === 'number' && 
-    typeof velocity.z === 'number' && 
-    (Math.abs(velocity.x) > 0.01 || Math.abs(velocity.y) > 0.01 || Math.abs(velocity.z) > 0.01);
-  
   // Combined effect for movement detection
   useEffect(() => {
-    // Only pulse if:
-    // 1. Sputnik has a destination AND it's actually moving, OR
-    // 2. Position has changed significantly (for client-side movement detection)
-    
     // Position change detection
     if (!prevPositionRef.current) {
       prevPositionRef.current = { ...position };
@@ -82,25 +186,16 @@ export default function SpaceshipPanel({
       position.y !== prevPositionRef.current.y ||
       position.z !== prevPositionRef.current.z;
     
-    // Update the movement state based on actual velocity or position changes
-    if (isActuallyMoving || (isPositionChanged && hasDestination)) {
+    // Set moving state based on position change or having a destination
+    if (isPositionChanged || destination !== null) {
       setIsMoving(true);
-    } else {
+    } else if (isVelocityNearZero(velocity)) {
       setIsMoving(false);
     }
     
-    // Store new position
+    // Store new position for next comparison
     prevPositionRef.current = { ...position };
-  }, [position, hasDestination, isActuallyMoving]);
-  
-  // Calculate speed from velocity
-  // const speed = velocity.x !== 'N/A'
-  //   ? Math.sqrt(
-  //       Number(velocity.x) * Number(velocity.x) + 
-  //       Number(velocity.y) * Number(velocity.y) + 
-  //       Number(velocity.z) * Number(velocity.z)
-  //     ).toFixed(1)
-  //   : (currentPosition ? '3.0' : '0.0'); // Use default speed if we have current position but no velocity
+  }, [position, destination, velocity]);
   
   // Get fuel value
   const fuel = propStatus?.fuel !== undefined 

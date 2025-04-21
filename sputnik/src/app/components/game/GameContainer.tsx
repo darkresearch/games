@@ -417,15 +417,13 @@ export default function GameContainer() {
             });
           }
           
-          if (state.target_planet_id) {
-            setTargetPlanetId(state.target_planet_id);
-          }
-          
           if (state.fuel !== undefined) {
-            setFuel(state.fuel);
+            // Just update the status with the fuel
+            setSpaceshipStatus({
+              ...spaceshipStatus,
+              fuel: state.fuel
+            });
           }
-          
-          // No need to worry about destination as it's handled by Redis now
         }
       } catch (error) {
         console.error("Error fetching spaceship data:", error);
@@ -435,7 +433,7 @@ export default function GameContainer() {
     fetchInitialState();
     
     // No subscription cleanup needed since we're not subscribing
-  }, []);
+  }, [spaceshipStatus]);
   
   // Handle spaceship position updates
   const handleSpaceshipPositionUpdate = (newPosition: Vector3) => {

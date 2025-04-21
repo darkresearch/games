@@ -28,7 +28,7 @@ type SpaceshipProps = {
 export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   const groupRef = useRef<THREE.Group>(null);
   // We still need state for UI, but won't use realtime subscriptions
-  const [supabaseState, setSupabaseState] = useState<SpaceshipStateData | null>(null);
+  // const [supabaseState, setSupabaseState] = useState<SpaceshipStateData | null>(null);
   
   // Current position and destination reference
   const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
@@ -59,7 +59,7 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
         
         if (state && isMounted) {
           console.log('🚀 SPUTNIK: Received initial state:', state);
-          setSupabaseState(state);
+          // setSupabaseState(state);
           
           // Set current position as fallback before Socket.io connects
           currentPosition.current = arrayToVector3(state.position);

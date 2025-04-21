@@ -93,28 +93,58 @@ app.prepare().then(() => {
       console.log('Connected to Redis, setting up adapter');
       io.adapter(createAdapter(pubClient, subClient));
       
-      // Setup position broadcasting
+      // Setup position broadcasting with rate limiting
+      let lastBroadcastTime = 0;
       const BROADCAST_INTERVAL = 50; // 20 updates per second
+      const MIN_BROADCAST_INTERVAL = 30; // Minimum ms between broadcasts
       
       const broadcastInterval = setInterval(async () => {
         try {
+          // Rate limit broadcasts
+          const now = Date.now();
+          if (now - lastBroadcastTime < MIN_BROADCAST_INTERVAL) {
+            return;
+          }
+          
           // Get client count before any operations
           const clientCount = io.engine.clientsCount;
           
           // Only broadcast if clients are connected
           if (clientCount > 0) {
+            // First broadcast position for more frequent updates
             const position = await getSpaceshipPosition(pubClient);
             if (position) {
               io.emit('spaceship:position', position);
-              
-              // Log position occasionally
-              if (Math.random() < 0.001) {
-                console.log(`Broadcasting position to ${clientCount} clients`);
+            }
+            
+            // Also broadcast full state less frequently (every 5th update)
+            if (Math.random() < 0.2) { // ~20% chance each time, so every ~5 updates
+              // Get all spaceship state from Redis
+              const state = await pubClient.hGetAll('sputnik:state');
+              if (state && Object.keys(state).length > 0) {
+                // Process state to parse JSON strings
+                const parsedState = {
+                  position: position ? [position.x, position.y, position.z] : JSON.parse(state.position || '[]'),
+                  velocity: JSON.parse(state.velocity || '[0,0,0]'),
+                  destination: state.destination && state.destination !== '' ? 
+                    JSON.parse(state.destination) : null,
+                  timestamp: parseInt(state.timestamp || Date.now().toString())
+                };
+                
+                // Broadcast full state
+                io.emit('spaceship:state', parsedState);
+                
+                // Log occasionally
+                if (Math.random() < 0.01) {
+                  console.log(`Broadcasting state to ${clientCount} clients`);
+                }
               }
             }
+            
+            lastBroadcastTime = now;
           }
         } catch (error) {
-          console.error('Error broadcasting position:', error);
+          console.error('Error broadcasting data:', error);
         }
       }, BROADCAST_INTERVAL);
       
