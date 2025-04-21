@@ -91,69 +91,6 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
       }
     });
     
-    // Initialize Socket.io connection
-    try {
-      console.log('🚀 SPUTNIK: Setting up Socket.io connection');
-      // Only create a connection if we don't already have one
-      if (!socketRef.current) {
-        const socket = io({
-          // Start with polling first, then try to upgrade to WebSocket
-          transports: ['polling', 'websocket'],
-          forceNew: true,
-          // Prevent multiple reconnection attempts
-          reconnectionAttempts: 5,
-          reconnectionDelay: 1000,
-          // Longer timeout to prevent quick disconnects
-          timeout: 10000
-        });
-        socketRef.current = socket;
-        
-        // Listen for position updates
-        socket.on('spaceship:position', (position: Vector3Position) => {
-          if (isMounted) {
-            // Update our position from the server
-            currentPosition.current.set(position.x, position.y, position.z);
-            
-            // Log occasionally
-            if (Math.random() < 0.01) {
-              console.log('🚀 SPUTNIK SOCKET: Position update:', position);
-            }
-            
-            // Notify parent component
-            if (onPositionUpdate) {
-              onPositionUpdate(currentPosition.current);
-            }
-          }
-        });
-        
-        socket.on('connect', () => {
-          console.log('🚀 SPUTNIK SOCKET: Connected to server with ID:', socket.id, 'using transport:', socket.io.engine.transport.name);
-          
-          // Add safer event listener that works with TypeScript
-          if (socket.io && socket.io.engine) {
-            // @ts-expect-error - The engine type definitions are incomplete
-            socket.io.engine.on('upgrade', (transport: any) => {
-              console.log('🚀 SPUTNIK SOCKET: Transport upgraded to', transport.name);
-            });
-          }
-        });
-        
-        socket.on('disconnect', (reason) => {
-          console.log('🚀 SPUTNIK SOCKET: Disconnected from server:', reason);
-        });
-        
-        socket.on('connect_error', (error) => {
-          console.error('🚀 SPUTNIK SOCKET CONNECTION ERROR:', error.message);
-        });
-        
-        socket.on('error', (error: Error) => {
-          console.error('🚀 SPUTNIK SOCKET ERROR:', error);
-        });
-      }
-    } catch (error) {
-      console.error('🚀 SPUTNIK ERROR: Failed to connect to Socket.io:', error);
-    }
-    
     return () => {
       console.log('🚀 SPUTNIK: Cleaning up subscription and socket');
       isMounted = false;
@@ -165,6 +102,83 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
       }
     };
   }, [onPositionUpdate]);
+  
+  // Initialize Socket.io connection
+  useEffect(() => {
+    let isMounted = true;
+    console.log('🚀 SPUTNIK: Initializing Socket.io connection (separate effect)');
+    
+    // Only create a connection if we don't already have one
+    if (!socketRef.current) {
+      try {
+        console.log('🚀 SPUTNIK: Creating new Socket.io connection');
+        
+        // Configure with optimal settings
+        const socket = io({
+          // Force polling which is more reliable in development
+          transports: ['polling'],
+          forceNew: true,
+          reconnection: true,
+          reconnectionAttempts: 3,
+          reconnectionDelay: 1000,
+          timeout: 20000
+        });
+        
+        socketRef.current = socket;
+        
+        // Listen for position updates
+        socket.on('spaceship:position', (position: Vector3Position) => {
+          if (isMounted) {
+            // Update our position from the server
+            currentPosition.current.set(position.x, position.y, position.z);
+            
+            // Notify parent component
+            if (onPositionUpdate) {
+              onPositionUpdate(currentPosition.current);
+            }
+            
+            // Log occasionally
+            if (Math.random() < 0.002) {
+              console.log('🚀 SPUTNIK SOCKET: Position update received');
+            }
+          }
+        });
+        
+        socket.on('connect', () => {
+          console.log('🚀 SPUTNIK SOCKET: Connected to server with ID:', socket.id);
+        });
+        
+        socket.on('disconnect', (reason) => {
+          console.log('🚀 SPUTNIK SOCKET: Disconnected from server:', reason);
+        });
+        
+        socket.on('connect_error', (error) => {
+          console.error('🚀 SPUTNIK SOCKET CONNECTION ERROR:', error.message);
+        });
+      } catch (error) {
+        console.error('🚀 SPUTNIK ERROR: Failed to connect to Socket.io:', error);
+      }
+    }
+    
+    // Clean up function
+    return () => {
+      console.log('🚀 SPUTNIK: Cleaning up Socket.io connection');
+      isMounted = false;
+      
+      if (socketRef.current) {
+        // Remove all listeners before disconnecting
+        socketRef.current.off('spaceship:position');
+        socketRef.current.off('connect');
+        socketRef.current.off('disconnect');
+        socketRef.current.off('connect_error');
+        
+        // Close connection
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        console.log('🚀 SPUTNIK: Socket.io connection closed and reference cleared');
+      }
+    };
+  }, []); // Empty dependency array - this effect runs once
   
   // Update visuals each frame
   useFrame(() => {

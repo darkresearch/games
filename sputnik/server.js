@@ -10,7 +10,7 @@ const app = next({ dev });
 const handle = app.getRequestHandler();
 
 // Track connected clients to avoid duplicate logging
-const connectedClients = new Set();
+const connectedClients = new Map();
 
 // Helper function to get position from Redis
 async function getSpaceshipPosition(redisClient) {
@@ -37,32 +37,21 @@ app.prepare().then(() => {
     handle(req, res, parsedUrl);
   });
 
-  // Set up Socket.io with improved configuration
+  // Set up Socket.io with simplified configuration focused on polling
   const io = new Server(server, {
-    // Start with polling which is more reliable for initial connections
-    transports: ['polling', 'websocket'],
-    connectTimeout: 45000,
-    connectionStateRecovery: {
-      // Longer recovery window
-      maxDisconnectionDuration: 30 * 1000,
-      skipMiddlewares: true,
-    },
-    // Longer ping periods to avoid frequent disconnects
-    pingTimeout: 60000,
-    pingInterval: 25000,
+    // Using only polling for development to avoid WebSocket issues
+    transports: ['polling'],
+    connectTimeout: 30000,
+    // More frequent pings for better connection status awareness
+    pingTimeout: 30000,
+    pingInterval: 15000,
     // Allow all origins in development
     cors: {
       origin: '*',
       methods: ['GET', 'POST']
     },
     // Set up path
-    path: '/socket.io/',
-    // More detailed logging
-    logger: {
-      debug: (...args) => console.log('[socket.io]', ...args),
-      info: (...args) => console.log('[socket.io]', ...args),
-      error: (...args) => console.error('[socket.io]', ...args),
-    }
+    path: '/socket.io/'
   });
   
   // Connect to Redis
@@ -104,27 +93,24 @@ app.prepare().then(() => {
       console.log('Connected to Redis, setting up adapter');
       io.adapter(createAdapter(pubClient, subClient));
       
-      // Setup position broadcasting with rate limiting
-      let lastBroadcastTime = 0;
+      // Setup position broadcasting
       const BROADCAST_INTERVAL = 50; // 20 updates per second
-      const MIN_BROADCAST_INTERVAL = 30; // Minimum ms between broadcasts
       
       const broadcastInterval = setInterval(async () => {
         try {
-          // Rate limit broadcasts
-          const now = Date.now();
-          if (now - lastBroadcastTime < MIN_BROADCAST_INTERVAL) {
-            return;
-          }
+          // Get client count before any operations
+          const clientCount = io.engine.clientsCount;
           
-          const position = await getSpaceshipPosition(pubClient);
-          if (position && io.engine.clientsCount > 0) {
-            io.emit('spaceship:position', position);
-            lastBroadcastTime = now;
-            
-            // Log position occasionally
-            if (Math.random() < 0.005) {
-              console.log('Broadcasting position to', io.engine.clientsCount, 'clients:', position);
+          // Only broadcast if clients are connected
+          if (clientCount > 0) {
+            const position = await getSpaceshipPosition(pubClient);
+            if (position) {
+              io.emit('spaceship:position', position);
+              
+              // Log position occasionally
+              if (Math.random() < 0.001) {
+                console.log(`Broadcasting position to ${clientCount} clients`);
+              }
             }
           }
         } catch (error) {
@@ -138,21 +124,30 @@ app.prepare().then(() => {
     }
   })();
   
-  // Connection handler with improvements
-  io.on('connection', (socket) => {
-    // Log transport info
-    console.log(`Client connected: ${socket.id} using transport: ${socket.conn.transport.name}`);
+  // Clean up stale clients periodically
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    let cleanedCount = 0;
     
-    // Track upgrades
-    socket.conn.on('upgrade', (transport) => {
-      console.log(`Transport for ${socket.id} upgraded to ${transport.name}`);
+    // Remove clients that haven't pinged in 2 minutes
+    connectedClients.forEach((lastSeen, id) => {
+      if (now - lastSeen > 2 * 60 * 1000) {
+        connectedClients.delete(id);
+        cleanedCount++;
+      }
     });
     
-    // Only log new connections
-    if (!connectedClients.has(socket.id)) {
-      connectedClients.add(socket.id);
-      console.log('Client connected:', socket.id, '- Total clients:', io.engine.clientsCount);
+    if (cleanedCount > 0) {
+      console.log(`Cleaned up ${cleanedCount} stale client entries`);
     }
+  }, 60000);
+  
+  // Connection handler with better tracking
+  io.on('connection', (socket) => {
+    const currentTime = Date.now();
+    connectedClients.set(socket.id, currentTime);
+    
+    console.log(`Client connected: ${socket.id} - Total clients: ${io.engine.clientsCount}`);
     
     // Try to send initial position immediately to new client
     (async () => {
@@ -166,22 +161,38 @@ app.prepare().then(() => {
       }
     })();
     
+    // Update last seen time on ping events
+    socket.conn.on('packet', (packet) => {
+      if (packet.type === 'ping') {
+        connectedClients.set(socket.id, Date.now());
+      }
+    });
+    
     socket.on('disconnect', (reason) => {
       connectedClients.delete(socket.id);
-      console.log('Client disconnected:', socket.id, 'Reason:', reason, '- Remaining clients:', io.engine.clientsCount);
+      console.log(`Client disconnected: ${socket.id} - Reason: ${reason} - Clients: ${io.engine.clientsCount}`);
     });
     
     socket.on('error', (err) => {
-      console.error('Socket error for client', socket.id, ':', err);
-    });
-    
-    socket.on('connect_error', (err) => {
-      console.error('Connection error for client', socket.id, ':', err);
+      console.error(`Socket error for ${socket.id}:`, err);
     });
   });
 
+  // Ensure clean shutdown
+  const shutdown = () => {
+    console.log('Shutting down server...');
+    clearInterval(broadcastInterval);
+    clearInterval(cleanupInterval);
+    io.close();
+    server.close();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+
   server.listen(3000, () => {
     console.log('> Ready on http://localhost:3000');
-    console.log('> Socket.io server initialized');
+    console.log('> Socket.io server initialized (polling mode)');
   });
 }); 
