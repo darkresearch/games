@@ -222,6 +222,7 @@ app.prepare().then(() => {
     connectedClients.set(socket.id, { lastSeen: currentTime, ip });
     
     console.log(`Client connected: ${socket.id} - IP: ${ip} - Total clients: ${io.engine.clientsCount}`);
+    console.log(`Connection details: Transport=${socket.conn.transport.name}, Headers=${JSON.stringify(socket.handshake.headers['user-agent'])}`);
     
     // Set up rate limiting for messages
     const messageTimestamps = [];
@@ -297,8 +298,8 @@ app.prepare().then(() => {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  server.listen(3000, () => {
-    console.log('> Ready on http://localhost:3000');
+  server.listen(3000, '0.0.0.0', () => {
+    console.log('> Ready on http://0.0.0.0:3000');
     console.log('> Socket.io server initialized (polling mode)');
   });
 }); 

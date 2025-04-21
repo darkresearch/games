@@ -8,8 +8,12 @@ export const getSocket = (): Socket => {
     // Determine if we're in production
     const isProduction = process.env.NODE_ENV === 'production';
     
+    // In development, explicitly connect to localhost
+    // In production, let it connect to the current host automatically
+    const url = isProduction ? undefined : 'http://localhost:3000';
+    
     // Create the socket instance only once
-    socket = io({
+    socket = io(url, {
       // In production, allow both polling and websockets (secure)
       // In development, force polling which is more reliable
       transports: isProduction ? ['websocket', 'polling'] : ['polling'],
@@ -37,6 +41,13 @@ export const getSocket = (): Socket => {
     
     socket.on('connect_error', (error) => {
       console.error('🚀 SPUTNIK SOCKET CONNECTION ERROR:', error.message);
+      console.error('🚀 SPUTNIK SOCKET: Connection error details:', {
+        // Safe properties that won't cause TypeScript errors
+        transport: socket?.io?.engine?.transport?.name,
+        environment: isProduction ? 'production' : 'development',
+        // Add the URL that was used for the connection
+        url
+      });
     });
   }
   
