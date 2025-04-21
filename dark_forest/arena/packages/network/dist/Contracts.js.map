@@ -1,1 +1,0 @@
-{"version":3,"file":"Contracts.js","sourceRoot":"","sources":["../src/Contracts.ts"],"names":[],"mappings":"","sourcesContent":["import type { Contract, providers, Wallet } from 'ethers';\n\nexport type ContractLoader<T extends Contract> = (\n  address: string,\n  provider: providers.JsonRpcProvider,\n  signer?: Wallet\n) => Promise<T>;\n"]}
