@@ -60,7 +60,7 @@ app.prepare().then(() => {
     // Set up CORS properly for different environments
     cors: {
       origin: process.env.NODE_ENV === 'production' 
-        ? [/\.darkresearch\.ai$/, 'https://darkresearch.ai']
+        ? '*'
         : ['http://localhost:3000', 'http://127.0.0.1:3000'],
       methods: ['GET', 'POST'],
       credentials: true
