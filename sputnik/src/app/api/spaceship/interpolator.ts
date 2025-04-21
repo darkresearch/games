@@ -48,24 +48,51 @@ export class SpaceshipInterpolator {
       await this.updateRedisPosition();
     }
 
-    // Subscribe to Supabase changes to react to new destinations
-    spaceshipState.subscribeToState(async (state) => {
-      if (state.destination && !this.destination) {
-        // New destination set
-        this.destination = this.arrayToVector3(state.destination);
-        this.startInterpolation();
-      } else if (!state.destination && this.destination) {
-        // Destination cleared
-        this.destination = null;
-        this.stopInterpolation();
-      }
+    // We don't need to subscribe to Supabase anymore - we'll only respond to direct commands
+    // Redis will be the source of truth for position
+    
+    // Listen for destination changes through Redis
+    await this.setupRedisListener();
+  }
 
-      // If we're not moving, update position from Supabase
-      if (!this.destination) {
-        this.currentPosition = this.arrayToVector3(state.position);
-        await this.updateRedisPosition();
-      }
-    });
+  // Set up Redis subscriber to listen for commands
+  private async setupRedisListener() {
+    try {
+      // Subscribe to a command channel
+      const subscriber = this.redis.duplicate();
+      await subscriber.connect();
+      
+      // Listen for move commands on a dedicated channel
+      await subscriber.subscribe('sputnik:commands', (message) => {
+        try {
+          const command = JSON.parse(message);
+          
+          if (command.type === 'move_to' && Array.isArray(command.destination)) {
+            // Handle move_to command
+            this.destination = {
+              x: command.destination[0],
+              y: command.destination[1],
+              z: command.destination[2]
+            };
+            
+            // Start interpolation if not already running
+            this.startInterpolation();
+            console.log('Received move_to command via Redis:', command.destination);
+          } else if (command.type === 'stop') {
+            // Handle stop command
+            this.destination = null;
+            this.stopInterpolation();
+            console.log('Received stop command via Redis');
+          }
+        } catch (error) {
+          console.error('Error processing Redis command:', error);
+        }
+      });
+      
+      console.log('Redis command listener initialized');
+    } catch (error) {
+      console.error('Failed to set up Redis listener:', error);
+    }
   }
 
   // Start the position interpolation loop
@@ -169,13 +196,20 @@ export class SpaceshipInterpolator {
         this.currentPosition.x, this.currentPosition.y, this.currentPosition.z
       ]);
 
-      // Update Supabase state
+      // Update Supabase state (just for persistence, not needed for realtime)
       await spaceshipState.updateState({
         id: this.spaceshipId,
         position: [this.currentPosition.x, this.currentPosition.y, this.currentPosition.z],
         destination: null,
         velocity: [0, 0, 0]
       });
+      
+      // Also publish arrival event to Redis
+      await this.redis.publish('sputnik:events', JSON.stringify({
+        type: 'arrival',
+        position: [this.currentPosition.x, this.currentPosition.y, this.currentPosition.z],
+        timestamp: Date.now()
+      }));
     } catch (error) {
       console.error('Error notifying arrival:', error);
     }
@@ -239,6 +273,29 @@ export class SpaceshipInterpolator {
     } catch (error) {
       console.error('Error getting position from Redis:', error);
       return null;
+    }
+  }
+  
+  // Set destination directly through API (allowing the control API to trigger movement)
+  async setDestination(destination: [number, number, number]): Promise<boolean> {
+    try {
+      this.destination = {
+        x: destination[0],
+        y: destination[1],
+        z: destination[2]
+      };
+      this.startInterpolation();
+      
+      // Also publish this command to Redis for any other listeners
+      await this.redis.publish('sputnik:commands', JSON.stringify({
+        type: 'move_to',
+        destination
+      }));
+      
+      return true;
+    } catch (error) {
+      console.error('Error setting destination:', error);
+      return false;
     }
   }
 }

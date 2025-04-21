@@ -27,7 +27,8 @@ type SpaceshipProps = {
 
 export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const [, setSupabaseState] = useState<SpaceshipStateData | null>(null);
+  // We still need state for UI, but won't use realtime subscriptions
+  const [supabaseState, setSupabaseState] = useState<SpaceshipStateData | null>(null);
   
   // Current position and destination reference
   const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
@@ -42,11 +43,11 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   // Create a clone of the scene to avoid modifying the cached original
   const model = scene.clone();
   
-  // Load initial state and subscribe to updates from Supabase
+  // Load initial state from Supabase (once only, no realtime subscription)
   useEffect(() => {
     let isMounted = true;
     
-    console.log('🚀 SPUTNIK: Initializing spaceship and setting up subscription');
+    console.log('🚀 SPUTNIK: Fetching initial state (no realtime subscription)');
     
     // Get initial state
     const loadInitialState = async () => {
@@ -60,7 +61,7 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
           console.log('🚀 SPUTNIK: Received initial state:', state);
           setSupabaseState(state);
           
-          // Set current position
+          // Set current position as fallback before Socket.io connects
           currentPosition.current = arrayToVector3(state.position);
           
           // Set destination if one exists
@@ -75,33 +76,10 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
     
     loadInitialState();
     
-    // Subscribe to state changes
-    console.log('🚀 SPUTNIK: Setting up Supabase real-time subscription');
-    const subscription = spaceshipState.subscribeToState((state) => {
-      console.log('🚀 SPUTNIK: Subscription callback received state update:', state);
-      if (isMounted) {
-        setSupabaseState(state);
-        
-        // If destination is set or cleared, update our reference
-        if (state.destination && !destination.current) {
-          destination.current = arrayToVector3(state.destination);
-        } else if (!state.destination && destination.current) {
-          destination.current = null;
-        }
-      }
-    });
-    
     return () => {
-      console.log('🚀 SPUTNIK: Cleaning up subscription and socket');
       isMounted = false;
-      subscription.unsubscribe();
-      
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
     };
-  }, [onPositionUpdate]);
+  }, []);
   
   // Initialize Socket.io connection
   useEffect(() => {

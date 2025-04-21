@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Get current state from Supabase
+    // Get current state from Supabase (just for reference, not for real-time)
     const currentState = await spaceshipState.getState();
     if (!currentState) {
       return NextResponse.json(
@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Process the command and update Supabase state
-    const newState: Record<string, unknown> = {};
+    // Process the command and update state
     let success = false;
+    const newState: Record<string, unknown> = {};
     
     switch (command.command) {
       case 'move_to':
@@ -49,24 +49,32 @@ export async function POST(request: NextRequest) {
             Array.isArray(command.destination) && 
             command.destination.length === 3) {
           
-          // Store the destination coordinates
+          // Store the destination coordinates in Supabase for persistence
           newState.destination = command.destination;
           
-          // Set velocity to zero - server-side interpolator will handle movement
+          // Set zero velocity - interpolator will calculate actual velocity
           newState.velocity = [0, 0, 0];
           
           // Decrease fuel slightly
-          // TODO: Make this dynamic based on distance to destination
           newState.fuel = Math.max(0, currentState.fuel - 0.5);
-          success = true;
           
-          // Get the interpolator and server updates will take it from here
+          // Get the interpolator to start movement using Redis
           try {
-            await getInterpolator();
-            console.log('🚀 CONTROL API: Interpolator notified of new destination');
+            const interpolator = await getInterpolator();
+            const result = await interpolator.setDestination(command.destination);
+            
+            if (result) {
+              console.log('🚀 CONTROL API: Interpolator received new destination');
+              success = true;
+            } else {
+              console.error('Failed to set destination in interpolator');
+            }
           } catch (error) {
             console.error('Failed to notify interpolator:', error);
-            // Continue anyway, it will pick up the destination from Supabase
+            return NextResponse.json(
+              { error: 'Failed to set destination' }, 
+              { status: 500 }
+            );
           }
         }
         break;
@@ -85,7 +93,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Ensure all required fields are present by preserving existing values if not explicitly changed
+    // Update Supabase (just for persistence)
     const completeState: Record<string, unknown> = {
       // Start with current values as defaults
       id: currentState.id,
@@ -99,38 +107,26 @@ export async function POST(request: NextRequest) {
       ...newState
     };
     
-    console.log('Updating spaceship state with:', completeState);
+    console.log('Updating Supabase state (persistence only):', completeState);
     
     // Update state in Supabase
     const response = await spaceshipState.updateState(completeState);
     
     if (response.error) {
-      return NextResponse.json(
-        { error: 'Failed to update spaceship state', details: response.error?.message || 'Unknown error' }, 
-        { status: 500 }
-      );
+      console.error('Failed to update Supabase state:', response.error);
+      // Continue anyway since Redis is our source of truth now
     }
     
-    // Get the updated state after the change
-    const updatedState = await spaceshipState.getState();
-    
-    if (!updatedState) {
-      return NextResponse.json(
-        { error: 'Failed to retrieve updated spaceship state' }, 
-        { status: 500 }
-      );
-    }
-    
-    // Return success response with updated state
+    // Return success response with the command result
     return NextResponse.json({
       success: true,
       state: {
-        position: updatedState.position,
-        velocity: updatedState.velocity,
-        rotation: updatedState.rotation,
-        fuel: updatedState.fuel,
-        destination: updatedState.destination,
-        targetPlanet: updatedState.target_planet_id
+        position: currentState.position,
+        velocity: currentState.velocity,
+        rotation: currentState.rotation,
+        fuel: newState.fuel || currentState.fuel,
+        destination: command.destination,
+        targetPlanet: currentState.target_planet_id
       }
     });
   } catch (error) {

@@ -25,42 +25,25 @@ export default function SpaceshipPanel({
   const [isMoving, setIsMoving] = useState(false);
   const prevPositionRef = useRef<{ x: number | string, y: number | string, z: number | string } | null>(null);
   
-  // Subscribe to Supabase state updates
+  // Fetch initial state from Supabase only once, no realtime subscription
   useEffect(() => {
     let isMounted = true;
     
-    // Get initial state
-    const loadInitialState = async () => {
-      if (!isMounted) return;
-      
+    const fetchInitialState = async () => {
       try {
         const state = await spaceshipState.getState();
         if (state && isMounted) {
           setSupabaseState(state);
-          // Check if there's a destination set initially
-          if (state.destination) {
-            setIsMoving(true);
-          }
         }
       } catch (error) {
-        console.error('Error loading initial spaceship state:', error);
+        console.error("Error fetching spaceship state:", error);
       }
     };
     
-    loadInitialState();
-    
-    // Subscribe to state changes
-    const subscription = spaceshipState.subscribeToState((state) => {
-      if (isMounted) {
-        setSupabaseState(state);
-        // Update moving state based on whether there's a destination
-        setIsMoving(!!state.destination);
-      }
-    });
+    fetchInitialState();
     
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
     };
   }, []);
   

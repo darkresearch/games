@@ -399,126 +399,42 @@ export default function GameContainer() {
     }
   }, []); // No dependencies required as we only want to run this once
   
-  // Use Supabase real-time subscription instead of polling
+  // Load initial spaceship state from Supabase (no realtime subscription)
   useEffect(() => {
     // Initial state fetch
     const fetchInitialState = async () => {
-      // Record start time to ensure minimum loading screen duration
-      const startTime = Date.now();
-      
       try {
-        setIsLoading(true);
-        const initialState = await spaceshipState.getState();
-        console.log('Initial state:', initialState);
-        if (initialState) {
-          // Convert Supabase state format to SpaceshipStatus format
-          const status: SpaceshipStatus = {
-            position: {
-              x: initialState.position[0],
-              y: initialState.position[1],
-              z: initialState.position[2]
-            },
-            velocity: {
-              x: initialState.velocity[0],
-              y: initialState.velocity[1],
-              z: initialState.velocity[2]
-            },
-            rotation: {
-              x: initialState.rotation[0],
-              y: initialState.rotation[1],
-              z: initialState.rotation[2]
-            },
-            fuel: initialState.fuel
-          };
-          setSpaceshipStatus(status);
+        console.log("Fetching initial spaceship data");
+        const state = await spaceshipState.getState();
+        
+        if (state) {
+          // Update the local state with the received data
+          if (state.position) {
+            setSpaceshipPosition({
+              x: state.position[0],
+              y: state.position[1],
+              z: state.position[2]
+            });
+          }
           
-          // Update spaceshipPosition for camera tracking
-          setSpaceshipPosition({
-            x: initialState.position[0],
-            y: initialState.position[1],
-            z: initialState.position[2]
-          });
+          if (state.target_planet_id) {
+            setTargetPlanetId(state.target_planet_id);
+          }
           
-          // Also manually update the position for nav display
-          // Set position to be 15 units behind the spaceship in Z direction
-          setPosition({
-            x: initialState.position[0],
-            y: initialState.position[1],
-            z: initialState.position[2] - 15
-          });
+          if (state.fuel !== undefined) {
+            setFuel(state.fuel);
+          }
           
-          // Calculate how long we've been loading
-          const elapsedTime = Date.now() - startTime;
-          // Ensure loading screen shows for at least 1000ms (1 seconds)
-          const remainingTime = Math.max(0, 1000 - elapsedTime);
-          
-          // First hide the loading screen after minimum time
-          setTimeout(() => {
-            setIsLoading(false);
-            
-            // Wait a bit to ensure camera is positioned before starting position tracking
-            setTimeout(() => {
-              setIsFullyInitialized(true);
-            }, 500);
-          }, remainingTime);
-        } else {
-          // Calculate minimum loading time
-          const elapsedTime = Date.now() - startTime;
-          const remainingTime = Math.max(0, 1000 - elapsedTime);
-          
-          setTimeout(() => {
-            setIsLoading(false);
-            setTimeout(() => {
-              setIsFullyInitialized(true);
-            }, 500);
-          }, remainingTime);
+          // No need to worry about destination as it's handled by Redis now
         }
       } catch (error) {
-        console.error('Error fetching initial spaceship state:', error);
-        
-        // Calculate minimum loading time
-        const elapsedTime = Date.now() - startTime;
-        const remainingTime = Math.max(0, 1000 - elapsedTime);
-        
-        setTimeout(() => {
-          setIsLoading(false);
-          setTimeout(() => {
-            setIsFullyInitialized(true);
-          }, 500);
-        }, remainingTime);
+        console.error("Error fetching spaceship data:", error);
       }
     };
-
+    
     fetchInitialState();
-
-    // Set up real-time subscription
-    const subscription = spaceshipState.subscribeToState((newState) => {
-      // Convert Supabase state format to SpaceshipStatus format
-      const status: SpaceshipStatus = {
-        position: {
-          x: newState.position[0],
-          y: newState.position[1],
-          z: newState.position[2]
-        },
-        velocity: {
-          x: newState.velocity[0],
-          y: newState.velocity[1],
-          z: newState.velocity[2]
-        },
-        rotation: {
-          x: newState.rotation[0],
-          y: newState.rotation[1],
-          z: newState.rotation[2]
-        },
-        fuel: newState.fuel
-      };
-      setSpaceshipStatus(status);
-    });
-
-    return () => {
-      // Clean up subscription on unmount
-      subscription.unsubscribe();
-    };
+    
+    // No subscription cleanup needed since we're not subscribing
   }, []);
   
   // Handle spaceship position updates
