@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { SpaceshipStatus, TARGET_PLANET_ID } from '../spaceship/api';
-import { spaceshipState, SpaceshipStateData } from '@/lib/supabase';
 import { io, Socket } from 'socket.io-client';
 
 type SpaceshipPanelProps = {
@@ -29,8 +28,8 @@ export default function SpaceshipPanel({
   isFollowing = false,
   currentPosition = null
 }: SpaceshipPanelProps) {
-  const [supabaseState, setSupabaseState] = useState<SpaceshipStateData | null>(null);
   const [isMoving, setIsMoving] = useState(false);
+  const [fuel, setFuel] = useState<number>(100); // Default to 100%
   const prevPositionRef = useRef<{ x: number | string, y: number | string, z: number | string } | null>(null);
   const socketRef = useRef<Socket | null>(null);
   
@@ -82,6 +81,11 @@ export default function SpaceshipPanel({
                 setIsMoving(false);
               }
             }
+            
+            // Update fuel if provided
+            if (state.fuel !== undefined) {
+              setFuel(state.fuel);
+            }
           }
         });
         
@@ -113,39 +117,6 @@ export default function SpaceshipPanel({
       }
     }
     
-    // Also fetch initial state from Supabase for backup data
-    const fetchInitialState = async () => {
-      try {
-        const state = await spaceshipState.getState();
-        if (state && isMounted) {
-          setSupabaseState(state);
-          
-          // Initialize velocity from Supabase if available
-          if (state.velocity) {
-            setVelocity({
-              x: state.velocity[0], 
-              y: state.velocity[1], 
-              z: state.velocity[2]
-            });
-          }
-          
-          // Initialize destination from Supabase if available
-          if (state.destination) {
-            setDestination({
-              x: state.destination[0],
-              y: state.destination[1],
-              z: state.destination[2]
-            });
-            setIsMoving(true);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching spaceship state:", error);
-      }
-    };
-    
-    fetchInitialState();
-    
     return () => {
       isMounted = false;
       
@@ -169,9 +140,9 @@ export default function SpaceshipPanel({
     return Math.abs(vel.x) < 0.01 && Math.abs(vel.y) < 0.01 && Math.abs(vel.z) < 0.01;
   };
   
-  // Use current position from props if available, otherwise use database values
-  const position = currentPosition || propStatus?.position || 
-    (supabaseState?.position ? toPositionObject(supabaseState.position) : { x: 'N/A', y: 'N/A', z: 'N/A' });
+  // Use current position from props if available or default
+  const position = currentPosition || 
+    (propStatus?.position || { x: 0, y: 0, z: 0 });
   
   // Combined effect for movement detection
   useEffect(() => {
@@ -197,15 +168,9 @@ export default function SpaceshipPanel({
     prevPositionRef.current = { ...position };
   }, [position, destination, velocity]);
   
-  // Get fuel value
-  const fuel = propStatus?.fuel !== undefined 
-    ? `${Math.round(propStatus.fuel)}%` 
-    : supabaseState?.fuel !== undefined 
-      ? `${Math.round(supabaseState.fuel)}%` 
-      : 'N/A';
-  
   // Fuel percentage for bar display
-  const fuelPercentage = propStatus?.fuel ?? supabaseState?.fuel ?? 0;
+  const fuelPercentage = fuel;
+  const fuelText = `${Math.round(fuel)}%`;
 
   // CSS Animation for pulsing effect
   const pulsingStyle = isMoving ? {
@@ -401,7 +366,7 @@ export default function SpaceshipPanel({
             fontSize: '14px',
             fontWeight: '500'
           }}>
-            {fuel}
+            {fuelText}
           </p>
         </div>
         

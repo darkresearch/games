@@ -3,7 +3,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { spaceshipState, SpaceshipStateData } from '@/lib/supabase';
 import { useGLTF } from '@react-three/drei';
 import { io, Socket } from 'socket.io-client';
 
@@ -27,8 +26,6 @@ type SpaceshipProps = {
 
 export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   const groupRef = useRef<THREE.Group>(null);
-  // We still need state for UI, but won't use realtime subscriptions
-  // const [supabaseState, setSupabaseState] = useState<SpaceshipStateData | null>(null);
   
   // Current position and destination reference
   const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
@@ -43,48 +40,10 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   // Create a clone of the scene to avoid modifying the cached original
   const model = scene.clone();
   
-  // Load initial state from Supabase (once only, no realtime subscription)
-  useEffect(() => {
-    let isMounted = true;
-    
-    console.log('🚀 SPUTNIK: Fetching initial state (no realtime subscription)');
-    
-    // Get initial state
-    const loadInitialState = async () => {
-      if (!isMounted) return;
-      
-      try {
-        console.log('🚀 SPUTNIK: Fetching initial state from Supabase');
-        const state = await spaceshipState.getState();
-        
-        if (state && isMounted) {
-          console.log('🚀 SPUTNIK: Received initial state:', state);
-          // setSupabaseState(state);
-          
-          // Set current position as fallback before Socket.io connects
-          currentPosition.current = arrayToVector3(state.position);
-          
-          // Set destination if one exists
-          if (state.destination) {
-            destination.current = arrayToVector3(state.destination);
-          }
-        }
-      } catch (error) {
-        console.error('🚀 SPUTNIK ERROR: Error loading initial spaceship state:', error);
-      }
-    };
-    
-    loadInitialState();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-  
   // Initialize Socket.io connection
   useEffect(() => {
     let isMounted = true;
-    console.log('🚀 SPUTNIK: Initializing Socket.io connection (separate effect)');
+    console.log('🚀 SPUTNIK: Initializing Socket.io connection');
     
     // Only create a connection if we don't already have one
     if (!socketRef.current) {
@@ -122,6 +81,20 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
           }
         });
         
+        // Listen for state updates to get destination
+        socket.on('spaceship:state', (state: any) => {
+          if (isMounted && state.destination) {
+            // Update destination if provided
+            destination.current = new THREE.Vector3(
+              state.destination[0],
+              state.destination[1],
+              state.destination[2]
+            );
+          } else if (isMounted && !state.destination) {
+            destination.current = null;
+          }
+        });
+        
         socket.on('connect', () => {
           console.log('🚀 SPUTNIK SOCKET: Connected to server with ID:', socket.id);
         });
@@ -146,6 +119,7 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
       if (socketRef.current) {
         // Remove all listeners before disconnecting
         socketRef.current.off('spaceship:position');
+        socketRef.current.off('spaceship:state');
         socketRef.current.off('connect');
         socketRef.current.off('disconnect');
         socketRef.current.off('connect_error');

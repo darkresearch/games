@@ -17,6 +17,7 @@ import SpaceshipPanel from './panels/spaceship';
 import Image from 'next/image';
 import { spaceshipState } from '@/lib/supabase';
 import * as THREE from 'three';
+import io from 'socket.io-client';
 
 // Component to track camera position and update coordinates
 function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
@@ -399,40 +400,47 @@ export default function GameContainer() {
     }
   }, []); // No dependencies required as we only want to run this once
   
-  // Load initial spaceship state from Supabase (no realtime subscription)
+  // Load initial spaceship state from Socket.io (remove Supabase completely)
   useEffect(() => {
-    // Initial state fetch
-    const fetchInitialState = async () => {
-      try {
-        console.log("Fetching initial spaceship data");
-        const state = await spaceshipState.getState();
-        
-        if (state) {
-          // Update the local state with the received data
-          if (state.position) {
-            setSpaceshipPosition({
-              x: state.position[0],
-              y: state.position[1],
-              z: state.position[2]
-            });
-          }
-          
-          if (state.fuel !== undefined) {
-            // Just update the status with the fuel
-            setSpaceshipStatus({
-              ...spaceshipStatus,
-              fuel: state.fuel
-            });
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching spaceship data:", error);
+    // Listen for socket.io updates directly instead of fetching from Supabase
+    const socket = io({
+      transports: ['polling'],
+      forceNew: false,
+      reconnection: true
+    });
+    
+    // Listen for state updates
+    socket.on('spaceship:state', (state) => {
+      // Update position if available
+      if (state.position) {
+        setSpaceshipPosition({
+          x: state.position[0],
+          y: state.position[1], 
+          z: state.position[2]
+        });
       }
+      
+      // Update spaceship status if needed
+      setSpaceshipStatus({
+        position: {
+          x: state.position ? state.position[0] : 0,
+          y: state.position ? state.position[1] : 0,
+          z: state.position ? state.position[2] : 0
+        },
+        velocity: {
+          x: state.velocity ? state.velocity[0] : 0,
+          y: state.velocity ? state.velocity[1] : 0,
+          z: state.velocity ? state.velocity[2] : 0
+        },
+        rotation: spaceshipStatus?.rotation || { x: 0, y: 0, z: 0 },
+        fuel: state.fuel !== undefined ? state.fuel : (spaceshipStatus?.fuel || 100)
+      });
+    });
+    
+    // Clean up
+    return () => {
+      socket.disconnect();
     };
-    
-    fetchInitialState();
-    
-    // No subscription cleanup needed since we're not subscribing
   }, [spaceshipStatus]);
   
   // Handle spaceship position updates
