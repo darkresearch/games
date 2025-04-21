@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { SpaceshipStatus, TARGET_PLANET_ID } from '../spaceship/api';
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
+import { getSocket } from '@/lib/socket';
 
 type SpaceshipPanelProps = {
   status?: SpaceshipStatus | null;
@@ -40,88 +41,68 @@ export default function SpaceshipPanel({
   // Connect to Socket.io for realtime updates
   useEffect(() => {
     let isMounted = true;
-    console.log('🚀 PANEL: Setting up Socket.io connection');
+    console.log('🚀 PANEL: Setting up event listeners');
     
-    // Only create a connection if we don't already have one
-    if (!socketRef.current) {
-      try {
-        // Configure with optimal settings
-        const socket = io({
-          transports: ['polling'],
-          forceNew: false,
-          reconnection: true,
-          reconnectionAttempts: 3,
-          reconnectionDelay: 1000,
-        });
+    // Use the shared socket instance
+    const socket = getSocket();
+    socketRef.current = socket;
+    
+    // Listen for state updates from Redis
+    socket.on('spaceship:state', (state: any) => {
+      if (isMounted) {
+        if (state.velocity) {
+          setVelocity({
+            x: state.velocity[0],
+            y: state.velocity[1],
+            z: state.velocity[2]
+          });
+        }
         
-        socketRef.current = socket;
-        
-        // Listen for state updates from Redis
-        socket.on('spaceship:state', (state: any) => {
-          if (isMounted) {
-            if (state.velocity) {
-              setVelocity({
-                x: state.velocity[0],
-                y: state.velocity[1],
-                z: state.velocity[2]
-              });
-            }
-            
-            if (state.destination) {
-              setDestination({
-                x: state.destination[0],
-                y: state.destination[1],
-                z: state.destination[2]
-              });
-              setIsMoving(true);
-            } else {
-              setDestination(null);
-              // Only set isMoving to false if velocity is near zero
-              if (isVelocityNearZero(state.velocity)) {
-                setIsMoving(false);
-              }
-            }
-            
-            // Update fuel if provided
-            if (state.fuel !== undefined) {
-              setFuel(state.fuel);
-            }
+        if (state.destination) {
+          setDestination({
+            x: state.destination[0],
+            y: state.destination[1],
+            z: state.destination[2]
+          });
+          setIsMoving(true);
+        } else {
+          setDestination(null);
+          // Only set isMoving to false if velocity is near zero
+          if (isVelocityNearZero(state.velocity)) {
+            setIsMoving(false);
           }
-        });
+        }
         
-        // Also listen for position updates to detect movement
-        socket.on('spaceship:position', (position: Vector3Position) => {
-          if (isMounted && prevPositionRef.current) {
-            // Check if position changed significantly
-            const prev = prevPositionRef.current;
-            const isChanged = 
-              (typeof prev.x === 'number' && typeof position.x === 'number' && Math.abs(position.x - prev.x) > 0.01) ||
-              (typeof prev.y === 'number' && typeof position.y === 'number' && Math.abs(position.y - prev.y) > 0.01) ||
-              (typeof prev.z === 'number' && typeof position.z === 'number' && Math.abs(position.z - prev.z) > 0.01);
-              
-            if (isChanged) {
-              setIsMoving(true);
-            }
-          }
-        });
-        
-        socket.on('connect', () => {
-          console.log('🚀 PANEL SOCKET: Connected');
-        });
-        
-        socket.on('disconnect', () => {
-          console.log('🚀 PANEL SOCKET: Disconnected');
-        });
-      } catch (error) {
-        console.error('🚀 PANEL ERROR: Failed to connect to Socket.io:', error);
+        // Update fuel if provided
+        if (state.fuel !== undefined) {
+          setFuel(state.fuel);
+        }
       }
-    }
+    });
+    
+    // Also listen for position updates to detect movement
+    socket.on('spaceship:position', (position: Vector3Position) => {
+      if (isMounted && prevPositionRef.current) {
+        // Check if position changed significantly
+        const prev = prevPositionRef.current;
+        const isChanged = 
+          (typeof prev.x === 'number' && typeof position.x === 'number' && Math.abs(position.x - prev.x) > 0.01) ||
+          (typeof prev.y === 'number' && typeof position.y === 'number' && Math.abs(position.y - prev.y) > 0.01) ||
+          (typeof prev.z === 'number' && typeof position.z === 'number' && Math.abs(position.z - prev.z) > 0.01);
+          
+        if (isChanged) {
+          setIsMoving(true);
+        }
+      }
+    });
     
     return () => {
       isMounted = false;
       
       if (socketRef.current) {
-        socketRef.current.disconnect();
+        // Remove just our component's listeners without disconnecting the shared socket
+        socket.off('spaceship:state');
+        socket.off('spaceship:position');
         socketRef.current = null;
       }
     };

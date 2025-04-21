@@ -15,9 +15,8 @@ import HelpPanel from './panels/help';
 import PlanetPanel from './panels/planet';
 import SpaceshipPanel from './panels/spaceship';
 import Image from 'next/image';
-import { spaceshipState } from '@/lib/supabase';
 import * as THREE from 'three';
-import io from 'socket.io-client';
+import { getSocket } from '@/lib/socket';
 
 // Component to track camera position and update coordinates
 function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
@@ -42,6 +41,7 @@ function CameraTransition({
   setTransitionProgress,
   setIsTransitioning,
   setFollowSpaceship,
+  setIsFullyInitialized,
   controlsRef,
   easeInOutCubic
 }: {
@@ -51,6 +51,7 @@ function CameraTransition({
   setTransitionProgress: (progress: number) => void;
   setIsTransitioning: (transitioning: boolean) => void;
   setFollowSpaceship: (following: boolean) => void;
+  setIsFullyInitialized: (initialized: boolean) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   controlsRef: React.RefObject<any>;
   easeInOutCubic: (t: number) => number;
@@ -144,6 +145,7 @@ function CameraTransition({
     if (newProgress >= 1) {
       setIsTransitioning(false);
       setFollowSpaceship(true);
+      setIsFullyInitialized(true);
       
       // Reset references for next transition
       startPosRef.current = null;
@@ -403,14 +405,10 @@ export default function GameContainer() {
   // Load initial spaceship state from Socket.io (remove Supabase completely)
   useEffect(() => {
     // Listen for socket.io updates directly instead of fetching from Supabase
-    const socket = io({
-      transports: ['polling'],
-      forceNew: false,
-      reconnection: true
-    });
+    const socket = getSocket();
     
-    // Listen for state updates
-    socket.on('spaceship:state', (state) => {
+    // Listener functions
+    const handleStateUpdate = (state: any) => {
       // Update position if available
       if (state.position) {
         setSpaceshipPosition({
@@ -435,11 +433,40 @@ export default function GameContainer() {
         rotation: spaceshipStatus?.rotation || { x: 0, y: 0, z: 0 },
         fuel: state.fuel !== undefined ? state.fuel : (spaceshipStatus?.fuel || 100)
       });
-    });
+    };
+    
+    const handleConnect = () => {
+      console.log('Connected to Socket.io server');
+      // Set loading to false once connected to socket
+      setIsLoading(false);
+      
+      // Set fully initialized after a short delay to ensure everything is loaded
+      setTimeout(() => {
+        setIsFullyInitialized(true);
+      }, 500);
+    };
+    
+    const handleConnectError = (error: Error) => {
+      console.error('Socket.io connection error:', error);
+    };
+    
+    // Set up connection events
+    socket.on('connect', handleConnect);
+    socket.on('connect_error', handleConnectError);
+    
+    // Listen for state updates
+    socket.on('spaceship:state', handleStateUpdate);
+    
+    // If the socket is already connected, trigger the handlers immediately
+    if (socket.connected) {
+      handleConnect();
+    }
     
     // Clean up
     return () => {
-      socket.disconnect();
+      socket.off('connect', handleConnect);
+      socket.off('connect_error', handleConnectError);
+      socket.off('spaceship:state', handleStateUpdate);
     };
   }, [spaceshipStatus]);
   
@@ -484,6 +511,14 @@ export default function GameContainer() {
       // Force transition to complete
       setIsTransitioning(true);
       setTransitionProgress(1);
+      
+      // Ensure loading states are set correctly after brief delay
+      const loadTimer = setTimeout(() => {
+        setIsLoading(false);
+        setIsFullyInitialized(true);
+      }, 1000);
+      
+      return () => clearTimeout(loadTimer);
     }, 0);
     
     return () => clearTimeout(timer);
@@ -582,6 +617,7 @@ export default function GameContainer() {
             setTransitionProgress={setTransitionProgress}
             setIsTransitioning={setIsTransitioning}
             setFollowSpaceship={setFollowSpaceship}
+            setIsFullyInitialized={setIsFullyInitialized}
             controlsRef={controlsRef}
             easeInOutCubic={easeInOutCubic}
           />

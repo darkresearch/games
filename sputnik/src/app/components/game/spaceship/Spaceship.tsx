@@ -4,7 +4,8 @@ import { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGLTF } from '@react-three/drei';
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
+import { getSocket } from '@/lib/socket';
 
 // Vector3 type for socket communication
 type Vector3Position = {
@@ -43,94 +44,57 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   // Initialize Socket.io connection
   useEffect(() => {
     let isMounted = true;
-    console.log('🚀 SPUTNIK: Initializing Socket.io connection');
+    console.log('🚀 SPUTNIK: Setting up event listeners');
     
-    // Only create a connection if we don't already have one
-    if (!socketRef.current) {
-      try {
-        console.log('🚀 SPUTNIK: Creating new Socket.io connection');
+    // Use the shared socket instance
+    const socket = getSocket();
+    socketRef.current = socket;
+    
+    // Listen for position updates
+    socket.on('spaceship:position', (position: Vector3Position) => {
+      if (isMounted) {
+        // Update our position from the server
+        currentPosition.current.set(position.x, position.y, position.z);
         
-        // Configure with optimal settings
-        const socket = io({
-          // Force polling which is more reliable in development
-          transports: ['polling'],
-          forceNew: true,
-          reconnection: true,
-          reconnectionAttempts: 3,
-          reconnectionDelay: 1000,
-          timeout: 20000
-        });
+        // Notify parent component
+        if (onPositionUpdate) {
+          onPositionUpdate(currentPosition.current);
+        }
         
-        socketRef.current = socket;
-        
-        // Listen for position updates
-        socket.on('spaceship:position', (position: Vector3Position) => {
-          if (isMounted) {
-            // Update our position from the server
-            currentPosition.current.set(position.x, position.y, position.z);
-            
-            // Notify parent component
-            if (onPositionUpdate) {
-              onPositionUpdate(currentPosition.current);
-            }
-            
-            // Log occasionally
-            if (Math.random() < 0.002) {
-              console.log('🚀 SPUTNIK SOCKET: Position update received');
-            }
-          }
-        });
-        
-        // Listen for state updates to get destination
-        socket.on('spaceship:state', (state: any) => {
-          if (isMounted && state.destination) {
-            // Update destination if provided
-            destination.current = new THREE.Vector3(
-              state.destination[0],
-              state.destination[1],
-              state.destination[2]
-            );
-          } else if (isMounted && !state.destination) {
-            destination.current = null;
-          }
-        });
-        
-        socket.on('connect', () => {
-          console.log('🚀 SPUTNIK SOCKET: Connected to server with ID:', socket.id);
-        });
-        
-        socket.on('disconnect', (reason) => {
-          console.log('🚀 SPUTNIK SOCKET: Disconnected from server:', reason);
-        });
-        
-        socket.on('connect_error', (error) => {
-          console.error('🚀 SPUTNIK SOCKET CONNECTION ERROR:', error.message);
-        });
-      } catch (error) {
-        console.error('🚀 SPUTNIK ERROR: Failed to connect to Socket.io:', error);
+        // Log occasionally
+        if (Math.random() < 0.002) {
+          console.log('🚀 SPUTNIK SOCKET: Position update received');
+        }
       }
-    }
+    });
+    
+    // Listen for state updates to get destination
+    socket.on('spaceship:state', (state: any) => {
+      if (isMounted && state.destination) {
+        // Update destination if provided
+        destination.current = new THREE.Vector3(
+          state.destination[0],
+          state.destination[1],
+          state.destination[2]
+        );
+      } else if (isMounted && !state.destination) {
+        destination.current = null;
+      }
+    });
     
     // Clean up function
     return () => {
-      console.log('🚀 SPUTNIK: Cleaning up Socket.io connection');
+      console.log('🚀 SPUTNIK: Removing event listeners');
       isMounted = false;
       
       if (socketRef.current) {
-        // Remove all listeners before disconnecting
-        socketRef.current.off('spaceship:position');
-        socketRef.current.off('spaceship:state');
-        socketRef.current.off('connect');
-        socketRef.current.off('disconnect');
-        socketRef.current.off('connect_error');
-        
-        // Close connection
-        socketRef.current.disconnect();
+        // Remove just our component's listeners without disconnecting the shared socket
+        socket.off('spaceship:position');
+        socket.off('spaceship:state');
         socketRef.current = null;
-        console.log('🚀 SPUTNIK: Socket.io connection closed and reference cleared');
       }
     };
-  }, []); // Empty dependency array - this effect runs once
+  }, [onPositionUpdate]);
   
   // Update visuals each frame
   useFrame(() => {
