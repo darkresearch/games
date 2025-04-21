@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spaceshipState } from '@/lib/supabase';
+import { getInterpolator } from '../interpolator';
 
 // API key for authentication (should be in environment variables)
 const API_KEY = process.env.SPACESHIP_CONTROL_API_KEY || '1234';
@@ -29,18 +29,21 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Get current state from Supabase
-    const currentState = await spaceshipState.getState();
+    // Get the interpolator to access Redis
+    const interpolator = await getInterpolator();
+    
+    // Get current state from Redis
+    const currentState = await interpolator.getState();
     if (!currentState) {
       return NextResponse.json(
-        { error: 'Failed to retrieve current spaceship state' }, 
+        { error: 'Failed to retrieve current spaceship state from Redis' }, 
         { status: 500 }
       );
     }
     
-    // Process the command and update Supabase state
-    const newState: Record<string, unknown> = {};
+    // Process the command and update state
     let success = false;
+    const newState: Record<string, unknown> = {};
     
     switch (command.command) {
       case 'move_to':
@@ -51,13 +54,35 @@ export async function POST(request: NextRequest) {
           // Store the destination coordinates
           newState.destination = command.destination;
           
-          // Set velocity to zero - UI will handle movement
+          // Set zero velocity - interpolator will calculate actual velocity
           newState.velocity = [0, 0, 0];
           
           // Decrease fuel slightly
-          // TODO: Make this dynamic based on distance to destination
           newState.fuel = Math.max(0, currentState.fuel - 0.5);
-          success = true;
+          
+          // Set the destination in Redis via interpolator
+          try {
+            const result = await interpolator.setDestination(command.destination);
+            
+            if (result) {
+              console.log('🚀 CONTROL API: Interpolator received new destination');
+              
+              // Update other state values in Redis
+              if (newState.fuel !== undefined) {
+                await interpolator.updateState({ fuel: newState.fuel });
+              }
+              
+              success = true;
+            } else {
+              console.error('Failed to set destination in interpolator');
+            }
+          } catch (error) {
+            console.error('Failed to notify interpolator:', error);
+            return NextResponse.json(
+              { error: 'Failed to set destination' }, 
+              { status: 500 }
+            );
+          }
         }
         break;
         
@@ -75,52 +100,16 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Ensure all required fields are present by preserving existing values if not explicitly changed
-    const completeState: Record<string, unknown> = {
-      // Start with current values as defaults
-      id: currentState.id,
-      position: currentState.position,
-      velocity: currentState.velocity,
-      rotation: currentState.rotation,
-      fuel: currentState.fuel,
-      target_planet_id: currentState.target_planet_id,
-      
-      // Then override with any new values
-      ...newState
-    };
-    
-    console.log('Updating spaceship state with:', completeState);
-    
-    // Update state in Supabase
-    const response = await spaceshipState.updateState(completeState);
-    
-    if (response.error) {
-      return NextResponse.json(
-        { error: 'Failed to update spaceship state', details: response.error?.message || 'Unknown error' }, 
-        { status: 500 }
-      );
-    }
-    
-    // Get the updated state after the change
-    const updatedState = await spaceshipState.getState();
-    
-    if (!updatedState) {
-      return NextResponse.json(
-        { error: 'Failed to retrieve updated spaceship state' }, 
-        { status: 500 }
-      );
-    }
-    
-    // Return success response with updated state
+    // Return success response with the command result
     return NextResponse.json({
       success: true,
       state: {
-        position: updatedState.position,
-        velocity: updatedState.velocity,
-        rotation: updatedState.rotation,
-        fuel: updatedState.fuel,
-        destination: updatedState.destination,
-        targetPlanet: updatedState.target_planet_id
+        position: currentState.position,
+        velocity: currentState.velocity,
+        rotation: currentState.rotation,
+        fuel: newState.fuel || currentState.fuel,
+        destination: command.destination,
+        targetPlanet: currentState.target_planet_id
       }
     });
   } catch (error) {

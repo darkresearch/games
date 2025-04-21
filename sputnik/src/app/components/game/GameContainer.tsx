@@ -15,8 +15,8 @@ import HelpPanel from './panels/help';
 import PlanetPanel from './panels/planet';
 import SpaceshipPanel from './panels/spaceship';
 import Image from 'next/image';
-import { spaceshipState } from '@/lib/supabase';
 import * as THREE from 'three';
+import { getSocket } from '@/lib/socket';
 
 // Component to track camera position and update coordinates
 function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
@@ -41,6 +41,7 @@ function CameraTransition({
   setTransitionProgress,
   setIsTransitioning,
   setFollowSpaceship,
+  setIsFullyInitialized,
   controlsRef,
   easeInOutCubic
 }: {
@@ -50,6 +51,7 @@ function CameraTransition({
   setTransitionProgress: (progress: number) => void;
   setIsTransitioning: (transitioning: boolean) => void;
   setFollowSpaceship: (following: boolean) => void;
+  setIsFullyInitialized: (initialized: boolean) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   controlsRef: React.RefObject<any>;
   easeInOutCubic: (t: number) => number;
@@ -143,6 +145,7 @@ function CameraTransition({
     if (newProgress >= 1) {
       setIsTransitioning(false);
       setFollowSpaceship(true);
+      setIsFullyInitialized(true);
       
       // Reset references for next transition
       startPosRef.current = null;
@@ -399,127 +402,73 @@ export default function GameContainer() {
     }
   }, []); // No dependencies required as we only want to run this once
   
-  // Use Supabase real-time subscription instead of polling
+  // Load initial spaceship state from Socket.io (remove Supabase completely)
   useEffect(() => {
-    // Initial state fetch
-    const fetchInitialState = async () => {
-      // Record start time to ensure minimum loading screen duration
-      const startTime = Date.now();
-      
-      try {
-        setIsLoading(true);
-        const initialState = await spaceshipState.getState();
-        console.log('Initial state:', initialState);
-        if (initialState) {
-          // Convert Supabase state format to SpaceshipStatus format
-          const status: SpaceshipStatus = {
-            position: {
-              x: initialState.position[0],
-              y: initialState.position[1],
-              z: initialState.position[2]
-            },
-            velocity: {
-              x: initialState.velocity[0],
-              y: initialState.velocity[1],
-              z: initialState.velocity[2]
-            },
-            rotation: {
-              x: initialState.rotation[0],
-              y: initialState.rotation[1],
-              z: initialState.rotation[2]
-            },
-            fuel: initialState.fuel
-          };
-          setSpaceshipStatus(status);
-          
-          // Update spaceshipPosition for camera tracking
-          setSpaceshipPosition({
-            x: initialState.position[0],
-            y: initialState.position[1],
-            z: initialState.position[2]
-          });
-          
-          // Also manually update the position for nav display
-          // Set position to be 15 units behind the spaceship in Z direction
-          setPosition({
-            x: initialState.position[0],
-            y: initialState.position[1],
-            z: initialState.position[2] - 15
-          });
-          
-          // Calculate how long we've been loading
-          const elapsedTime = Date.now() - startTime;
-          // Ensure loading screen shows for at least 1000ms (1 seconds)
-          const remainingTime = Math.max(0, 1000 - elapsedTime);
-          
-          // First hide the loading screen after minimum time
-          setTimeout(() => {
-            setIsLoading(false);
-            
-            // Wait a bit to ensure camera is positioned before starting position tracking
-            setTimeout(() => {
-              setIsFullyInitialized(true);
-            }, 500);
-          }, remainingTime);
-        } else {
-          // Calculate minimum loading time
-          const elapsedTime = Date.now() - startTime;
-          const remainingTime = Math.max(0, 1000 - elapsedTime);
-          
-          setTimeout(() => {
-            setIsLoading(false);
-            setTimeout(() => {
-              setIsFullyInitialized(true);
-            }, 500);
-          }, remainingTime);
-        }
-      } catch (error) {
-        console.error('Error fetching initial spaceship state:', error);
-        
-        // Calculate minimum loading time
-        const elapsedTime = Date.now() - startTime;
-        const remainingTime = Math.max(0, 1000 - elapsedTime);
-        
-        setTimeout(() => {
-          setIsLoading(false);
-          setTimeout(() => {
-            setIsFullyInitialized(true);
-          }, 500);
-        }, remainingTime);
+    // Listen for socket.io updates directly instead of fetching from Supabase
+    const socket = getSocket();
+    
+    // Listener functions
+    const handleStateUpdate = (state: any) => {
+      // Update position if available
+      if (state.position) {
+        setSpaceshipPosition({
+          x: state.position[0],
+          y: state.position[1], 
+          z: state.position[2]
+        });
       }
-    };
-
-    fetchInitialState();
-
-    // Set up real-time subscription
-    const subscription = spaceshipState.subscribeToState((newState) => {
-      // Convert Supabase state format to SpaceshipStatus format
-      const status: SpaceshipStatus = {
+      
+      // Update spaceship status if needed
+      setSpaceshipStatus({
         position: {
-          x: newState.position[0],
-          y: newState.position[1],
-          z: newState.position[2]
+          x: state.position ? state.position[0] : 0,
+          y: state.position ? state.position[1] : 0,
+          z: state.position ? state.position[2] : 0
         },
         velocity: {
-          x: newState.velocity[0],
-          y: newState.velocity[1],
-          z: newState.velocity[2]
+          x: state.velocity ? state.velocity[0] : 0,
+          y: state.velocity ? state.velocity[1] : 0,
+          z: state.velocity ? state.velocity[2] : 0
         },
-        rotation: {
-          x: newState.rotation[0],
-          y: newState.rotation[1],
-          z: newState.rotation[2]
-        },
-        fuel: newState.fuel
-      };
-      setSpaceshipStatus(status);
-    });
-
-    return () => {
-      // Clean up subscription on unmount
-      subscription.unsubscribe();
+        rotation: spaceshipStatus?.rotation || { x: 0, y: 0, z: 0 },
+        fuel: state.fuel !== undefined ? state.fuel : (spaceshipStatus?.fuel || 100)
+      });
     };
-  }, []);
+    
+    const handleConnect = () => {
+      console.log('Connected to Socket.io server');
+      // Set loading to false once connected to socket
+      setIsLoading(false);
+      
+      // Set fully initialized after a short delay to ensure everything is loaded
+      setTimeout(() => {
+        setIsFullyInitialized(true);
+      }, 500);
+    };
+    
+    const handleConnectError = (error: Error) => {
+      console.error('Socket.io connection error:', error);
+    };
+    
+    // Set up connection events
+    socket.on('connect', handleConnect);
+    socket.on('connect_error', handleConnectError);
+    
+    // Listen for state updates
+    socket.on('spaceship:state', handleStateUpdate);
+    
+    // If the socket is already connected, trigger the handlers immediately
+    if (socket.connected) {
+      handleConnect();
+    }
+    
+    // Clean up
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('connect_error', handleConnectError);
+      socket.off('spaceship:state', handleStateUpdate);
+    };
+  }, [spaceshipStatus]);
   
   // Handle spaceship position updates
   const handleSpaceshipPositionUpdate = (newPosition: Vector3) => {
@@ -562,6 +511,14 @@ export default function GameContainer() {
       // Force transition to complete
       setIsTransitioning(true);
       setTransitionProgress(1);
+      
+      // Ensure loading states are set correctly after brief delay
+      const loadTimer = setTimeout(() => {
+        setIsLoading(false);
+        setIsFullyInitialized(true);
+      }, 1000);
+      
+      return () => clearTimeout(loadTimer);
     }, 0);
     
     return () => clearTimeout(timer);
@@ -660,6 +617,7 @@ export default function GameContainer() {
             setTransitionProgress={setTransitionProgress}
             setIsTransitioning={setIsTransitioning}
             setFollowSpaceship={setFollowSpaceship}
+            setIsFullyInitialized={setIsFullyInitialized}
             controlsRef={controlsRef}
             easeInOutCubic={easeInOutCubic}
           />
