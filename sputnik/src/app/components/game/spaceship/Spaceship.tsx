@@ -94,38 +94,49 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
     // Initialize Socket.io connection
     try {
       console.log('🚀 SPUTNIK: Setting up Socket.io connection');
-      const socket = io();  // Connect to the default endpoint
-      socketRef.current = socket;
-      
-      // Listen for position updates
-      socket.on('spaceship:position', (position: Vector3Position) => {
-        if (isMounted) {
-          // Update our position from the server
-          currentPosition.current.set(position.x, position.y, position.z);
-          
-          // Log occasionally
-          if (Math.random() < 0.01) {
-            console.log('🚀 SPUTNIK SOCKET: Position update:', position);
+      // Only create a connection if we don't already have one
+      if (!socketRef.current) {
+        const socket = io({
+          // Prevent multiple reconnection attempts
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+          // Longer timeout to prevent quick disconnects
+          timeout: 10000,
+          // Explicit transports preference
+          transports: ['websocket', 'polling']
+        });
+        socketRef.current = socket;
+        
+        // Listen for position updates
+        socket.on('spaceship:position', (position: Vector3Position) => {
+          if (isMounted) {
+            // Update our position from the server
+            currentPosition.current.set(position.x, position.y, position.z);
+            
+            // Log occasionally
+            if (Math.random() < 0.01) {
+              console.log('🚀 SPUTNIK SOCKET: Position update:', position);
+            }
+            
+            // Notify parent component
+            if (onPositionUpdate) {
+              onPositionUpdate(currentPosition.current);
+            }
           }
-          
-          // Notify parent component
-          if (onPositionUpdate) {
-            onPositionUpdate(currentPosition.current);
-          }
-        }
-      });
-      
-      socket.on('connect', () => {
-        console.log('🚀 SPUTNIK SOCKET: Connected to server');
-      });
-      
-      socket.on('disconnect', () => {
-        console.log('🚀 SPUTNIK SOCKET: Disconnected from server');
-      });
-      
-      socket.on('error', (error: Error) => {
-        console.error('🚀 SPUTNIK SOCKET ERROR:', error);
-      });
+        });
+        
+        socket.on('connect', () => {
+          console.log('🚀 SPUTNIK SOCKET: Connected to server with ID:', socket.id);
+        });
+        
+        socket.on('disconnect', (reason) => {
+          console.log('🚀 SPUTNIK SOCKET: Disconnected from server:', reason);
+        });
+        
+        socket.on('error', (error: Error) => {
+          console.error('🚀 SPUTNIK SOCKET ERROR:', error);
+        });
+      }
     } catch (error) {
       console.error('🚀 SPUTNIK ERROR: Failed to connect to Socket.io:', error);
     }
