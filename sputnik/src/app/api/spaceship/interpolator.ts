@@ -1,5 +1,4 @@
 import { createClient } from 'redis';
-import { spaceshipState } from '@/lib/supabase';
 
 // Constants
 const MOVEMENT_SPEED = Number(process.env.NEXT_PUBLIC_SPACESHIP_SPEED) || 24.33; // units per second
@@ -20,7 +19,7 @@ export class SpaceshipInterpolator {
   private intervalId: NodeJS.Timeout | null = null;
   private currentPosition: Vector3 = { x: 0, y: 0, z: 0 };
   private destination: Vector3 | null = null;
-  private spaceshipId: string = '';
+  private spaceshipId: string = 'sputnik-1'; // Default ID
 
   constructor() {
     // Initialize Redis client
@@ -33,23 +32,29 @@ export class SpaceshipInterpolator {
       await this.redis.connect();
     }
 
-    // Load initial state from Supabase
-    const initialState = await spaceshipState.getState();
-    if (initialState) {
-      this.spaceshipId = initialState.id;
-      this.currentPosition = this.arrayToVector3(initialState.position);
+    // Load state from Redis
+    const state = await this.getState();
+    if (state) {
+      if (state.position) {
+        this.currentPosition = this.arrayToVector3(state.position);
+      }
       
-      if (initialState.destination) {
-        this.destination = this.arrayToVector3(initialState.destination);
+      if (state.destination) {
+        this.destination = this.arrayToVector3(state.destination);
         this.startInterpolation();
       }
-
-      // Store initial position in Redis
-      await this.updateRedisPosition();
+    } else {
+      // Initialize Redis with default state if not exists
+      console.log('🚀 SERVER INTERPOLATOR: Initializing default state in Redis');
+      await this.updateState({
+        position: [0, 0, 0],
+        velocity: [0, 0, 0],
+        fuel: 100
+      });
     }
 
-    // We don't need to subscribe to Supabase anymore - we'll only respond to direct commands
-    // Redis will be the source of truth for position
+    // Update Redis with current position
+    await this.updateRedisPosition();
     
     // Listen for destination changes through Redis
     await this.setupRedisListener();
@@ -196,14 +201,6 @@ export class SpaceshipInterpolator {
         this.currentPosition.x, this.currentPosition.y, this.currentPosition.z
       ]);
 
-      // Update Supabase state (just for persistence, not needed for realtime)
-      await spaceshipState.updateState({
-        id: this.spaceshipId,
-        position: [this.currentPosition.x, this.currentPosition.y, this.currentPosition.z],
-        destination: null,
-        velocity: [0, 0, 0]
-      });
-      
       // Also publish arrival event to Redis
       await this.redis.publish('sputnik:events', JSON.stringify({
         type: 'arrival',
@@ -273,6 +270,83 @@ export class SpaceshipInterpolator {
     } catch (error) {
       console.error('Error getting position from Redis:', error);
       return null;
+    }
+  }
+  
+  // Get the complete state from Redis
+  async getState(): Promise<Record<string, any> | null> {
+    try {
+      const stateData = await this.redis.hGetAll('sputnik:state');
+      if (!Object.keys(stateData).length) return null;
+      
+      // Parse JSON strings back to objects/arrays
+      const state: Record<string, any> = {};
+      
+      if (stateData.position) {
+        state.position = JSON.parse(stateData.position);
+      }
+      
+      if (stateData.velocity) {
+        state.velocity = JSON.parse(stateData.velocity);
+      }
+      
+      if (stateData.destination && stateData.destination !== '') {
+        state.destination = JSON.parse(stateData.destination);
+      }
+      
+      // Get additional state fields if they exist
+      if (stateData.fuel) {
+        state.fuel = parseFloat(stateData.fuel);
+      } else {
+        state.fuel = 100; // Default fuel value
+      }
+      
+      if (stateData.target_planet_id) {
+        state.target_planet_id = stateData.target_planet_id;
+      }
+      
+      return state;
+    } catch (error) {
+      console.error('Error getting state from Redis:', error);
+      return null;
+    }
+  }
+  
+  // Update specific state fields in Redis
+  async updateState(updates: Record<string, any>): Promise<boolean> {
+    try {
+      const updateData: Record<string, string> = {};
+      
+      // Convert each field to appropriate Redis value
+      for (const [key, value] of Object.entries(updates)) {
+        if (key === 'position' || key === 'velocity' || key === 'destination') {
+          // These should be arrays, stringify them
+          updateData[key] = JSON.stringify(value);
+        } else if (typeof value === 'number') {
+          // Store numbers as strings
+          updateData[key] = value.toString();
+        } else if (typeof value === 'string') {
+          // Strings can be stored directly
+          updateData[key] = value;
+        } else if (value === null) {
+          // For null values, we'll use empty string
+          updateData[key] = '';
+        } else {
+          // For other objects/complex types, stringify
+          updateData[key] = JSON.stringify(value);
+        }
+      }
+      
+      // Update timestamp
+      updateData.timestamp = Date.now().toString();
+      
+      // Update in Redis
+      await this.redis.hSet('sputnik:state', updateData);
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating state in Redis:', error);
+      return false;
     }
   }
   

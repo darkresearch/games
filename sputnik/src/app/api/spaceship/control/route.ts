@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spaceshipState } from '@/lib/supabase';
 import { getInterpolator } from '../interpolator';
 
 // API key for authentication (should be in environment variables)
@@ -30,11 +29,14 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Get current state from Supabase (just for reference, not for real-time)
-    const currentState = await spaceshipState.getState();
+    // Get the interpolator to access Redis
+    const interpolator = await getInterpolator();
+    
+    // Get current state from Redis
+    const currentState = await interpolator.getState();
     if (!currentState) {
       return NextResponse.json(
-        { error: 'Failed to retrieve current spaceship state' }, 
+        { error: 'Failed to retrieve current spaceship state from Redis' }, 
         { status: 500 }
       );
     }
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest) {
             Array.isArray(command.destination) && 
             command.destination.length === 3) {
           
-          // Store the destination coordinates in Supabase for persistence
+          // Store the destination coordinates
           newState.destination = command.destination;
           
           // Set zero velocity - interpolator will calculate actual velocity
@@ -58,13 +60,18 @@ export async function POST(request: NextRequest) {
           // Decrease fuel slightly
           newState.fuel = Math.max(0, currentState.fuel - 0.5);
           
-          // Get the interpolator to start movement using Redis
+          // Set the destination in Redis via interpolator
           try {
-            const interpolator = await getInterpolator();
             const result = await interpolator.setDestination(command.destination);
             
             if (result) {
               console.log('🚀 CONTROL API: Interpolator received new destination');
+              
+              // Update other state values in Redis
+              if (newState.fuel !== undefined) {
+                await interpolator.updateState({ fuel: newState.fuel });
+              }
+              
               success = true;
             } else {
               console.error('Failed to set destination in interpolator');
@@ -91,30 +98,6 @@ export async function POST(request: NextRequest) {
         { error: 'Invalid command parameters' }, 
         { status: 400 }
       );
-    }
-    
-    // Update Supabase (just for persistence)
-    const completeState: Record<string, unknown> = {
-      // Start with current values as defaults
-      id: currentState.id,
-      position: currentState.position,
-      velocity: currentState.velocity,
-      rotation: currentState.rotation,
-      fuel: currentState.fuel,
-      target_planet_id: currentState.target_planet_id,
-      
-      // Then override with any new values
-      ...newState
-    };
-    
-    console.log('Updating Supabase state (persistence only):', completeState);
-    
-    // Update state in Supabase
-    const response = await spaceshipState.updateState(completeState);
-    
-    if (response.error) {
-      console.error('Failed to update Supabase state:', response.error);
-      // Continue anyway since Redis is our source of truth now
     }
     
     // Return success response with the command result
