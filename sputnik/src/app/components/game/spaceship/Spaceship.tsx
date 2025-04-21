@@ -94,7 +94,7 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
     // Initialize Socket.io connection
     try {
       console.log('🚀 SPUTNIK: Setting up Socket.io connection');
-      const socket = io('/api/socket');
+      const socket = io();  // Connect to the default endpoint
       socketRef.current = socket;
       
       // Listen for position updates

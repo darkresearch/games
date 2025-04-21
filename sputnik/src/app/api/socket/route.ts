@@ -85,7 +85,7 @@ export async function GET() {
         skipMiddlewares: true,
       },
       cors: {
-        origin: process.env.NODE_ENV === 'development' ? '*' : /\.yourdomain\.com$/,
+        origin: process.env.NODE_ENV === 'development' ? '*' : ['https://sputnik.darkresearch.ai', /\.darkresearch\.ai$/],
         methods: ['GET', 'POST']
       },
       pingInterval: 25000,
