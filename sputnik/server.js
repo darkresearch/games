@@ -12,6 +12,18 @@ const handle = app.getRequestHandler();
 // Track connected clients to avoid duplicate logging
 const connectedClients = new Map();
 
+// Track connection attempts for rate limiting
+const connectionAttempts = new Map();
+const MAX_CONNECTIONS_PER_MINUTE = 60;
+const RATE_LIMIT_RESET_INTERVAL = 60000; // 1 minute
+
+// Helper to get IP address from request
+const getIpAddress = (req) => {
+  return req.headers['x-forwarded-for'] || 
+         req.socket.remoteAddress || 
+         'unknown';
+};
+
 // Helper function to get position from Redis
 async function getSpaceshipPosition(redisClient) {
   try {
@@ -45,14 +57,45 @@ app.prepare().then(() => {
     // More frequent pings for better connection status awareness
     pingTimeout: 30000,
     pingInterval: 15000,
-    // Allow all origins in development
+    // Set up CORS properly for different environments
     cors: {
-      origin: '*',
-      methods: ['GET', 'POST']
+      origin: process.env.NODE_ENV === 'production' 
+        ? [/\.darkresearch\.ai$/, 'https://darkresearch.ai']
+        : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+      methods: ['GET', 'POST'],
+      credentials: true
     },
     // Set up path
     path: '/socket.io/'
   });
+  
+  // Set up rate limiting middleware
+  io.use((socket, next) => {
+    const ip = getIpAddress(socket.request);
+    
+    // Initialize or increment connection counter for this IP
+    if (!connectionAttempts.has(ip)) {
+      connectionAttempts.set(ip, 1);
+    } else {
+      connectionAttempts.set(ip, connectionAttempts.get(ip) + 1);
+    }
+    
+    // Check if IP has exceeded rate limit
+    if (connectionAttempts.get(ip) > MAX_CONNECTIONS_PER_MINUTE) {
+      console.warn(`Rate limit exceeded for IP: ${ip}`);
+      return next(new Error('Too many connection attempts. Please try again later.'));
+    }
+    
+    // Add the IP to the socket data for tracking
+    socket.data.ip = ip;
+    
+    next();
+  });
+  
+  // Reset connection counters periodically
+  setInterval(() => {
+    connectionAttempts.clear();
+  }, RATE_LIMIT_RESET_INTERVAL);
   
   // Connect to Redis
   console.log('Connecting to Redis...');
@@ -160,8 +203,8 @@ app.prepare().then(() => {
     let cleanedCount = 0;
     
     // Remove clients that haven't pinged in 2 minutes
-    connectedClients.forEach((lastSeen, id) => {
-      if (now - lastSeen > 2 * 60 * 1000) {
+    connectedClients.forEach((clientData, id) => {
+      if (now - clientData.lastSeen > 2 * 60 * 1000) {
         connectedClients.delete(id);
         cleanedCount++;
       }
@@ -175,9 +218,35 @@ app.prepare().then(() => {
   // Connection handler with better tracking
   io.on('connection', (socket) => {
     const currentTime = Date.now();
-    connectedClients.set(socket.id, currentTime);
+    const ip = socket.data.ip || getIpAddress(socket.request);
+    connectedClients.set(socket.id, { lastSeen: currentTime, ip });
     
-    console.log(`Client connected: ${socket.id} - Total clients: ${io.engine.clientsCount}`);
+    console.log(`Client connected: ${socket.id} - IP: ${ip} - Total clients: ${io.engine.clientsCount}`);
+    
+    // Set up rate limiting for messages
+    const messageTimestamps = [];
+    const MAX_MESSAGES_PER_MINUTE = 120; // Allow 2 messages per second on average
+    
+    // Track message timestamps for rate limiting
+    socket.use((event, next) => {
+      const now = Date.now();
+      
+      // Add current timestamp
+      messageTimestamps.push(now);
+      
+      // Remove timestamps older than 1 minute
+      while (messageTimestamps.length > 0 && messageTimestamps[0] < now - 60000) {
+        messageTimestamps.shift();
+      }
+      
+      // Check if too many messages have been sent
+      if (messageTimestamps.length > MAX_MESSAGES_PER_MINUTE) {
+        console.warn(`Message rate limit exceeded for socket: ${socket.id}, IP: ${ip}`);
+        return next(new Error('Message rate limit exceeded. Please slow down.'));
+      }
+      
+      next();
+    });
     
     // Try to send initial position immediately to new client
     (async () => {
@@ -194,7 +263,14 @@ app.prepare().then(() => {
     // Update last seen time on ping events
     socket.conn.on('packet', (packet) => {
       if (packet.type === 'ping') {
-        connectedClients.set(socket.id, Date.now());
+        const clientData = connectedClients.get(socket.id);
+        if (clientData) {
+          // Update only the lastSeen timestamp
+          connectedClients.set(socket.id, {
+            ...clientData,
+            lastSeen: Date.now()
+          });
+        }
       }
     });
     
