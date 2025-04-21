@@ -9,7 +9,7 @@ import PlanetarySystem from './planets/PlanetarySystem';
 import { PlanetInfo } from './planets/SimplePlanet';
 import Spaceship from './spaceship/Spaceship';
 import { Vector3 } from './spaceship/PhysicsSystem';
-import { SpaceshipStatus } from './spaceship/api';
+import { SpaceshipStatus } from './spaceship/model';
 import NavPanel from './panels/nav';
 import HelpPanel from './panels/help';
 import PlanetPanel from './panels/planet';
