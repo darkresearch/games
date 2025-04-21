@@ -51,6 +51,17 @@ export async function POST(request: NextRequest) {
             Array.isArray(command.destination) && 
             command.destination.length === 3) {
           
+          // Check if the spaceship is already moving (has a destination set)
+          if (currentState.destination) {
+            return NextResponse.json(
+              { 
+                error: 'Spaceship is already moving to a destination. Wait until it arrives or issue a stop command.', 
+                currentDestination: currentState.destination 
+              }, 
+              { status: 409 } // 409 Conflict status code
+            );
+          }
+          
           // Store the destination coordinates
           newState.destination = command.destination;
           

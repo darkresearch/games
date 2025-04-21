@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { SpaceshipStatus, TARGET_PLANET_ID } from '../spaceship/api';
+import { SpaceshipStatus, TARGET_PLANET_ID } from '../spaceship/model';
 import { Socket } from 'socket.io-client';
 import { getSocket } from '@/lib/socket';
 
@@ -8,12 +8,6 @@ type SpaceshipPanelProps = {
   onFollowSpaceship?: () => void;
   isFollowing?: boolean;
   currentPosition?: { x: number, y: number, z: number } | null;
-};
-
-// Helper function to convert array position to object with x,y,z properties
-const toPositionObject = (pos: [number, number, number] | undefined) => {
-  if (!pos) return { x: 'N/A', y: 'N/A', z: 'N/A' };
-  return { x: pos[0], y: pos[1], z: pos[2] };
 };
 
 // Vector3 type for socket communication
