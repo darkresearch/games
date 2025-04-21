@@ -8,26 +8,29 @@ export const getSocket = (): Socket => {
     // Determine if we're in production
     const isProduction = process.env.NODE_ENV === 'production';
     
-    // In development, explicitly connect to localhost
-    // In production, let it connect to the current host automatically
-    const url = isProduction ? undefined : 'http://localhost:3000';
+    // Get the current URL for automatic connection in prod
+    let url = 'http://localhost:3000';
+    
+    if (isProduction && typeof window !== 'undefined') {
+      // In production, use the same host but explicitly with http:// protocol
+      const host = window.location.host;
+      url = `${window.location.protocol}//${host}`;
+      console.log(`🚀 SPUTNIK SOCKET: Production URL: ${url}`);
+    }
+    
+    console.log(`🚀 SPUTNIK SOCKET: Creating connection to ${url}`);
     
     // Create the socket instance only once
     socket = io(url, {
-      // In production, allow both polling and websockets (secure)
-      // In development, force polling which is more reliable
-      transports: isProduction ? ['websocket', 'polling'] : ['polling'],
-      forceNew: false,
+      // Force polling only - never try WebSockets
+      transports: ['polling'],
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
       timeout: 20000,
-      // Ensure secure connections in production
-      secure: isProduction,
-      // Add exponential backoff for reconnections
       reconnectionDelayMax: 10000,
-      // Add random factor to avoid all clients reconnecting simultaneously
-      randomizationFactor: 0.5
+      randomizationFactor: 0.5,
+      autoConnect: true
     });
     
     // Add global listeners

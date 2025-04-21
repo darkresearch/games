@@ -1,18 +1,7 @@
-// API utilities for spaceship control
-// Handles communication with the Python backend service
-
+// Spaceship related API functionality
 import { Vector3 } from './PhysicsSystem';
-import { spaceshipState } from '@/lib/supabase';
 
-// Types for API requests and responses
-export type SpaceshipCommand = {
-  command: 'move' | 'rotate' | 'stop' | 'status';
-  direction?: Vector3;
-  magnitude?: number;
-  target?: Vector3;
-  speed?: number;
-};
-
+// Spaceship status type
 export type SpaceshipStatus = {
   position: Vector3;
   velocity: Vector3;
@@ -20,104 +9,36 @@ export type SpaceshipStatus = {
   fuel: number;
 };
 
-// The target planet is fixed for the entire game
-export const TARGET_PLANET_ID = 'JUPITER'; // Replace with actual target planet ID 
+// Target planet ID for HUD
+export const TARGET_PLANET_ID = 'JUPITER';
 
-// Convert Supabase array format to Vector3
-const arrayToVector3 = (arr: [number, number, number]): Vector3 => ({ 
-  x: arr[0], 
-  y: arr[1], 
-  z: arr[2] 
-});
-
-class SpaceshipAPI {
-  private baseUrl: string;
-  private controlEndpoint: string;
-  
-  constructor() {
-    // In production, this would point to the actual backend service
-    this.baseUrl = '/api/spaceship';
-    this.controlEndpoint = `${this.baseUrl}/control`;
-  }
-  
-  // Send a command to the backend
-  async sendCommand(command: SpaceshipCommand): Promise<{ success: boolean; message?: string }> {
-    try {
-      const response = await fetch(this.controlEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(command),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to send command to spaceship');
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error sending spaceship command:', error);
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Unknown error'
-      };
+// Function to control the spaceship
+export async function controlSpaceship(command: string, params: any): Promise<any> {
+  try {
+    // Send command to the API
+    const response = await fetch('/api/spaceship/control', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer 1234' // This should ideally come from environment variables
+      },
+      body: JSON.stringify({
+        command: command,
+        ...params
+      })
+    });
+    
+    // Parse the response
+    const result = await response.json();
+    
+    // Check for errors
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to control spaceship');
     }
+    
+    return result;
+  } catch (error) {
+    console.error('Error controlling spaceship:', error);
+    throw error;
   }
-  
-  // Get current spaceship status directly from Supabase
-  async getStatus(): Promise<SpaceshipStatus | null> {
-    try {
-      const state = await spaceshipState.getState();
-      
-      if (!state) {
-        console.warn('No spaceship state found in Supabase');
-        return null;
-      }
-      
-      // Convert the Supabase state format to our API format
-      return {
-        position: arrayToVector3(state.position),
-        velocity: arrayToVector3(state.velocity),
-        rotation: {
-          x: state.rotation[0],
-          y: state.rotation[1],
-          z: state.rotation[2]
-        },
-        fuel: state.fuel
-      };
-    } catch (error) {
-      console.error('Error getting spaceship status from Supabase:', error);
-      return null;
-    }
-  }
-  
-  // Helper method to move the spaceship
-  async move(direction: Vector3, magnitude: number): Promise<{ success: boolean }> {
-    return this.sendCommand({
-      command: 'move',
-      direction,
-      magnitude
-    });
-  }
-  
-  // Stop the spaceship
-  async stop(): Promise<{ success: boolean }> {
-    return this.sendCommand({
-      command: 'stop'
-    });
-  }
-  
-  // Set a target destination
-  async setTarget(target: Vector3, speed: number): Promise<{ success: boolean }> {
-    return this.sendCommand({
-      command: 'move',
-      target,
-      speed
-    });
-  }
-}
-
-// Export a singleton instance of the API
-export const spaceshipAPI = new SpaceshipAPI(); 
+} 

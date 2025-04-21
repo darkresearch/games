@@ -51,7 +51,7 @@ app.prepare().then(() => {
 
   // Set up Socket.io with simplified configuration focused on polling
   const io = new Server(server, {
-    // Using only polling for development to avoid WebSocket issues
+    // Force polling only - don't attempt WebSocket
     transports: ['polling'],
     connectTimeout: 30000,
     // More frequent pings for better connection status awareness

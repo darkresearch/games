@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spaceshipState } from '@/lib/supabase';
+import { getInterpolator } from '../interpolator';
 
 // API endpoint for when the spaceship arrives at destination
 export async function POST(request: NextRequest) {
@@ -14,37 +14,22 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Get current state to preserve required fields like rotation
-    const currentState = await spaceshipState.getState();
-    if (!currentState) {
-      return NextResponse.json(
-        { error: 'Failed to retrieve current spaceship state' }, 
-        { status: 500 }
-      );
-    }
+    // Get the interpolator which manages the state in Redis
+    const interpolator = await getInterpolator();
     
-    // Update state in Supabase to mark arrival
-    const response = await spaceshipState.updateState({
-      id: data.id,
-      position: data.position,
-      destination: null,
-      velocity: [0, 0, 0],
-      rotation: currentState.rotation // Preserve the current rotation value
+    // Update state to indicate arrival (just save the position)
+    await interpolator.updateState({
+      position: data.position || [0, 0, 0],
+      destination: null, // Clear destination since we've arrived
+      velocity: [0, 0, 0]  // Stop the ship
     });
-    
-    if (response.error) {
-      return NextResponse.json(
-        { error: 'Failed to update spaceship state', details: response.error?.message || 'Unknown error' }, 
-        { status: 500 }
-      );
-    }
     
     // Return success response
     return NextResponse.json({
       success: true
     });
   } catch (error) {
-    console.error('Error processing arrival:', error);
+    console.error('Error handling arrival event:', error);
     return NextResponse.json(
       { error: 'Failed to process arrival' }, 
       { status: 500 }
