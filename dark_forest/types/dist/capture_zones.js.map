@@ -1,1 +1,0 @@
-{"version":3,"file":"capture_zones.js","sourceRoot":"","sources":["../src/capture_zones.ts"],"names":[],"mappings":"","sourcesContent":["import type { WorldCoords } from './world';\n\nexport type CaptureZone = {\n  coords: WorldCoords;\n  radius: number;\n};\n"]}

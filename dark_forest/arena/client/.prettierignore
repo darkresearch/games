@@ -1,9 +1,0 @@
-dist/
-declarations/
-plugins/dist/
-embedded_plugins/dist/
-public/
-src/styles/font/
-src/styles/icomoon/
-embedded_plugins/Remote-Explorer.ts
-embedded_plugins/Renderer-Showcase.ts

@@ -1,6 +1,0 @@
-.openzeppelin/
-artifacts/
-cache/
-typechain/
-contracts/vendor/**/*.sol
-contracts/Verifier.sol
