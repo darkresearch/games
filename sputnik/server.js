@@ -39,17 +39,29 @@ app.prepare().then(() => {
 
   // Set up Socket.io with improved configuration
   const io = new Server(server, {
+    // Start with polling which is more reliable for initial connections
+    transports: ['polling', 'websocket'],
+    connectTimeout: 45000,
     connectionStateRecovery: {
       // Longer recovery window
       maxDisconnectionDuration: 30 * 1000,
       skipMiddlewares: true,
     },
-    pingTimeout: 30000,
-    pingInterval: 10000,
-    transports: ['websocket', 'polling'],
+    // Longer ping periods to avoid frequent disconnects
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    // Allow all origins in development
     cors: {
       origin: '*',
       methods: ['GET', 'POST']
+    },
+    // Set up path
+    path: '/socket.io/',
+    // More detailed logging
+    logger: {
+      debug: (...args) => console.log('[socket.io]', ...args),
+      info: (...args) => console.log('[socket.io]', ...args),
+      error: (...args) => console.error('[socket.io]', ...args),
     }
   });
   
@@ -128,6 +140,14 @@ app.prepare().then(() => {
   
   // Connection handler with improvements
   io.on('connection', (socket) => {
+    // Log transport info
+    console.log(`Client connected: ${socket.id} using transport: ${socket.conn.transport.name}`);
+    
+    // Track upgrades
+    socket.conn.on('upgrade', (transport) => {
+      console.log(`Transport for ${socket.id} upgraded to ${transport.name}`);
+    });
+    
     // Only log new connections
     if (!connectedClients.has(socket.id)) {
       connectedClients.add(socket.id);
@@ -153,6 +173,10 @@ app.prepare().then(() => {
     
     socket.on('error', (err) => {
       console.error('Socket error for client', socket.id, ':', err);
+    });
+    
+    socket.on('connect_error', (err) => {
+      console.error('Connection error for client', socket.id, ':', err);
     });
   });
 

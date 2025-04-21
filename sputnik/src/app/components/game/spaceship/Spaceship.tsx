@@ -97,13 +97,14 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
       // Only create a connection if we don't already have one
       if (!socketRef.current) {
         const socket = io({
+          // Start with polling first, then try to upgrade to WebSocket
+          transports: ['polling', 'websocket'],
+          forceNew: true,
           // Prevent multiple reconnection attempts
           reconnectionAttempts: 5,
           reconnectionDelay: 1000,
           // Longer timeout to prevent quick disconnects
-          timeout: 10000,
-          // Explicit transports preference
-          transports: ['websocket', 'polling']
+          timeout: 10000
         });
         socketRef.current = socket;
         
@@ -126,11 +127,23 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
         });
         
         socket.on('connect', () => {
-          console.log('🚀 SPUTNIK SOCKET: Connected to server with ID:', socket.id);
+          console.log('🚀 SPUTNIK SOCKET: Connected to server with ID:', socket.id, 'using transport:', socket.io.engine.transport.name);
+          
+          // Add safer event listener that works with TypeScript
+          if (socket.io && socket.io.engine) {
+            // @ts-expect-error - The engine type definitions are incomplete
+            socket.io.engine.on('upgrade', (transport: any) => {
+              console.log('🚀 SPUTNIK SOCKET: Transport upgraded to', transport.name);
+            });
+          }
         });
         
         socket.on('disconnect', (reason) => {
           console.log('🚀 SPUTNIK SOCKET: Disconnected from server:', reason);
+        });
+        
+        socket.on('connect_error', (error) => {
+          console.error('🚀 SPUTNIK SOCKET CONNECTION ERROR:', error.message);
         });
         
         socket.on('error', (error: Error) => {
