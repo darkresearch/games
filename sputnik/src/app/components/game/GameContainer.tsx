@@ -9,7 +9,6 @@ import PlanetarySystem from './planets/PlanetarySystem';
 import { PlanetInfo } from './planets/SimplePlanet';
 import Spaceship from './spaceship/Spaceship';
 import { Vector3 } from './spaceship/PhysicsSystem';
-import { SpaceshipStatus } from './spaceship/model';
 import NavPanel from './panels/nav';
 import HelpPanel from './panels/help';
 import PlanetPanel from './panels/planet';
@@ -263,13 +262,13 @@ export default function GameContainer() {
   const [position, setPosition] = useState<Position>({ x: 0, y: 0, z: 0 });
   const [selectedPlanet, setSelectedPlanet] = useState<PlanetInfo | null>(null);
   const [rotationSpeed] = useState(0.2); // Base rotation speed
-  const [spaceshipStatus, setSpaceshipStatus] = useState<SpaceshipStatus | null>(null);
   const [spaceshipPosition, setSpaceshipPosition] = useState<Vector3>({ x: 0, y: 0, z: 0 });
   const [followSpaceship, setFollowSpaceship] = useState(true); // Follow spaceship by default
   const [isTransitioning, setIsTransitioning] = useState(false); // Track if camera is moving to spaceship
   const [transitionProgress, setTransitionProgress] = useState(0); // Progress of transition animation (0-1)
   const [isLoading, setIsLoading] = useState(true); // Track if initial state is loaded
   const [isFullyInitialized, setIsFullyInitialized] = useState(false); // Track if camera is positioned
+  const [currentFuel, setCurrentFuel] = useState(100); // Track fuel level
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
   
@@ -402,80 +401,21 @@ export default function GameContainer() {
     }
   }, []); // No dependencies required as we only want to run this once
   
-  // Load initial spaceship state from Socket.io (remove Supabase completely)
-  useEffect(() => {
-    // Listen for socket.io updates directly instead of fetching from Supabase
-    const socket = getSocket();
-    
-    // Listener functions
-    const handleStateUpdate = (state: any) => {
-      // Update position if available
-      if (state.position) {
-        setSpaceshipPosition({
-          x: state.position[0],
-          y: state.position[1], 
-          z: state.position[2]
-        });
-      }
-      
-      // Update spaceship status if needed
-      setSpaceshipStatus({
-        position: {
-          x: state.position ? state.position[0] : 0,
-          y: state.position ? state.position[1] : 0,
-          z: state.position ? state.position[2] : 0
-        },
-        velocity: {
-          x: state.velocity ? state.velocity[0] : 0,
-          y: state.velocity ? state.velocity[1] : 0,
-          z: state.velocity ? state.velocity[2] : 0
-        },
-        rotation: spaceshipStatus?.rotation || { x: 0, y: 0, z: 0 },
-        fuel: state.fuel !== undefined ? state.fuel : (spaceshipStatus?.fuel || 100)
-      });
-    };
-    
-    const handleConnect = () => {
-      console.log('Connected to Socket.io server');
-      // Set loading to false once connected to socket
-      setIsLoading(false);
-      
-      // Set fully initialized after a short delay to ensure everything is loaded
-      setTimeout(() => {
-        setIsFullyInitialized(true);
-      }, 500);
-    };
-    
-    const handleConnectError = (error: Error) => {
-      console.error('Socket.io connection error:', error);
-    };
-    
-    // Set up connection events
-    socket.on('connect', handleConnect);
-    socket.on('connect_error', handleConnectError);
-    
-    // Listen for state updates
-    socket.on('spaceship:state', handleStateUpdate);
-    
-    // If the socket is already connected, trigger the handlers immediately
-    if (socket.connected) {
-      handleConnect();
-    }
-    
-    // Clean up
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('connect_error', handleConnectError);
-      socket.off('spaceship:state', handleStateUpdate);
-    };
-  }, [spaceshipStatus]);
-  
   // Handle spaceship position updates
   const handleSpaceshipPositionUpdate = (newPosition: Vector3) => {
     setSpaceshipPosition(newPosition);
     // Log position updates
     if (Math.random() < 0.05) {
       console.log('🚀 SPUTNIK GameContainer: Updated position:', newPosition);
+    }
+  };
+
+  // Handle spaceship fuel updates
+  const handleSpaceshipFuelUpdate = (newFuelLevel: number) => {
+    setCurrentFuel(newFuelLevel);
+    // Log fuel updates occasionally
+    if (Math.random() < 0.05) {
+      console.log('🚀 SPUTNIK GameContainer: Updated fuel level:', newFuelLevel);
     }
   };
 
@@ -643,6 +583,7 @@ export default function GameContainer() {
           {/* AI-controlled spaceship */}
           <Spaceship 
             onPositionUpdate={handleSpaceshipPositionUpdate}
+            onFuelUpdate={handleSpaceshipFuelUpdate}
           />
           
           {/* Add post-processing effects */}
@@ -668,10 +609,10 @@ export default function GameContainer() {
       <HelpPanel />
       <PlanetPanel selectedPlanet={selectedPlanet} onClose={handleClosePlanetPanel} />
       <SpaceshipPanel 
-        status={spaceshipStatus} 
         onFollowSpaceship={handleFollowSpaceship} 
         isFollowing={followSpaceship}
         currentPosition={spaceshipPosition}
+        currentFuel={currentFuel}
       />
       <LogoPanel />
     </>

@@ -24,9 +24,10 @@ const arrayToVector3 = (arr: [number, number, number]): THREE.Vector3 =>
 
 type SpaceshipProps = {
   onPositionUpdate?: (position: THREE.Vector3) => void;
+  onFuelUpdate?: (fuel: number) => void;
 };
 
-export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
+export default function Spaceship({ onPositionUpdate, onFuelUpdate }: SpaceshipProps) {
   const groupRef = useRef<THREE.Group>(null);
   
   // Current position and destination reference
@@ -53,7 +54,7 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   // Initialize Socket.io connection
   useEffect(() => {
     let isMounted = true;
-    console.log('🚀 SPUTNIK: Setting up event listeners');
+    // console.log('🚀 SPUTNIK: Setting up event listeners');
     
     // Use the shared socket instance
     const socket = getSocket();
@@ -97,12 +98,17 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
             z: state.velocity[2]
           });
         }
+        
+        // Pass fuel updates to parent component
+        if (state.fuel !== undefined && onFuelUpdate) {
+          onFuelUpdate(state.fuel);
+        }
       }
     });
     
     // Clean up function
     return () => {
-      console.log('🚀 SPUTNIK: Removing event listeners');
+      // console.log('🚀 SPUTNIK: Removing event listeners');
       isMounted = false;
       
       if (socketRef.current) {
@@ -112,7 +118,7 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
         socketRef.current = null;
       }
     };
-  }, [onPositionUpdate]);
+  }, [onPositionUpdate, onFuelUpdate]);
   
   // Update visuals each frame
   useFrame((state, delta) => {

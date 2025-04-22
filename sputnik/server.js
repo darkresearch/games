@@ -171,7 +171,8 @@ app.prepare().then(() => {
                   velocity: JSON.parse(state.velocity || '[0,0,0]'),
                   destination: state.destination && state.destination !== '' ? 
                     JSON.parse(state.destination) : null,
-                  timestamp: parseInt(state.timestamp || Date.now().toString())
+                  timestamp: parseInt(state.timestamp || Date.now().toString()),
+                  fuel: state.fuel ? parseFloat(state.fuel) : 100  // Add fuel data to state updates
                 };
                 
                 // Broadcast full state
