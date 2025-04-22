@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getInterpolator } from '../interpolator';
+import { RedisStreams, getSputnikUuid } from '@/lib/redis-streams';
 
 // API key for authentication (should be in environment variables)
 const API_KEY = process.env.SPACESHIP_CONTROL_API_KEY || '1234';
@@ -29,21 +30,23 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Get Sputnik UUID from request or use default
+    const uuid = command.uuid || getSputnikUuid();
+    
     // Get the interpolator to access Redis
-    const interpolator = await getInterpolator();
+    const interpolator = await getInterpolator(uuid);
     
     // Get current state from Redis
     const currentState = await interpolator.getState();
     if (!currentState) {
       return NextResponse.json(
-        { error: 'Failed to retrieve current spaceship state from Redis' }, 
+        { error: `Failed to retrieve state for Sputnik ${uuid}` }, 
         { status: 500 }
       );
     }
     
     // Process the command and update state
     let success = false;
-    const newState: Record<string, unknown> = {};
     
     switch (command.command) {
       case 'move_to':
@@ -73,24 +76,19 @@ export async function POST(request: NextRequest) {
             );
           }
           
-          // Store the destination coordinates
-          newState.destination = command.destination;
-          
-          // Set zero velocity - interpolator will calculate actual velocity
-          newState.velocity = [0, 0, 0];
-          
-          // Set the destination in Redis via interpolator
+          // Use Redis Streams instead of direct interpolator call
           try {
-            const result = await interpolator.setDestination(command.destination);
+            const redisStreams = await RedisStreams.getInstance();
+            await redisStreams.publishCommand(uuid, {
+              type: 'move_to',
+              destination: command.destination,
+              timestamp: Date.now()
+            });
             
-            if (result) {
-              console.log('🚀 CONTROL API: Interpolator received new destination');
-              success = true;
-            } else {
-              console.error('Failed to set destination in interpolator');
-            }
+            console.log(`🚀 CONTROL API: Published move_to command to Redis Stream for Sputnik ${uuid}`);
+            success = true;
           } catch (error) {
-            console.error('Failed to notify interpolator:', error);
+            console.error(`Failed to publish command to Redis Stream for Sputnik ${uuid}:`, error);
             return NextResponse.json(
               { error: 'Failed to set destination' }, 
               { status: 500 }
@@ -116,10 +114,10 @@ export async function POST(request: NextRequest) {
     // Return success response with the command result
     return NextResponse.json({
       success: true,
+      uuid: uuid,
       state: {
         position: currentState.position,
         velocity: currentState.velocity,
-        rotation: currentState.rotation,
         fuel: currentState.fuel,
         destination: command.destination,
         targetPlanet: currentState.target_planet_id

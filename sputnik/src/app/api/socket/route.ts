@@ -3,6 +3,7 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
 import { NextResponse } from 'next/server';
 import { getInterpolator } from '../spaceship/interpolator';
+import { RedisStreams, getSputnikUuid } from '@/lib/redis-streams';
 
 // Define a custom type for our server that includes Socket.io
 type ServerWithIO = {
@@ -99,24 +100,96 @@ export async function GET() {
     // Apply Redis adapter
     io.adapter(createAdapter(pubClient, subClient));
     
-    // Get the interpolator instance to read positions from
-    const interpolator = await getInterpolator();
+    // Initialize Redis Streams
+    const redisStreams = await RedisStreams.getInstance();
     
-    // Set up interval to broadcast position updates
+    // Track last IDs processed
+    let lastPositionId = '0-0';
+    let lastEventId = '0-0';
+    
     // Clear any existing interval first
     if (broadcastInterval) {
       clearInterval(broadcastInterval);
     }
     
+    // Set up interval to read from streams and broadcast
     broadcastInterval = setInterval(async () => {
       try {
-        const position = await interpolator.getCurrentPosition();
-        if (position && io) {
-          // Broadcast position to all connected clients
-          io.emit('spaceship:position', position);
+        // Get active Sputniks
+        const activeSputniks = await redisStreams.getActiveSputniks();
+        
+        // Read position updates from stream
+        const positionUpdates = await redisStreams.readPositions(lastPositionId);
+        
+        if (positionUpdates.length > 0) {
+          // Update last position ID
+          lastPositionId = positionUpdates[positionUpdates.length - 1].id;
+          
+          // Group updates by Sputnik UUID
+          const updatesByUuid: Record<string, any> = {};
+          
+          for (const update of positionUpdates) {
+            const position = update.position;
+            if (position && position.uuid) {
+              updatesByUuid[position.uuid] = position;
+            }
+          }
+          
+          // Emit batch updates for all Sputniks
+          io.emit('sputniks:positions', updatesByUuid);
+          
+          // Also emit individual updates for specific Sputnik rooms
+          for (const uuid in updatesByUuid) {
+            const position = updatesByUuid[uuid];
+            
+            // Broadcast to Sputnik-specific room
+            io.to(`sputnik:${uuid}`).emit('spaceship:position', position.position);
+            
+            // If there's state info, broadcast that too
+            if (position.fuel !== undefined) {
+              io.to(`sputnik:${uuid}`).emit('spaceship:state', {
+                destination: position.destination,
+                velocity: position.velocity,
+                fuel: position.fuel,
+                isMoving: position.isMoving
+              });
+            }
+          }
+        }
+        
+        // Read events from stream
+        const eventUpdates = await redisStreams.readEvents(lastEventId);
+        
+        if (eventUpdates.length > 0) {
+          // Update last event ID
+          lastEventId = eventUpdates[eventUpdates.length - 1].id;
+          
+          // Process and broadcast events
+          for (const { event } of eventUpdates) {
+            if (event.uuid) {
+              if (event.type === 'arrival') {
+                io.to(`sputnik:${event.uuid}`).emit('spaceship:state', {
+                  destination: null,
+                  velocity: [0, 0, 0],
+                  fuel: event.fuel,
+                  isMoving: false
+                });
+              } else if (event.type === 'fuel_update') {
+                io.to(`sputnik:${event.uuid}`).emit('spaceship:state', {
+                  fuel: event.fuel
+                });
+              }
+              
+              // Emit to general event channel with UUID
+              io.emit('sputnik:event', {
+                uuid: event.uuid,
+                ...event
+              });
+            }
+          }
         }
       } catch (error) {
-        console.error('Error broadcasting position:', error);
+        console.error('Error broadcasting from Redis Streams:', error);
       }
     }, 50); // 20 updates per second
     
@@ -124,13 +197,51 @@ export async function GET() {
     io.on('connection', (socket) => {
       console.log('New client connected:', socket.id);
       
-      // Try to send initial position immediately to new client
-      interpolator.getCurrentPosition().then(position => {
-        if (position) {
-          socket.emit('spaceship:position', position);
+      // Send list of active Sputniks
+      (async () => {
+        try {
+          const activeSputniks = await redisStreams.getActiveSputniks();
+          socket.emit('sputniks:list', activeSputniks);
+        } catch (error) {
+          console.error('Error sending Sputniks list:', error);
         }
-      }).catch(err => {
-        console.error('Error sending initial position to new client:', err);
+      })();
+      
+      // Allow clients to subscribe to a specific Sputnik
+      socket.on('subscribe', async (uuid: string) => {
+        // Join the room for this Sputnik
+        socket.join(`sputnik:${uuid}`);
+        console.log(`Client ${socket.id} subscribed to Sputnik ${uuid}`);
+        
+        // Send initial state for this Sputnik
+        try {
+          const interpolator = await getInterpolator(uuid);
+          const state = await interpolator.getState();
+          
+          if (state) {
+            // Send initial position
+            socket.emit('spaceship:position', state.position);
+            
+            // Send initial state
+            socket.emit('spaceship:state', {
+              destination: state.destination,
+              velocity: state.velocity,
+              fuel: state.fuel,
+              isMoving: state.isMoving
+            });
+          }
+        } catch (err) {
+          console.error(`Error sending initial state for Sputnik ${uuid}:`, err);
+        }
+      });
+      
+      // Get the client's own Sputnik UUID
+      socket.on('get_my_sputnik', () => {
+        const uuid = getSputnikUuid();
+        socket.emit('my_sputnik', { uuid });
+        
+        // Auto-subscribe to their own Sputnik
+        socket.join(`sputnik:${uuid}`);
       });
       
       socket.on('disconnect', () => {
