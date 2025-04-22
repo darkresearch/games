@@ -1,4 +1,6 @@
 import { createClient } from 'redis';
+import { REFUELING_RADIUS_MULTIPLIER, BASE_REFUELING_RATE, DEFAULT_MAX_FUEL } from '@/lib/constants';
+import { type PlanetConfig } from '@/app/components/game/planets/mapUtils';
 
 // Constants
 const MOVEMENT_SPEED = Number(process.env.NEXT_PUBLIC_SPACESHIP_SPEED) || 24.33; // units per second
@@ -21,6 +23,8 @@ export class SpaceshipInterpolator {
   private currentPosition: Vector3 = { x: 0, y: 0, z: 0 };
   private destination: Vector3 | null = null;
   private spaceshipId: string = 'sputnik-1'; // Default ID
+  private isRefueling = false;
+  private planets: PlanetConfig[] = [];
 
   constructor() {
     // Initialize Redis client
@@ -50,15 +54,34 @@ export class SpaceshipInterpolator {
       await this.updateState({
         position: [0, 0, 0],
         velocity: [0, 0, 0],
-        fuel: 100
+        fuel: 100,
+        isRefueling: false
       });
     }
+
+    // Load planets data for refueling
+    await this.loadPlanets();
 
     // Update Redis with current position
     await this.updateRedisPosition();
     
     // Listen for destination changes through Redis
     await this.setupRedisListener();
+  }
+
+  // Load planets data from Redis for refueling checks
+  private async loadPlanets() {
+    try {
+      const planetsData = await this.redis.get('planets');
+      if (planetsData) {
+        this.planets = JSON.parse(planetsData);
+        console.log(`Loaded ${this.planets.length} planets for refueling checks`);
+      } else {
+        console.log('No planets data found in Redis');
+      }
+    } catch (error) {
+      console.error('Error loading planets data:', error);
+    }
   }
 
   // Set up Redis subscriber to listen for commands
@@ -213,8 +236,10 @@ export class SpaceshipInterpolator {
       return;
     }
     
-    // Deduct fuel used in this movement
-    await this.updateFuel(Math.max(0, currentFuel - fuelConsumed));
+    // Deduct fuel used in this movement (unless refueling)
+    if (!this.isRefueling) {
+      await this.updateFuel(Math.max(0, currentFuel - fuelConsumed));
+    }
 
     // Check if we've reached the destination
     if (distance <= ARRIVAL_THRESHOLD) {
@@ -235,8 +260,108 @@ export class SpaceshipInterpolator {
       };
     }
 
+    // Check if we're near a planet for refueling
+    await this.checkRefuelingStatus(deltaTime);
+
     // Update position in Redis
     await this.updateRedisPosition();
+  }
+
+  // Check if the ship is near any planet for refueling
+  private async checkRefuelingStatus(deltaTime: number) {
+    // Skip if no planets data
+    if (!this.planets || this.planets.length === 0) return;
+    
+    // Flag to track if we're near any planet
+    let isNearAnyPlanet = false;
+    
+    // Get current fuel
+    const currentFuel = await this.getCurrentFuel();
+    
+    // Exit early if fuel is already at maximum
+    if (currentFuel >= DEFAULT_MAX_FUEL) {
+      if (this.isRefueling) {
+        // If we were refueling but are now full, stop refueling
+        this.isRefueling = false;
+        await this.updateState({ isRefueling: false });
+        
+        // Emit refueling stopped event
+        await this.redis.publish('sputnik:events', JSON.stringify({
+          type: 'refueling_stop',
+          reason: 'fuel_full',
+          position: [this.currentPosition.x, this.currentPosition.y, this.currentPosition.z],
+          timestamp: Date.now()
+        }));
+      }
+      return;
+    }
+    
+    // Check each planet
+    for (const planet of this.planets) {
+      // Calculate planet position as Vector3
+      const planetPos = {
+        x: planet.position[0],
+        y: planet.position[1],
+        z: planet.position[2]
+      };
+      
+      // Calculate distance to planet
+      const distance = this.calculateDistance(this.currentPosition, planetPos);
+      
+      // Calculate refueling radius based on planet size
+      const refuelingRadius = planet.size * REFUELING_RADIUS_MULTIPLIER;
+      
+      // If ship is within refueling radius of this planet
+      if (distance <= refuelingRadius) {
+        isNearAnyPlanet = true;
+        
+        // Calculate refueling rate based on planet size
+        const refuelingRate = planet.size * BASE_REFUELING_RATE;
+        
+        // Calculate how much fuel to add this frame
+        const fuelToAdd = refuelingRate * deltaTime;
+        
+        // Add fuel
+        const newFuel = Math.min(DEFAULT_MAX_FUEL, currentFuel + fuelToAdd);
+        await this.updateFuel(newFuel);
+        
+        // If we weren't refueling before, emit refueling started event
+        if (!this.isRefueling) {
+          this.isRefueling = true;
+          await this.updateState({ isRefueling: true });
+          
+          // Emit refueling started event
+          await this.redis.publish('sputnik:events', JSON.stringify({
+            type: 'refueling_start',
+            planetId: planet.id,
+            planetType: planet.type,
+            position: [this.currentPosition.x, this.currentPosition.y, this.currentPosition.z],
+            timestamp: Date.now()
+          }));
+          
+          console.log(`🚀 INTERPOLATOR: Started refueling at planet ${planet.id}`);
+        }
+        
+        // Break after first refueling planet is found
+        break;
+      }
+    }
+    
+    // If we were refueling but are now not near any planet, stop refueling
+    if (this.isRefueling && !isNearAnyPlanet) {
+      this.isRefueling = false;
+      await this.updateState({ isRefueling: false });
+      
+      // Emit refueling stopped event
+      await this.redis.publish('sputnik:events', JSON.stringify({
+        type: 'refueling_stop',
+        reason: 'out_of_range',
+        position: [this.currentPosition.x, this.currentPosition.y, this.currentPosition.z],
+        timestamp: Date.now()
+      }));
+      
+      console.log('🚀 INTERPOLATOR: Stopped refueling - moved out of range');
+    }
   }
 
   // Update the position in Redis
@@ -259,6 +384,7 @@ export class SpaceshipInterpolator {
           this.destination.y,
           this.destination.z
         ]) : '',
+        isRefueling: this.isRefueling.toString(),
         timestamp: timestamp.toString()
       });
     } catch (error) {
@@ -371,6 +497,10 @@ export class SpaceshipInterpolator {
         state.fuel = parseFloat(stateData.fuel);
       } else {
         state.fuel = 100; // Default fuel value
+      }
+      
+      if (stateData.isRefueling) {
+        state.isRefueling = stateData.isRefueling === 'true';
       }
       
       if (stateData.target_planet_id) {
