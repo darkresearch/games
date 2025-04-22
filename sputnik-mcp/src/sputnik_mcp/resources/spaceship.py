@@ -24,6 +24,7 @@ class SpaceshipState(BaseModel):
     rotation: Vector3 = Field(..., description="Current rotation in degrees")
     fuel: float = Field(..., description="Current fuel level percentage")
     is_moving: bool = Field(..., description="Whether the spaceship is currently moving")
+    is_refueling: bool = Field(False, description="Whether the spaceship is currently refueling")
     destination: Optional[Vector3] = Field(None, description="Destination coordinates if moving")
     target_planet: Optional[str] = Field(None, description="Target planet identifier")
 
@@ -82,6 +83,7 @@ async def spaceship_state() -> SpaceshipState:
         rotation=rotation,
         fuel=state_data["fuel"],
         is_moving=state_data["isMoving"],
+        is_refueling=state_data.get("isRefueling", False),
         destination=destination,
         target_planet=state_data.get("targetPlanet")
     ) 

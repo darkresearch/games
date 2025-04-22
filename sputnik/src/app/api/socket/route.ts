@@ -12,6 +12,7 @@ type ServerWithIO = {
 // Global variables to maintain server instance
 let io: Server;
 let broadcastInterval: NodeJS.Timeout | null = null;
+let redisEventsSubscriber: ReturnType<typeof createClient> | null = null;
 
 export async function GET() {
   // Ensure we have server object
@@ -36,6 +37,9 @@ export async function GET() {
     
     const subClient = pubClient.duplicate();
     
+    // Create a separate subscriber for Redis events
+    redisEventsSubscriber = pubClient.duplicate();
+    
     // Set up error handlers
     pubClient.on('error', (err) => {
       console.error('Redis Pub Client Error:', err);
@@ -45,7 +49,11 @@ export async function GET() {
       console.error('Redis Sub Client Error:', err);
     });
     
-    // Connect both clients
+    redisEventsSubscriber.on('error', (err) => {
+      console.error('Redis Events Subscriber Error:', err);
+    });
+    
+    // Connect all clients
     await Promise.all([
       pubClient.connect().catch(err => {
         console.error('Failed to connect Redis pub client:', err);
@@ -53,6 +61,10 @@ export async function GET() {
       }), 
       subClient.connect().catch(err => {
         console.error('Failed to connect Redis sub client:', err);
+        throw err;
+      }),
+      redisEventsSubscriber.connect().catch(err => {
+        console.error('Failed to connect Redis events subscriber:', err);
         throw err;
       })
     ]);
@@ -120,6 +132,46 @@ export async function GET() {
       }
     }, 50); // 20 updates per second
     
+    // Subscribe to Redis events channel for refueling events
+    await redisEventsSubscriber.subscribe('sputnik:events', (message) => {
+      try {
+        const event = JSON.parse(message);
+        
+        // Forward specific events to Socket.io clients
+        if (event.type === 'refueling_start') {
+          console.log('🚀 SOCKET: Broadcasting refueling_start event');
+          io.emit('refueling_start', {
+            planetId: event.planetId,
+            planetType: event.planetType,
+            timestamp: event.timestamp
+          });
+        } 
+        else if (event.type === 'refueling_stop') {
+          console.log('🚀 SOCKET: Broadcasting refueling_stop event');
+          io.emit('refueling_stop', {
+            reason: event.reason,
+            timestamp: event.timestamp
+          });
+        }
+        else if (event.type === 'fuel_depleted') {
+          console.log('🚀 SOCKET: Broadcasting fuel_depleted event');
+          io.emit('fuel_depleted', {
+            position: event.position,
+            timestamp: event.timestamp
+          });
+        }
+        else if (event.type === 'arrival') {
+          console.log('🚀 SOCKET: Broadcasting arrival event');
+          io.emit('arrival', {
+            position: event.position,
+            timestamp: event.timestamp
+          });
+        }
+      } catch (error) {
+        console.error('Error processing Redis event:', error);
+      }
+    });
+    
     // Connection handler
     io.on('connection', (socket) => {
       console.log('New client connected:', socket.id);
@@ -131,6 +183,15 @@ export async function GET() {
         }
       }).catch(err => {
         console.error('Error sending initial position to new client:', err);
+      });
+      
+      // Get current state including refueling status
+      interpolator.getState().then(state => {
+        if (state) {
+          socket.emit('spaceship:state', state);
+        }
+      }).catch(err => {
+        console.error('Error sending initial state to new client:', err);
       });
       
       socket.on('disconnect', () => {

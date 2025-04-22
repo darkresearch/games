@@ -25,6 +25,7 @@ export default function SpaceshipPanel({
 }: SpaceshipPanelProps) {
   const [isMoving, setIsMoving] = useState(false);
   const [fuel, setFuel] = useState<number>(100); // Default to 100%
+  const [isRefueling, setIsRefueling] = useState(false); // Track refueling state
   const prevPositionRef = useRef<{ x: number | string, y: number | string, z: number | string } | null>(null);
   const socketRef = useRef<Socket | null>(null);
   
@@ -71,6 +72,11 @@ export default function SpaceshipPanel({
         if (state.fuel !== undefined) {
           setFuel(state.fuel);
         }
+        
+        // Update refueling state if provided
+        if (state.isRefueling !== undefined) {
+          setIsRefueling(!!state.isRefueling);
+        }
       }
     });
     
@@ -90,6 +96,21 @@ export default function SpaceshipPanel({
       }
     });
     
+    // Listen for refueling events
+    socket.on('refueling_start', () => {
+      if (isMounted) {
+        setIsRefueling(true);
+        console.log('🚀 PANEL: Refueling started');
+      }
+    });
+    
+    socket.on('refueling_stop', () => {
+      if (isMounted) {
+        setIsRefueling(false);
+        console.log('🚀 PANEL: Refueling stopped');
+      }
+    });
+    
     return () => {
       isMounted = false;
       
@@ -97,6 +118,8 @@ export default function SpaceshipPanel({
         // Remove just our component's listeners without disconnecting the shared socket
         socket.off('spaceship:state');
         socket.off('spaceship:position');
+        socket.off('refueling_start');
+        socket.off('refueling_stop');
         socketRef.current = null;
       }
     };
@@ -319,7 +342,8 @@ export default function SpaceshipPanel({
         padding: '12px', 
         background: 'rgba(0,0,0,0.2)', 
         borderRadius: '8px',
-        borderLeft: '2px solid #63B3ED'
+        borderLeft: isRefueling ? '2px solid #68D391' : '2px solid #63B3ED',
+        transition: 'border-color 0.3s ease'
       }}>
         <div style={{
           display: 'flex',
@@ -327,14 +351,31 @@ export default function SpaceshipPanel({
           alignItems: 'center',
           marginBottom: '8px'
         }}>
-          <p style={{ 
-            margin: '0', 
-            color: '#90CDF4', 
-            fontWeight: '500',
-            fontSize: '14px'
+          <div style={{ 
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
           }}>
-            Fuel
-          </p>
+            <p style={{ 
+              margin: '0', 
+              color: isRefueling ? '#9AE6B4' : '#90CDF4', 
+              fontWeight: '500',
+              fontSize: '14px',
+              transition: 'color 0.3s ease'
+            }}>
+              Fuel
+            </p>
+            {isRefueling && (
+              <span style={{ 
+                fontSize: '14px', 
+                color: '#9AE6B4',
+                display: 'inline-flex',
+                alignItems: 'center'
+              }}>
+                ⚡ Charging
+              </span>
+            )}
+          </div>
           <p style={{ 
             margin: '0', 
             color: '#fafafa',
@@ -356,10 +397,12 @@ export default function SpaceshipPanel({
           <div style={{ 
             width: `${fuelPercentage}%`, 
             height: '100%', 
-            background: fuelPercentage > 25 
-              ? 'linear-gradient(90deg, #3182CE, #63B3ED)' 
-              : 'linear-gradient(90deg, #E53E3E, #FC8181)',
-            transition: 'width 0.3s ease',
+            background: isRefueling
+              ? 'linear-gradient(90deg, #68D391, #9AE6B4)' // Green when refueling
+              : (fuelPercentage > 25 
+                ? 'linear-gradient(90deg, #3182CE, #63B3ED)' 
+                : 'linear-gradient(90deg, #E53E3E, #FC8181)'),
+            transition: 'all 0.3s ease',
             borderRadius: '4px'
           }} />
         </div>
