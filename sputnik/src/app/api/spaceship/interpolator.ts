@@ -173,6 +173,8 @@ export class SpaceshipInterpolator {
   private async updateFuel(newFuel: number): Promise<void> {
     try {
       await this.redis.hSet('sputnik:state', 'fuel', newFuel.toString());
+      // Publish a fuel update event
+      await this.redis.publish('sputnik:events', JSON.stringify({ type: 'fuel_update', fuel: newFuel }));
     } catch (error) {
       console.error('Error updating fuel level:', error);
     }
@@ -296,6 +298,9 @@ export class SpaceshipInterpolator {
 
     const velocity = this.destination ? this.calculateVelocity() : [0, 0, 0];
     const timestamp = Date.now();
+    
+    // Get current fuel level to include in the update
+    const currentFuel = await this.getCurrentFuel();
 
     try {
       await this.redis.hSet('sputnik:state', {
@@ -307,7 +312,8 @@ export class SpaceshipInterpolator {
           this.destination.z
         ]) : '',
         timestamp: timestamp.toString(),
-        isMoving: this.isRunning ? 'true' : 'false'
+        isMoving: this.isRunning ? 'true' : 'false',
+        fuel: currentFuel.toString() // Always include current fuel in position updates
       });
     } catch (error) {
       console.error('Error updating Redis position:', error);
@@ -333,11 +339,15 @@ export class SpaceshipInterpolator {
       ];
       
       console.log('🚀 SERVER INTERPOLATOR: Notifying arrival at position:', positionArray);
+      
+      // Get current fuel for inclusion in notification
+      const currentFuel = await this.getCurrentFuel();
 
       // Also publish arrival event to Redis
       await this.redis.publish('sputnik:events', JSON.stringify({
         type: 'arrival',
         position: positionArray,
+        fuel: currentFuel,
         timestamp: Date.now()
       }));
       
@@ -346,7 +356,8 @@ export class SpaceshipInterpolator {
         position: positionArray,
         velocity: [0, 0, 0],
         destination: null,
-        isMoving: false
+        isMoving: false,
+        fuel: currentFuel // Include fuel in state update
       });
       
     } catch (error) {
@@ -539,10 +550,14 @@ export class SpaceshipInterpolator {
         z: destination[2]
       };
       
+      // Get current fuel for inclusion in update
+      const currentFuel = await this.getCurrentFuel();
+      
       // Update destination in Redis first
       await this.redis.hSet('sputnik:state', {
         destination: JSON.stringify(destination),
-        isMoving: 'true'
+        isMoving: 'true',
+        fuel: currentFuel.toString() // Include fuel in destination update
       });
       
       this.startInterpolation();
@@ -550,7 +565,8 @@ export class SpaceshipInterpolator {
       // Also publish this command to Redis for any other listeners
       await this.redis.publish('sputnik:commands', JSON.stringify({
         type: 'move_to',
-        destination
+        destination,
+        fuel: currentFuel
       }));
       
       return true;
