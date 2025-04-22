@@ -4,6 +4,7 @@ import { createClient } from 'redis';
 const MOVEMENT_SPEED = Number(process.env.NEXT_PUBLIC_SPACESHIP_SPEED) || 24.33; // units per second
 const ARRIVAL_THRESHOLD = 10; // units
 const UPDATE_INTERVAL = 50; // milliseconds (20 updates per second)
+const FUEL_CONSUMPTION_RATE = Number(process.env.FUEL_CONSUMPTION_RATE) || 0.01; // fuel units per distance unit
 
 // Vector3 type for 3D positions
 type Vector3 = {
@@ -126,6 +127,26 @@ export class SpaceshipInterpolator {
     }
   }
 
+  // Get current fuel level
+  private async getCurrentFuel(): Promise<number> {
+    try {
+      const fuelStr = await this.redis.hGet('sputnik:state', 'fuel');
+      return fuelStr ? parseFloat(fuelStr) : 100; // Default to 100 if not found
+    } catch (error) {
+      console.error('Error getting fuel level:', error);
+      return 100; // Default value on error
+    }
+  }
+
+  // Update fuel level
+  private async updateFuel(newFuel: number): Promise<void> {
+    try {
+      await this.redis.hSet('sputnik:state', 'fuel', newFuel.toString());
+    } catch (error) {
+      console.error('Error updating fuel level:', error);
+    }
+  }
+
   // Update the spaceship position based on destination
   private async updatePosition() {
     if (!this.destination) return;
@@ -143,6 +164,57 @@ export class SpaceshipInterpolator {
     // Calculate movement distance this update
     const deltaTime = UPDATE_INTERVAL / 1000; // convert ms to seconds
     const moveDistance = MOVEMENT_SPEED * deltaTime;
+    
+    // Get current fuel level
+    const currentFuel = await this.getCurrentFuel();
+    
+    // Calculate fuel consumption for this movement increment
+    const fuelConsumed = moveDistance * FUEL_CONSUMPTION_RATE;
+    
+    // Check if we have enough fuel to move
+    if (currentFuel <= 0) {
+      // Already out of fuel, stop movement
+      this.destination = null;
+      this.stopInterpolation();
+      console.log('🚀 INTERPOLATOR: Movement stopped - no fuel');
+      return;
+    }
+    
+    // Check if this movement will deplete fuel
+    if (currentFuel - fuelConsumed <= 0) {
+      // Set fuel to exactly zero
+      await this.updateFuel(0);
+      
+      // Calculate how far we can go with remaining fuel
+      const possibleDistance = currentFuel / FUEL_CONSUMPTION_RATE;
+      const partialMoveFactor = possibleDistance / moveDistance;
+      
+      // Move partial distance with remaining fuel
+      this.currentPosition = {
+        x: this.currentPosition.x + direction.x * possibleDistance,
+        y: this.currentPosition.y + direction.y * possibleDistance,
+        z: this.currentPosition.z + direction.z * possibleDistance,
+      };
+      
+      // Stop movement due to fuel depletion
+      this.destination = null;
+      this.stopInterpolation();
+      
+      // Notify of fuel depletion
+      await this.redis.publish('sputnik:events', JSON.stringify({
+        type: 'fuel_depleted',
+        position: [this.currentPosition.x, this.currentPosition.y, this.currentPosition.z],
+        timestamp: Date.now()
+      }));
+      
+      // Update position in Redis one last time
+      await this.updateRedisPosition();
+      console.log('🚀 INTERPOLATOR: Fuel depleted during movement');
+      return;
+    }
+    
+    // Deduct fuel used in this movement
+    await this.updateFuel(Math.max(0, currentFuel - fuelConsumed));
 
     // Check if we've reached the destination
     if (distance <= ARRIVAL_THRESHOLD) {

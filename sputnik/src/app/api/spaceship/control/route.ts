@@ -62,14 +62,22 @@ export async function POST(request: NextRequest) {
             );
           }
           
+          // Check if the spaceship has fuel
+          if (currentState.fuel <= 0) {
+            return NextResponse.json(
+              {
+                error: 'Cannot move the spaceship. No fuel remaining.',
+                fuelLevel: currentState.fuel
+              },
+              { status: 400 }
+            );
+          }
+          
           // Store the destination coordinates
           newState.destination = command.destination;
           
           // Set zero velocity - interpolator will calculate actual velocity
           newState.velocity = [0, 0, 0];
-          
-          // Decrease fuel slightly
-          newState.fuel = Math.max(0, currentState.fuel - 0.5);
           
           // Set the destination in Redis via interpolator
           try {
@@ -77,12 +85,6 @@ export async function POST(request: NextRequest) {
             
             if (result) {
               console.log('🚀 CONTROL API: Interpolator received new destination');
-              
-              // Update other state values in Redis
-              if (newState.fuel !== undefined) {
-                await interpolator.updateState({ fuel: newState.fuel });
-              }
-              
               success = true;
             } else {
               console.error('Failed to set destination in interpolator');
@@ -118,7 +120,7 @@ export async function POST(request: NextRequest) {
         position: currentState.position,
         velocity: currentState.velocity,
         rotation: currentState.rotation,
-        fuel: newState.fuel || currentState.fuel,
+        fuel: currentState.fuel,
         destination: command.destination,
         targetPlanet: currentState.target_planet_id
       }
