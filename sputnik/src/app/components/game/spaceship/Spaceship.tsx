@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { useGLTF } from '@react-three/drei';
 import { Socket } from 'socket.io-client';
 import { getSocket } from '@/lib/socket';
+import { PhysicsSystem } from './PhysicsSystem';
 
 // Vector3 type for socket communication
 type Vector3Position = {
@@ -32,6 +33,14 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
   const destination = useRef<THREE.Vector3 | null>(null);
   
+  // Add physics system for smooth interpolation
+  const physicsSystem = useRef(new PhysicsSystem(
+    { x: 0, y: 0, z: 0 },  // Initial position
+    { x: 0, y: 0, z: 0 },  // Initial velocity
+    2000,                  // Max speed
+    0.1                    // Interpolation factor
+  ));
+  
   // Direction the spaceship is facing
   const directionRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
   const socketRef = useRef<Socket | null>(null);
@@ -53,13 +62,11 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
     // Listen for position updates
     socket.on('spaceship:position', (position: Vector3Position) => {
       if (isMounted) {
-        // Update our position from the server
-        currentPosition.current.set(position.x, position.y, position.z);
+        // Update the physics system target position for smooth interpolation
+        physicsSystem.current.setPosition(position);
         
-        // Notify parent component
-        if (onPositionUpdate) {
-          onPositionUpdate(currentPosition.current);
-        }
+        // Keep original update for compatibility
+        currentPosition.current.set(position.x, position.y, position.z);
         
         // Log occasionally
         if (Math.random() < 0.002) {
@@ -70,15 +77,26 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
     
     // Listen for state updates to get destination
     socket.on('spaceship:state', (state: any) => {
-      if (isMounted && state.destination) {
+      if (isMounted) {
         // Update destination if provided
-        destination.current = new THREE.Vector3(
-          state.destination[0],
-          state.destination[1],
-          state.destination[2]
-        );
-      } else if (isMounted && !state.destination) {
-        destination.current = null;
+        if (state.destination) {
+          destination.current = new THREE.Vector3(
+            state.destination[0],
+            state.destination[1],
+            state.destination[2]
+          );
+        } else {
+          destination.current = null;
+        }
+        
+        // Update velocity in physics system if provided
+        if (state.velocity) {
+          physicsSystem.current.setVelocity({
+            x: state.velocity[0],
+            y: state.velocity[1],
+            z: state.velocity[2]
+          });
+        }
       }
     });
     
@@ -97,23 +115,52 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
   }, [onPositionUpdate]);
   
   // Update visuals each frame
-  useFrame(() => {
+  useFrame((state, delta) => {
     if (!groupRef.current) return;
     
-    // Update mesh position to current position
-    groupRef.current.position.copy(currentPosition.current);
+    // Update the physics simulation to interpolate position
+    physicsSystem.current.update(delta);
+    
+    // Get the interpolated position
+    const interpolatedPosition = physicsSystem.current.position;
+    
+    // Update mesh position to interpolated position
+    groupRef.current.position.set(
+      interpolatedPosition.x,
+      interpolatedPosition.y,
+      interpolatedPosition.z
+    );
+    
+    // Notify parent component with the interpolated position
+    // This will make camera follow the smooth visual position
+    if (onPositionUpdate) {
+      const interpolatedThreeVector = new THREE.Vector3(
+        interpolatedPosition.x,
+        interpolatedPosition.y, 
+        interpolatedPosition.z
+      );
+      onPositionUpdate(interpolatedThreeVector);
+    }
     
     // If we have a destination, update ship orientation
     if (destination.current) {
-      // Calculate direction to destination
+      // Calculate direction to destination using interpolated position
       const moveDirection = new THREE.Vector3()
-        .subVectors(destination.current, currentPosition.current)
+        .subVectors(destination.current, new THREE.Vector3(
+          interpolatedPosition.x,
+          interpolatedPosition.y,
+          interpolatedPosition.z
+        ))
         .normalize();
       
       // Smoothly face the direction of travel
       directionRef.current.lerp(moveDirection, 0.1);
       groupRef.current.lookAt(
-        currentPosition.current.clone().add(directionRef.current)
+        new THREE.Vector3(
+          interpolatedPosition.x,
+          interpolatedPosition.y,
+          interpolatedPosition.z
+        ).add(directionRef.current)
       );
     }
     
