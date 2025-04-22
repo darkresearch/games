@@ -405,18 +405,18 @@ export default function GameContainer() {
   const handleSpaceshipPositionUpdate = (newPosition: Vector3) => {
     setSpaceshipPosition(newPosition);
     // Log position updates
-    if (Math.random() < 0.05) {
-      console.log('🚀 SPUTNIK GameContainer: Updated position:', newPosition);
-    }
+    // if (Math.random() < 0.05) {
+    //   console.log('🚀 SPUTNIK GameContainer: Updated position:', newPosition);
+    // }
   };
 
   // Handle spaceship fuel updates
   const handleSpaceshipFuelUpdate = (newFuelLevel: number) => {
     setCurrentFuel(newFuelLevel);
     // Log fuel updates occasionally
-    if (Math.random() < 0.05) {
-      console.log('🚀 SPUTNIK GameContainer: Updated fuel level:', newFuelLevel);
-    }
+    // if (Math.random() < 0.05) {
+    //   console.log('🚀 SPUTNIK GameContainer: Updated fuel level:', newFuelLevel);
+    // }
   };
 
   // Toggle follow spaceship mode

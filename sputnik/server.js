@@ -25,9 +25,9 @@ const getIpAddress = (req) => {
 };
 
 // Helper function to get position from Redis
-async function getSpaceshipPosition(redisClient) {
+async function getSpaceshipPosition(redisClient, uuid) {
   try {
-    const positionStr = await redisClient.hGet('sputnik:state', 'position');
+    const positionStr = await redisClient.hGet(`sputnik:${uuid}:state`, 'position');
     if (positionStr) {
       const position = JSON.parse(positionStr);
       return {
@@ -38,7 +38,7 @@ async function getSpaceshipPosition(redisClient) {
     }
     return null;
   } catch (error) {
-    console.error('Error getting position from Redis:', error);
+    console.error(`Error getting position for Sputnik ${uuid} from Redis:`, error);
     return null;
   }
 }
@@ -154,35 +154,45 @@ app.prepare().then(() => {
           
           // Only broadcast if clients are connected
           if (clientCount > 0) {
-            // First broadcast position for more frequent updates
-            const position = await getSpaceshipPosition(pubClient);
-            if (position) {
-              io.emit('spaceship:position', position);
-            }
+            // Get all active spaceship UUIDs from Redis
+            const spaceshipKeys = await pubClient.keys('sputnik:*:state');
+            const uuids = spaceshipKeys.map(key => {
+              const match = key.match(/sputnik:(.+):state/);
+              return match ? match[1] : null;
+            }).filter(uuid => uuid);
             
-            // Also broadcast full state less frequently (every 5th update)
-            if (Math.random() < 0.2) { // ~20% chance each time, so every ~5 updates
-              // Get all spaceship state from Redis
-              const state = await pubClient.hGetAll('sputnik:state');
-              if (state && Object.keys(state).length > 0) {
-                // Process state to parse JSON strings
-                const parsedState = {
-                  position: position ? [position.x, position.y, position.z] : JSON.parse(state.position || '[]'),
-                  velocity: JSON.parse(state.velocity || '[0,0,0]'),
-                  destination: state.destination && state.destination !== '' ? 
-                    JSON.parse(state.destination) : null,
-                  timestamp: parseInt(state.timestamp || Date.now().toString()),
-                  fuel: state.fuel ? parseFloat(state.fuel) : 100  // Add fuel data to state updates
-                };
-                
-                // Broadcast full state
-                io.emit('spaceship:state', parsedState);
-                
-                // Log occasionally
-                if (Math.random() < 0.01) {
-                  console.log(`Broadcasting state to ${clientCount} clients`);
+            // Broadcast position for each spaceship
+            for (const uuid of uuids) {
+              const position = await getSpaceshipPosition(pubClient, uuid);
+              if (position) {
+                io.emit(`spaceship:${uuid}:position`, position);
+              }
+              
+              // Also broadcast full state less frequently (every 5th update)
+              if (Math.random() < 0.2) { // ~20% chance each time, so every ~5 updates
+                // Get spaceship state from Redis
+                const state = await pubClient.hGetAll(`sputnik:${uuid}:state`);
+                if (state && Object.keys(state).length > 0) {
+                  // Process state to parse JSON strings
+                  const parsedState = {
+                    position: position ? [position.x, position.y, position.z] : JSON.parse(state.position || '[]'),
+                    velocity: JSON.parse(state.velocity || '[0,0,0]'),
+                    destination: state.destination && state.destination !== '' ? 
+                      JSON.parse(state.destination) : null,
+                    timestamp: parseInt(state.timestamp || Date.now().toString()),
+                    fuel: state.fuel ? parseFloat(state.fuel) : 100,
+                    uuid: uuid  // Include the UUID in the state object
+                  };
+                  
+                  // Broadcast full state
+                  io.emit(`spaceship:${uuid}:state`, parsedState);
                 }
               }
+            }
+            
+            // Log occasionally
+            if (Math.random() < 0.01) {
+              console.log(`Broadcasting state for ${uuids.length} spaceships to ${clientCount} clients`);
             }
             
             lastBroadcastTime = now;
@@ -222,6 +232,9 @@ app.prepare().then(() => {
     const ip = socket.data.ip || getIpAddress(socket.request);
     connectedClients.set(socket.id, { lastSeen: currentTime, ip });
     
+    // Store the spaceship UUID for this socket
+    let spaceshipUuid = null;
+    
     console.log(`Client connected: ${socket.id} - IP: ${ip} - Total clients: ${io.engine.clientsCount}`);
     console.log(`Connection details: Transport=${socket.conn.transport.name}, Headers=${JSON.stringify(socket.handshake.headers['user-agent'])}`);
     
@@ -250,17 +263,54 @@ app.prepare().then(() => {
       next();
     });
     
-    // Try to send initial position immediately to new client
-    (async () => {
-      try {
-        const position = await getSpaceshipPosition(pubClient);
-        if (position) {
-          socket.emit('spaceship:position', position);
+    // Handle client registration with UUID
+    socket.on('register', async (data) => {
+      if (data && data.uuid) {
+        spaceshipUuid = data.uuid;
+        // Update client data with UUID
+        const clientData = connectedClients.get(socket.id);
+        if (clientData) {
+          connectedClients.set(socket.id, {
+            ...clientData,
+            uuid: spaceshipUuid
+          });
         }
-      } catch (error) {
-        console.error('Error sending initial position to client:', error);
+        
+        console.log(`Client ${socket.id} registered as spaceship ${spaceshipUuid}`);
+        
+        // Send initial position for this spaceship
+        try {
+          const position = await getSpaceshipPosition(pubClient, spaceshipUuid);
+          if (position) {
+            socket.emit(`spaceship:${spaceshipUuid}:position`, position);
+          }
+        } catch (error) {
+          console.error(`Error sending initial position to client for spaceship ${spaceshipUuid}:`, error);
+        }
+      } else {
+        console.warn(`Client ${socket.id} attempted to register without a UUID`);
+        socket.emit('error', { message: 'UUID is required for registration' });
       }
-    })();
+    });
+    
+    // Handle client requests for specific spaceship data
+    socket.on('getSpaceshipPosition', async (data) => {
+      if (data && data.uuid) {
+        try {
+          const position = await getSpaceshipPosition(pubClient, data.uuid);
+          if (position) {
+            socket.emit(`spaceship:${data.uuid}:position`, position);
+          } else {
+            socket.emit('error', { message: `No position data found for spaceship ${data.uuid}` });
+          }
+        } catch (error) {
+          console.error(`Error retrieving position for spaceship ${data.uuid}:`, error);
+          socket.emit('error', { message: 'Failed to retrieve spaceship position' });
+        }
+      } else {
+        socket.emit('error', { message: 'UUID is required to get spaceship position' });
+      }
+    });
     
     // Update last seen time on ping events
     socket.conn.on('packet', (packet) => {

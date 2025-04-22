@@ -36,6 +36,15 @@ export const getSocket = (): Socket => {
     // Add global listeners
     socket.on('connect', () => {
       console.log('🚀 SPUTNIK SOCKET: Connected to server with ID:', socket?.id);
+      
+      // Register with the UUID from environment variables
+      const uuid = process.env.NEXT_PUBLIC_SPUTNIK_UUID;
+      if (uuid) {
+        console.log(`🚀 SPUTNIK SOCKET: Registering with UUID: ${uuid}`);
+        socket?.emit('register', { uuid });
+      } else {
+        console.error('🚀 SPUTNIK SOCKET: No UUID found in environment variables');
+      }
     });
     
     socket.on('disconnect', (reason) => {
