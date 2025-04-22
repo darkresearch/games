@@ -68,11 +68,6 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
         // Keep original update for compatibility
         currentPosition.current.set(position.x, position.y, position.z);
         
-        // Notify parent component
-        if (onPositionUpdate) {
-          onPositionUpdate(currentPosition.current);
-        }
-        
         // Log occasionally
         if (Math.random() < 0.002) {
           console.log('🚀 SPUTNIK SOCKET: Position update received');
@@ -135,6 +130,17 @@ export default function Spaceship({ onPositionUpdate }: SpaceshipProps) {
       interpolatedPosition.y,
       interpolatedPosition.z
     );
+    
+    // Notify parent component with the interpolated position
+    // This will make camera follow the smooth visual position
+    if (onPositionUpdate) {
+      const interpolatedThreeVector = new THREE.Vector3(
+        interpolatedPosition.x,
+        interpolatedPosition.y, 
+        interpolatedPosition.z
+      );
+      onPositionUpdate(interpolatedThreeVector);
+    }
     
     // If we have a destination, update ship orientation
     if (destination.current) {
