@@ -60,8 +60,11 @@ export default function Spaceship({ onPositionUpdate, onFuelUpdate }: SpaceshipP
     const socket = getSocket();
     socketRef.current = socket;
     
+    // Get the UUID from environment variable
+    const uuid = process.env.NEXT_PUBLIC_SPUTNIK_UUID;
+    
     // Listen for position updates
-    socket.on('spaceship:position', (position: Vector3Position) => {
+    socket.on(`spaceship:${uuid}:position`, (position: Vector3Position) => {
       if (isMounted) {
         // Update the physics system target position for smooth interpolation
         physicsSystem.current.setPosition(position);
@@ -77,7 +80,7 @@ export default function Spaceship({ onPositionUpdate, onFuelUpdate }: SpaceshipP
     });
     
     // Listen for state updates to get destination
-    socket.on('spaceship:state', (state: any) => {
+    socket.on(`spaceship:${uuid}:state`, (state: any) => {
       if (isMounted) {
         // Update destination if provided
         if (state.destination) {
@@ -113,8 +116,8 @@ export default function Spaceship({ onPositionUpdate, onFuelUpdate }: SpaceshipP
       
       if (socketRef.current) {
         // Remove just our component's listeners without disconnecting the shared socket
-        socket.off('spaceship:position');
-        socket.off('spaceship:state');
+        socket.off(`spaceship:${uuid}:position`);
+        socket.off(`spaceship:${uuid}:state`);
         socketRef.current = null;
       }
     };

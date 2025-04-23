@@ -1,4 +1,5 @@
 import { createClient } from 'redis';
+import { RedisStreams, getSputnikUuid } from '@/lib/redis-streams';
 
 // Constants
 const MOVEMENT_SPEED = Number(process.env.NEXT_PUBLIC_SPACESHIP_SPEED) || 24.33; // units per second
@@ -20,11 +21,17 @@ export class SpaceshipInterpolator {
   private intervalId: NodeJS.Timeout | null = null;
   private currentPosition: Vector3 = { x: 0, y: 0, z: 0 };
   private destination: Vector3 | null = null;
-  private spaceshipId: string = 'sputnik-1'; // Default ID
+  private spaceshipId: string;
   private isNotifyingArrival = false; // Flag to prevent duplicate arrival notifications
-  private redisSubscriber: ReturnType<typeof createClient> | null = null;
+  private redisClient: ReturnType<typeof createClient> | null = null;
+  private redisStreams: RedisStreams | null = null;
+  private lastCommandId: string = '0-0';
+  private commandCheckInterval: NodeJS.Timeout | null = null;
 
-  constructor() {
+  constructor(uuid: string = getSputnikUuid()) {
+    // Use the provided UUID or get from environment
+    this.spaceshipId = uuid;
+    
     // Initialize Redis client
     this.redis = createClient({ url: process.env.REDIS_URL });
   }
@@ -33,6 +40,14 @@ export class SpaceshipInterpolator {
     // Connect to Redis if not already connected
     if (!this.redis.isOpen) {
       await this.redis.connect();
+    }
+
+    // Initialize Redis Streams
+    this.redisStreams = await RedisStreams.getInstance();
+    
+    // Register this Sputnik as active
+    if (this.redisStreams) {
+      await this.redisStreams.registerSputnik(this.spaceshipId);
     }
 
     // Load state from Redis
@@ -48,7 +63,7 @@ export class SpaceshipInterpolator {
       }
     } else {
       // Initialize Redis with default state if not exists
-      console.log('🚀 SERVER INTERPOLATOR: Initializing default state in Redis');
+      console.log(`🚀 SERVER INTERPOLATOR (${this.spaceshipId}): Initializing default state in Redis`);
       await this.updateState({
         position: [0, 0, 0],
         velocity: [0, 0, 0],
@@ -59,69 +74,88 @@ export class SpaceshipInterpolator {
     // Update Redis with current position
     await this.updateRedisPosition();
     
-    // Listen for destination changes through Redis
+    // Listen for destination changes through Redis Streams
     await this.setupRedisListener();
   }
 
-  // Set up Redis subscriber to listen for commands
+  // Get the Redis key for this Sputnik's state
+  private getStateKey(): string {
+    return `sputnik:${this.spaceshipId}:state`;
+  }
+
+  // Set up Redis Stream listener to process commands
   private async setupRedisListener() {
     try {
-      // Close previous subscriber if exists
-      if (this.redisSubscriber && this.redisSubscriber.isOpen) {
-        await this.redisSubscriber.unsubscribe('sputnik:commands');
-        await this.redisSubscriber.quit();
+      // Close previous client if exists
+      if (this.redisClient && this.redisClient.isOpen) {
+        await this.redisClient.quit();
       }
       
-      // Create a new subscriber
-      this.redisSubscriber = this.redis.duplicate();
-      await this.redisSubscriber.connect();
+      // Create a new client
+      this.redisClient = this.redis.duplicate();
+      await this.redisClient.connect();
       
-      // Listen for move commands on a dedicated channel
-      await this.redisSubscriber.subscribe('sputnik:commands', (message) => {
+      // Clear any existing interval
+      if (this.commandCheckInterval) {
+        clearInterval(this.commandCheckInterval);
+      }
+
+      // Set up interval to poll for new commands from stream
+      this.commandCheckInterval = setInterval(async () => {
+        if (!this.redisStreams) return;
+        
         try {
-          const command = JSON.parse(message);
+          // Read new commands for this specific Sputnik
+          const commands = await this.redisStreams.readCommandsForSputnik(this.spaceshipId, this.lastCommandId);
           
-          if (command.type === 'move_to' && Array.isArray(command.destination)) {
-            // Handle move_to command
-            this.destination = {
-              x: command.destination[0],
-              y: command.destination[1],
-              z: command.destination[2]
-            };
+          if (commands.length > 0) {
+            // Update last command ID
+            this.lastCommandId = commands[commands.length - 1].id;
             
-            // Don't start interpolation if already running
-            if (!this.isRunning) {
-              this.startInterpolation();
-              console.log('Received move_to command via Redis:', command.destination);
+            // Process each command
+            for (const { command } of commands) {
+              if (command.type === 'move_to' && Array.isArray(command.destination)) {
+                // Handle move_to command
+                this.destination = {
+                  x: command.destination[0],
+                  y: command.destination[1],
+                  z: command.destination[2]
+                };
+                
+                if (!this.isRunning) {
+                  this.startInterpolation();
+                  console.log(`Received move_to command via Redis Stream for Sputnik ${this.spaceshipId}:`, command.destination);
+                }
+              } else if (command.type === 'stop') {
+                // Handle stop command
+                this.destination = null;
+                this.stopInterpolation();
+                console.log(`Received stop command via Redis Stream for Sputnik ${this.spaceshipId}`);
+              }
             }
-          } else if (command.type === 'stop') {
-            // Handle stop command
-            this.destination = null;
-            this.stopInterpolation();
-            console.log('Received stop command via Redis');
           }
         } catch (error) {
-          console.error('Error processing Redis command:', error);
+          console.error(`Error processing Redis Stream commands for Sputnik ${this.spaceshipId}:`, error);
         }
-      });
+      }, 100); // Check every 100ms
       
-      console.log('Redis command listener initialized');
+      console.log(`Redis Stream command listener initialized for Sputnik ${this.spaceshipId}`);
     } catch (error) {
-      console.error('Failed to set up Redis listener:', error);
+      console.error(`Failed to set up Redis Stream listener for Sputnik ${this.spaceshipId}:`, error);
     }
   }
 
   // Start the position interpolation loop
   private startInterpolation() {
     if (this.isRunning) {
-      console.log('🚀 SERVER INTERPOLATOR: Already running, not starting again');
+      console.log(`🚀 SERVER INTERPOLATOR (${this.spaceshipId}): Already running, not starting again`);
       return;
     }
     
     this.isRunning = true;
     this.isNotifyingArrival = false;
     
-    console.log('🚀 SERVER INTERPOLATOR: Starting interpolation');
+    console.log(`🚀 SERVER INTERPOLATOR (${this.spaceshipId}): Starting interpolation`);
     
     // Clear any existing interval to be safe
     if (this.intervalId) {
@@ -138,13 +172,13 @@ export class SpaceshipInterpolator {
   // Stop the interpolation loop
   private async stopInterpolation() {
     if (!this.isRunning) {
-      console.log('🚀 SERVER INTERPOLATOR: Already stopped, not stopping again');
+      console.log(`🚀 SERVER INTERPOLATOR (${this.spaceshipId}): Already stopped, not stopping again`);
       return;
     }
     
     this.isRunning = false;
     
-    console.log('🚀 SERVER INTERPOLATOR: Stopping interpolation');
+    console.log(`🚀 SERVER INTERPOLATOR (${this.spaceshipId}): Stopping interpolation`);
     
     if (this.intervalId) {
       clearInterval(this.intervalId);
@@ -155,16 +189,16 @@ export class SpaceshipInterpolator {
     await this.updateRedisPosition();
     
     // Explicitly update isMoving state to ensure it's properly saved
-    await this.redis.hSet('sputnik:state', 'isMoving', 'false');
+    await this.redis.hSet(this.getStateKey(), 'isMoving', 'false');
   }
 
   // Get current fuel level
   private async getCurrentFuel(): Promise<number> {
     try {
-      const fuelStr = await this.redis.hGet('sputnik:state', 'fuel');
+      const fuelStr = await this.redis.hGet(this.getStateKey(), 'fuel');
       return fuelStr ? parseFloat(fuelStr) : 100; // Default to 100 if not found
     } catch (error) {
-      console.error('Error getting fuel level:', error);
+      console.error(`Error getting fuel level for Sputnik ${this.spaceshipId}:`, error);
       return 100; // Default value on error
     }
   }
@@ -172,11 +206,17 @@ export class SpaceshipInterpolator {
   // Update fuel level
   private async updateFuel(newFuel: number): Promise<void> {
     try {
-      await this.redis.hSet('sputnik:state', 'fuel', newFuel.toString());
-      // Publish a fuel update event
-      await this.redis.publish('sputnik:events', JSON.stringify({ type: 'fuel_update', fuel: newFuel }));
+      await this.redis.hSet(this.getStateKey(), 'fuel', newFuel.toString());
+      
+      // Publish a fuel update event to stream
+      if (this.redisStreams) {
+        await this.redisStreams.publishEvent(this.spaceshipId, { 
+          type: 'fuel_update', 
+          fuel: newFuel 
+        });
+      }
     } catch (error) {
-      console.error('Error updating fuel level:', error);
+      console.error(`Error updating fuel level for Sputnik ${this.spaceshipId}:`, error);
     }
   }
 
@@ -209,7 +249,7 @@ export class SpaceshipInterpolator {
       // Already out of fuel, stop movement
       this.destination = null;
       await this.stopInterpolation();
-      console.log('🚀 INTERPOLATOR: Movement stopped - no fuel');
+      console.log(`🚀 INTERPOLATOR (${this.spaceshipId}): Movement stopped - no fuel`);
       return;
     }
     
@@ -232,18 +272,20 @@ export class SpaceshipInterpolator {
       // Update position in Redis one last time
       await this.updateRedisPosition();
       
-      // Notify of fuel depletion
-      await this.redis.publish('sputnik:events', JSON.stringify({
-        type: 'fuel_depleted',
-        position: [this.currentPosition.x, this.currentPosition.y, this.currentPosition.z],
-        timestamp: Date.now()
-      }));
+      // Notify of fuel depletion via Redis Stream
+      if (this.redisStreams) {
+        await this.redisStreams.publishEvent(this.spaceshipId, {
+          type: 'fuel_depleted',
+          position: [this.currentPosition.x, this.currentPosition.y, this.currentPosition.z],
+          timestamp: Date.now()
+        });
+      }
       
       // Stop movement due to fuel depletion
       this.destination = null;
       await this.stopInterpolation();
       
-      console.log('🚀 INTERPOLATOR: Fuel depleted during movement');
+      console.log(`🚀 INTERPOLATOR (${this.spaceshipId}): Fuel depleted during movement`);
       return;
     }
     
@@ -270,7 +312,7 @@ export class SpaceshipInterpolator {
       this.destination = null;
       
       // Update Redis to reflect null destination
-      await this.redis.hSet('sputnik:state', 'destination', '');
+      await this.redis.hSet(this.getStateKey(), 'destination', '');
       
       // Then notify arrival with the correct position
       await this.notifyArrival(arrivalPosition);
@@ -288,7 +330,7 @@ export class SpaceshipInterpolator {
     }
   }
 
-  // Update the position in Redis
+  // Update the position in Redis and publish to stream
   private async updateRedisPosition() {
     const position = [
       this.currentPosition.x,
@@ -303,7 +345,8 @@ export class SpaceshipInterpolator {
     const currentFuel = await this.getCurrentFuel();
 
     try {
-      await this.redis.hSet('sputnik:state', {
+      // Update state in Redis hash (keep this for state persistence)
+      await this.redis.hSet(this.getStateKey(), {
         position: JSON.stringify(position),
         velocity: JSON.stringify(velocity),
         destination: this.destination ? JSON.stringify([
@@ -313,10 +356,25 @@ export class SpaceshipInterpolator {
         ]) : '',
         timestamp: timestamp.toString(),
         isMoving: this.isRunning ? 'true' : 'false',
-        fuel: currentFuel.toString() // Always include current fuel in position updates
+        fuel: currentFuel.toString()
       });
+
+      // Also publish to Redis Stream for real-time updates
+      if (this.redisStreams) {
+        await this.redisStreams.publishPosition(this.spaceshipId, {
+          position,
+          velocity,
+          destination: this.destination ? [
+            this.destination.x,
+            this.destination.y,
+            this.destination.z
+          ] : null,
+          isMoving: this.isRunning,
+          fuel: currentFuel
+        });
+      }
     } catch (error) {
-      console.error('Error updating Redis position:', error);
+      console.error(`Error updating Redis position for Sputnik ${this.spaceshipId}:`, error);
     }
   }
 
@@ -324,7 +382,7 @@ export class SpaceshipInterpolator {
   private async notifyArrival(position: Vector3) {
     // Prevent duplicate notifications
     if (this.isNotifyingArrival) {
-      console.log('🚀 SERVER INTERPOLATOR: Already notifying arrival, skipping duplicate');
+      console.log(`🚀 SERVER INTERPOLATOR (${this.spaceshipId}): Already notifying arrival, skipping duplicate`);
       return;
     }
     
@@ -338,18 +396,20 @@ export class SpaceshipInterpolator {
         position.z ?? 0
       ];
       
-      console.log('🚀 SERVER INTERPOLATOR: Notifying arrival at position:', positionArray);
+      console.log(`🚀 SERVER INTERPOLATOR (${this.spaceshipId}): Notifying arrival at position:`, positionArray);
       
       // Get current fuel for inclusion in notification
       const currentFuel = await this.getCurrentFuel();
 
-      // Also publish arrival event to Redis
-      await this.redis.publish('sputnik:events', JSON.stringify({
-        type: 'arrival',
-        position: positionArray,
-        fuel: currentFuel,
-        timestamp: Date.now()
-      }));
+      // Publish arrival event to Redis Stream
+      if (this.redisStreams) {
+        await this.redisStreams.publishEvent(this.spaceshipId, {
+          type: 'arrival',
+          position: positionArray,
+          fuel: currentFuel,
+          timestamp: Date.now()
+        });
+      }
       
       // Ensure the arrival state is in Redis
       await this.updateState({
@@ -357,11 +417,11 @@ export class SpaceshipInterpolator {
         velocity: [0, 0, 0],
         destination: null,
         isMoving: false,
-        fuel: currentFuel // Include fuel in state update
+        fuel: currentFuel
       });
       
     } catch (error) {
-      console.error('Error notifying arrival:', error);
+      console.error(`Error notifying arrival for Sputnik ${this.spaceshipId}:`, error);
     } finally {
       // Reset the notification flag after a delay to prevent immediate re-triggering
       setTimeout(() => {
@@ -420,13 +480,13 @@ export class SpaceshipInterpolator {
   // Get the current position from Redis
   async getCurrentPosition(): Promise<Vector3 | null> {
     try {
-      const positionStr = await this.redis.hGet('sputnik:state', 'position');
+      const positionStr = await this.redis.hGet(this.getStateKey(), 'position');
       if (!positionStr) return null;
       
       const position = JSON.parse(positionStr);
       return this.arrayToVector3(position);
     } catch (error) {
-      console.error('Error getting position from Redis:', error);
+      console.error(`Error getting position from Redis for Sputnik ${this.spaceshipId}:`, error);
       return null;
     }
   }
@@ -434,7 +494,7 @@ export class SpaceshipInterpolator {
   // Get the complete state from Redis
   async getState(): Promise<Record<string, any> | null> {
     try {
-      const stateData = await this.redis.hGetAll('sputnik:state');
+      const stateData = await this.redis.hGetAll(this.getStateKey());
       if (!Object.keys(stateData).length) return null;
       
       // Parse JSON strings back to objects/arrays
@@ -496,9 +556,12 @@ export class SpaceshipInterpolator {
       // Parse isMoving state
       state.isMoving = stateData.isMoving === 'true';
       
+      // Add Sputnik ID
+      state.uuid = this.spaceshipId;
+      
       return state;
     } catch (error) {
-      console.error('Error getting state from Redis:', error);
+      console.error(`Error getting state from Redis for Sputnik ${this.spaceshipId}:`, error);
       return null;
     }
   }
@@ -532,58 +595,80 @@ export class SpaceshipInterpolator {
       updateData.timestamp = Date.now().toString();
       
       // Update in Redis
-      await this.redis.hSet('sputnik:state', updateData);
+      await this.redis.hSet(this.getStateKey(), updateData);
       
       return true;
     } catch (error) {
-      console.error('Error updating state in Redis:', error);
+      console.error(`Error updating state in Redis for Sputnik ${this.spaceshipId}:`, error);
       return false;
     }
   }
   
-  // Set destination directly through API (allowing the control API to trigger movement)
+  // Set destination using Redis Stream instead of direct update
   async setDestination(destination: [number, number, number]): Promise<boolean> {
     try {
-      this.destination = {
-        x: destination[0],
-        y: destination[1],
-        z: destination[2]
-      };
+      if (!this.redisStreams) {
+        this.redisStreams = await RedisStreams.getInstance();
+      }
       
-      // Get current fuel for inclusion in update
-      const currentFuel = await this.getCurrentFuel();
-      
-      // Update destination in Redis first
-      await this.redis.hSet('sputnik:state', {
-        destination: JSON.stringify(destination),
-        isMoving: 'true',
-        fuel: currentFuel.toString() // Include fuel in destination update
-      });
-      
-      this.startInterpolation();
-      
-      // Also publish this command to Redis for any other listeners
-      await this.redis.publish('sputnik:commands', JSON.stringify({
+      // Publish move_to command to stream
+      await this.redisStreams.publishCommand(this.spaceshipId, {
         type: 'move_to',
         destination,
-        fuel: currentFuel
-      }));
+        timestamp: Date.now()
+      });
       
       return true;
     } catch (error) {
-      console.error('Error setting destination:', error);
+      console.error(`Error setting destination via Redis Stream for Sputnik ${this.spaceshipId}:`, error);
       return false;
     }
   }
+
+  // Get the Sputnik UUID
+  getUuid(): string {
+    return this.spaceshipId;
+  }
 }
 
-// Create singleton instance
-let interpolatorInstance: SpaceshipInterpolator | null = null;
+// Keep a map of interpolator instances by UUID
+const interpolatorInstances: Map<string, SpaceshipInterpolator> = new Map();
 
-export async function getInterpolator(): Promise<SpaceshipInterpolator> {
-  if (!interpolatorInstance) {
-    interpolatorInstance = new SpaceshipInterpolator();
-    await interpolatorInstance.initialize();
+export async function getInterpolator(uuid?: string): Promise<SpaceshipInterpolator> {
+  const sputnikUuid = uuid || getSputnikUuid();
+  
+  if (!interpolatorInstances.has(sputnikUuid)) {
+    const interpolator = new SpaceshipInterpolator(sputnikUuid);
+    await interpolator.initialize();
+    interpolatorInstances.set(sputnikUuid, interpolator);
+    console.log(`Created new interpolator instance for Sputnik ${sputnikUuid}`);
   }
-  return interpolatorInstance;
+  
+  return interpolatorInstances.get(sputnikUuid)!;
+}
+
+// Helper function to get all active interpolators
+export async function getAllInterpolators(): Promise<SpaceshipInterpolator[]> {
+  return Array.from(interpolatorInstances.values());
+}
+
+// Clean up function to remove inactive interpolators
+export async function cleanupInterpolator(uuid: string): Promise<boolean> {
+  if (interpolatorInstances.has(uuid)) {
+    const interpolator = interpolatorInstances.get(uuid)!;
+    
+    // Clean up any resources
+    if (interpolator['commandCheckInterval']) {
+      clearInterval(interpolator['commandCheckInterval']);
+    }
+    
+    if (interpolator['intervalId']) {
+      clearInterval(interpolator['intervalId']);
+    }
+    
+    // Remove from map
+    interpolatorInstances.delete(uuid);
+    return true;
+  }
+  return false;
 } 

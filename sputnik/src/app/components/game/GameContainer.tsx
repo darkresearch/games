@@ -7,7 +7,7 @@ import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import StarField from './assets/StarField';
 import PlanetarySystem from './planets/PlanetarySystem';
 import { PlanetInfo } from './planets/SimplePlanet';
-import Spaceship from './spaceship/Spaceship';
+import Sputniks from './spaceship/Sputniks';
 import { Vector3 } from './spaceship/PhysicsSystem';
 import NavPanel from './panels/nav';
 import HelpPanel from './panels/help';
@@ -42,7 +42,8 @@ function CameraTransition({
   setFollowSpaceship,
   setIsFullyInitialized,
   controlsRef,
-  easeInOutCubic
+  easeInOutCubic,
+  userSputnikUuid
 }: {
   isTransitioning: boolean;
   spaceshipPosition: Vector3;
@@ -54,6 +55,7 @@ function CameraTransition({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   controlsRef: React.RefObject<any>;
   easeInOutCubic: (t: number) => number;
+  userSputnikUuid: string;
 }) {
   // Get reference to camera and scene
   const { camera, scene } = useThree();
@@ -86,7 +88,7 @@ function CameraTransition({
     const startPos = startPosRef.current || camera.position;
     
     // Find the spaceship in the scene to get its thruster direction
-    const spaceship = scene.getObjectByName('Spaceship');
+    const spaceship = scene.getObjectByName(`Spaceship-${userSputnikUuid}`);
     let thrusterDirection = defaultDirection;
     
     if (spaceship) {
@@ -172,11 +174,13 @@ function CameraFollowSpaceship({
   isActive,
   spaceshipPosition,
   controlsRef,
+  userSputnikUuid
 }: {
   isActive: boolean;
   spaceshipPosition: Vector3;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   controlsRef: React.RefObject<any>;
+  userSputnikUuid: string;
 }) {
   const { camera, scene } = useThree();
   
@@ -190,7 +194,7 @@ function CameraFollowSpaceship({
     controlsRef.current.enabled = false;
     
     // Find the spaceship in the scene to get its thruster direction
-    const spaceship = scene.getObjectByName('Spaceship');
+    const spaceship = scene.getObjectByName(`Spaceship-${userSputnikUuid}`);
     let thrusterDirection = defaultDirection;
     
     if (spaceship) {
@@ -269,6 +273,8 @@ export default function GameContainer() {
   const [isLoading, setIsLoading] = useState(true); // Track if initial state is loaded
   const [isFullyInitialized, setIsFullyInitialized] = useState(false); // Track if camera is positioned
   const [currentFuel, setCurrentFuel] = useState(100); // Track fuel level
+  // User's sputnik UUID from environment variable
+  const userSputnikUuid = process.env.NEXT_PUBLIC_SPUTNIK_UUID || "";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
   
@@ -405,18 +411,18 @@ export default function GameContainer() {
   const handleSpaceshipPositionUpdate = (newPosition: Vector3) => {
     setSpaceshipPosition(newPosition);
     // Log position updates
-    if (Math.random() < 0.05) {
-      console.log('🚀 SPUTNIK GameContainer: Updated position:', newPosition);
-    }
+    // if (Math.random() < 0.05) {
+    //   console.log('🚀 SPUTNIK GameContainer: Updated position:', newPosition);
+    // }
   };
 
   // Handle spaceship fuel updates
   const handleSpaceshipFuelUpdate = (newFuelLevel: number) => {
     setCurrentFuel(newFuelLevel);
     // Log fuel updates occasionally
-    if (Math.random() < 0.05) {
-      console.log('🚀 SPUTNIK GameContainer: Updated fuel level:', newFuelLevel);
-    }
+    // if (Math.random() < 0.05) {
+    //   console.log('🚀 SPUTNIK GameContainer: Updated fuel level:', newFuelLevel);
+    // }
   };
 
   // Toggle follow spaceship mode
@@ -560,6 +566,7 @@ export default function GameContainer() {
             setIsFullyInitialized={setIsFullyInitialized}
             controlsRef={controlsRef}
             easeInOutCubic={easeInOutCubic}
+            userSputnikUuid={userSputnikUuid}
           />
           
           <FlyControls
@@ -580,10 +587,10 @@ export default function GameContainer() {
             onPlanetClick={handlePlanetClick}
           />
           
-          {/* AI-controlled spaceship */}
-          <Spaceship 
-            onPositionUpdate={handleSpaceshipPositionUpdate}
-            onFuelUpdate={handleSpaceshipFuelUpdate}
+          {/* AI-controlled spaceships */}
+          <Sputniks 
+            onUserSputnikPositionUpdate={handleSpaceshipPositionUpdate}
+            onUserSputnikFuelUpdate={handleSpaceshipFuelUpdate}
           />
           
           {/* Add post-processing effects */}
@@ -600,6 +607,7 @@ export default function GameContainer() {
             isActive={followSpaceship}
             spaceshipPosition={spaceshipPosition}
             controlsRef={controlsRef}
+            userSputnikUuid={userSputnikUuid}
           />
         </Suspense>
       </Canvas>
