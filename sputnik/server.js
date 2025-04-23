@@ -161,6 +161,19 @@ app.prepare().then(() => {
               return match ? match[1] : null;
             }).filter(uuid => uuid);
             
+            // Broadcast active sputniks list
+            try {
+              const activeSputniks = await pubClient.sMembers('sputniks:active');
+              io.emit('spaceships:active', activeSputniks);
+              
+              // Log occasionally
+              if (Math.random() < 0.01) {
+                console.log(`Broadcasting active sputniks: ${activeSputniks.length}`);
+              }
+            } catch (error) {
+              console.error('Error broadcasting active sputniks:', error);
+            }
+            
             // Broadcast position for each spaceship
             for (const uuid of uuids) {
               const position = await getSpaceshipPosition(pubClient, uuid);
