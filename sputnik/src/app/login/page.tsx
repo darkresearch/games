@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../components/auth';
 import Image from 'next/image';
 
-export default function LoginPage() {
+// Create a separate component that uses useSearchParams
+function LoginContent() {
   const { isAuthenticated, isLoading, session, user, signInWithTwitter } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -159,5 +160,38 @@ export default function LoginPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+// Main component with Suspense boundary
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col items-center justify-center" style={{ 
+        background: '#131313', 
+        color: 'white', 
+        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif' 
+      }}>
+        <div className="flex flex-col items-center">
+          <Image 
+            src="/logo.png" 
+            alt="DARK Logo" 
+            width={60} 
+            height={30} 
+            priority
+          />
+          <h2 style={{ 
+            color: '#63B3ED', 
+            fontSize: '24px', 
+            fontWeight: '600',
+            margin: '12px 0 28px 0'
+          }}>
+            Loading...
+          </h2>
+        </div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 } 
