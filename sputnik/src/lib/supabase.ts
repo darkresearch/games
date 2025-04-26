@@ -16,7 +16,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Create a Supabase client for client-side (public) operations
 export const supabaseClient = createClient<Database>(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-anon-key'
+  supabaseAnonKey || 'placeholder-anon-key',
+  {
+    auth: {
+      flowType: 'implicit',
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
+    }
+  }
 );
 
 // Create an admin client for server-side operations (API routes only)
@@ -34,75 +42,4 @@ if (!supabaseServiceRoleKey && process.env.NODE_ENV !== 'production') {
   console.error(
     'Error: SUPABASE_SERVICE_ROLE_KEY is not defined in production mode. Backend operations will not function correctly.'
   );
-}
-
-// Type definition for spaceship state data
-export type SpaceshipStateData = {
-  id: string;
-  position: [number, number, number];
-  velocity: [number, number, number];
-  rotation: [number, number, number, number];
-  fuel: number;
-  target_planet_id: string | null;
-  destination: [number, number, number] | null;
-  timestamp?: number; // Add timestamp for ordering updates
-  updated_at: string;
-};
-
-// Utility functions for working with spaceship state
-export const spaceshipState = {
-  // Get the current spaceship state
-  async getState(): Promise<SpaceshipStateData | null> {
-    const { data, error } = await supabaseClient
-      .from('spaceship_state')
-      .select('*')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error) {
-      console.error('Error fetching spaceship state:', error);
-      return null;
-    }
-
-    return data as SpaceshipStateData;
-  },
-
-  // Subscribe to changes in the spaceship state (client-side only)
-  subscribeToState(callback: (state: SpaceshipStateData) => void) {
-    console.log('🚀 SPUTNIK: Attempting to establish Supabase real-time connection');
-    return supabaseClient
-      .channel('spaceship_state_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'spaceship_state'
-        },
-        (payload) => {
-          console.log('🚀 SPUTNIK: Received real-time update:', payload);
-          if (payload.new) {
-            callback(payload.new as SpaceshipStateData);
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('🚀 SPUTNIK: Subscription status:', status);
-      });
-  },
-
-  // Update the spaceship state (server-side only)
-  async updateState(newState: Partial<SpaceshipStateData>) {
-    // This should only be called from API routes (server-side)
-    if (typeof window !== 'undefined') {
-      console.error('updateState can only be called from server-side code');
-      return { data: null, error: new Error('Cannot update state from client') };
-    }
-
-    // Use the admin client for state updates
-    return await supabaseAdmin.from('spaceship_state').upsert(newState, {
-      onConflict: 'id'
-    });
-  }
-}; 
+} 

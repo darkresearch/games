@@ -1,7 +1,7 @@
 'use client';
 
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef, useContext } from 'react';
 import { FlyControls } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import StarField from './assets/StarField';
@@ -13,9 +13,12 @@ import NavPanel from './panels/nav';
 import HelpPanel from './panels/help';
 import PlanetPanel from './panels/planet';
 import SpaceshipPanel from './panels/spaceship';
+import ChatPanel from './panels/chat';
 import Image from 'next/image';
 import * as THREE from 'three';
 import { getSocket } from '@/lib/socket';
+import { useAuth } from '@/app/components/auth';
+import React from 'react';
 
 // Component to track camera position and update coordinates
 function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
@@ -247,16 +250,77 @@ type Position = {
 };
 
 // Logo component
-function LogoPanel() {
+function LogoPanel({ followSpaceship, handleFollowSpaceship }: { 
+  followSpaceship: boolean; 
+  handleFollowSpaceship: () => void;
+}) {
+  const { user, signOut } = useAuth();
+  const [showButtons, setShowButtons] = useState(false);
+  
   return (
-    <div className="absolute top-[27px] left-[28px] z-10">
-      <Image 
-        src="/logo.png" 
-        alt="DARK Logo" 
-        width={40} 
-        height={20} 
-        priority
-      />
+    <div className="absolute top-[27px] left-[28px] z-10 flex flex-col gap-2">
+      {/* Profile picture that toggles buttons visibility */}
+      <div 
+        className="cursor-pointer hover:opacity-80 transition-opacity self-start"
+        onClick={() => setShowButtons(!showButtons)}
+      >
+        {user?.user_metadata?.avatar_url ? (
+          <Image 
+            src={user.user_metadata.avatar_url} 
+            alt={user.user_metadata.name || 'User'} 
+            width={40} 
+            height={40} 
+            className="rounded-full"
+            priority
+          />
+        ) : (
+          <Image 
+            src="/logo.png" 
+            alt="DARK Logo" 
+            width={40} 
+            height={20} 
+            priority
+          />
+        )}
+      </div>
+      
+      {/* Buttons that slide down */}
+      <div 
+        className={`flex flex-col gap-2 overflow-hidden transition-all duration-300 ease-in-out ${
+          showButtons ? 'max-h-[120px] opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        {/* Follow SPUTNIK Button */}
+        <button 
+          onClick={() => {
+            handleFollowSpaceship();
+            setShowButtons(false);
+          }}
+          className={`px-2 py-1 text-white text-xs whitespace-nowrap rounded-md transition-colors text-center border shadow-md ${
+            followSpaceship 
+              ? 'bg-[#1E3A8A] border-blue-500 hover:bg-blue-800' 
+              : 'bg-[#131313] border-gray-700 hover:bg-gray-800'
+          }`}
+          style={{
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 0 10px rgba(0,0,0,0.3)'
+          }}
+        >
+          {followSpaceship ? '👁️ Following' : 'Follow SPUTNIK'}
+        </button>
+        
+        {/* Sign Out Button */}
+        <button 
+          onClick={signOut}
+          className="px-2 py-1 bg-[#131313] text-white text-xs whitespace-nowrap rounded-md hover:bg-red-600 transition-colors text-center border border-gray-700 shadow-md"
+          style={{
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 0 10px rgba(0,0,0,0.3)'
+          }}
+        >
+          Sign Out
+        </button>
+      </div>
     </div>
   );
 }
@@ -273,8 +337,9 @@ export default function GameContainer() {
   const [isLoading, setIsLoading] = useState(true); // Track if initial state is loaded
   const [isFullyInitialized, setIsFullyInitialized] = useState(false); // Track if camera is positioned
   const [currentFuel, setCurrentFuel] = useState(100); // Track fuel level
-  // User's sputnik UUID from environment variable
-  const userSputnikUuid = process.env.NEXT_PUBLIC_SPUTNIK_UUID || "";
+  const { userSputnikUuid } = useAuth();
+  // No fallback - the UUID must come from authentication
+  const sputnikUuid = userSputnikUuid || "";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
   
@@ -289,6 +354,8 @@ export default function GameContainer() {
   // Handle speed control with keyboard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Commenting out movement controls temporarily
+      /*
       // Disable followSpaceship and transitions when any movement key is pressed
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         setFollowSpaceship(false);
@@ -302,6 +369,7 @@ export default function GameContainer() {
           startTime: Date.now()
         };
       }
+      */
       
       // Increase speed with T key
       if (e.code === 'KeyT') {
@@ -320,6 +388,8 @@ export default function GameContainer() {
     };
     
     const handleKeyUp = (e: KeyboardEvent) => {
+      // Commenting out movement controls temporarily
+      /*
       // Reset arrow key state
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         keyStates.current[e.code as keyof typeof keyStates.current] = {
@@ -327,6 +397,7 @@ export default function GameContainer() {
           startTime: 0
         };
       }
+      */
     };
     
     window.addEventListener('keydown', handleKeyDown);
@@ -359,6 +430,8 @@ export default function GameContainer() {
         // Override the default update method to add custom acceleration
         const originalUpdate = controls.update;
         controls.update = (delta: number) => {
+          // Commenting out movement controls temporarily
+          /*
           // Calculate acceleration based on how long keys have been pressed
           const currentTime = Date.now();
           const BASE_ROTATION = 0.2;
@@ -399,6 +472,7 @@ export default function GameContainer() {
             // Update rotation quaternion with current state
             controls.updateRotationVector();
           }
+          */
           
           // Call the original update method
           originalUpdate.call(controls, delta);
@@ -452,7 +526,7 @@ export default function GameContainer() {
     const timer = setTimeout(() => {
       // Set initial camera position behind Sputnik
       if (controlsRef.current) {
-        controlsRef.current.enabled = false;
+        controlsRef.current.enabled = false; // Disable controls 
       }
       // Force transition to complete
       setIsTransitioning(true);
@@ -566,13 +640,13 @@ export default function GameContainer() {
             setIsFullyInitialized={setIsFullyInitialized}
             controlsRef={controlsRef}
             easeInOutCubic={easeInOutCubic}
-            userSputnikUuid={userSputnikUuid}
+            userSputnikUuid={sputnikUuid}
           />
           
           <FlyControls
             ref={controlsRef}
-            movementSpeed={flightSpeed}
-            rollSpeed={rotationSpeed} // Base rotation speed
+            movementSpeed={0} // Set to 0 to disable movement
+            rollSpeed={0} // Set to 0 to disable rotation
             dragToLook={true}
             autoForward={false}
           />
@@ -591,6 +665,7 @@ export default function GameContainer() {
           <Sputniks 
             onUserSputnikPositionUpdate={handleSpaceshipPositionUpdate}
             onUserSputnikFuelUpdate={handleSpaceshipFuelUpdate}
+            userSputnikUuid={sputnikUuid}
           />
           
           {/* Add post-processing effects */}
@@ -607,22 +682,17 @@ export default function GameContainer() {
             isActive={followSpaceship}
             spaceshipPosition={spaceshipPosition}
             controlsRef={controlsRef}
-            userSputnikUuid={userSputnikUuid}
+            userSputnikUuid={sputnikUuid}
           />
         </Suspense>
       </Canvas>
       
       {/* UI Panels - only show when fully initialized */}
-      {isFullyInitialized && <NavPanel position={position} />}
-      <HelpPanel />
+      {isFullyInitialized && <NavPanel position={position} spaceshipPosition={spaceshipPosition} currentFuel={currentFuel} />}
+      {/* <HelpPanel /> */}
       <PlanetPanel selectedPlanet={selectedPlanet} onClose={handleClosePlanetPanel} />
-      <SpaceshipPanel 
-        onFollowSpaceship={handleFollowSpaceship} 
-        isFollowing={followSpaceship}
-        currentPosition={spaceshipPosition}
-        currentFuel={currentFuel}
-      />
-      <LogoPanel />
+      <LogoPanel followSpaceship={followSpaceship} handleFollowSpaceship={handleFollowSpaceship} />
+      <ChatPanel />
     </>
   );
 } 

@@ -33,17 +33,22 @@ type SputnikData = {
 type SputniksProps = {
   onUserSputnikPositionUpdate?: (position: THREE.Vector3) => void;
   onUserSputnikFuelUpdate?: (fuel: number) => void;
+  userSputnikUuid?: string;
 };
 
-export default function Sputniks({ onUserSputnikPositionUpdate, onUserSputnikFuelUpdate }: SputniksProps) {
+export default function Sputniks({ 
+  onUserSputnikPositionUpdate, 
+  onUserSputnikFuelUpdate,
+  userSputnikUuid: propUserSputnikUuid
+}: SputniksProps) {
   const [activeSputniks, setActiveSputniks] = useState<string[]>([]);
   const [sputnikStates, setSputnikStates] = useState<Record<string, SputnikData>>({});
   const socketRef = useRef<Socket | null>(null);
   const physicsSystemsRef = useRef<Record<string, PhysicsSystem>>({});
   const directionsRef = useRef<Record<string, THREE.Vector3>>({});
   
-  // User's sputnik UUID from environment variable
-  const userSputnikUuid = process.env.NEXT_PUBLIC_SPUTNIK_UUID || '';
+  // Use the UUID from props with no fallback
+  const userSputnikUuid = propUserSputnikUuid || '';
   
   // Load the GLB model
   const { scene } = useGLTF('/models/spaceship.glb');
@@ -53,8 +58,8 @@ export default function Sputniks({ onUserSputnikPositionUpdate, onUserSputnikFue
     let isMounted = true;
     console.log('🚀 SPUTNIKS: Setting up event listeners');
     
-    // Use the shared socket instance
-    const socket = getSocket();
+    // Use the shared socket instance with the user's UUID
+    const socket = getSocket(userSputnikUuid);
     socketRef.current = socket;
     
     // Listen for active sputniks broadcasts
@@ -103,14 +108,14 @@ export default function Sputniks({ onUserSputnikPositionUpdate, onUserSputnikFue
         socketRef.current = null;
       }
     };
-  }, []);
+  }, [userSputnikUuid]);
   
   // Set up listeners for sputnik state and position updates
   useEffect(() => {
     if (activeSputniks.length === 0) return;
     
     let isMounted = true;
-    const socket = getSocket();
+    const socket = getSocket(userSputnikUuid);
     
     activeSputniks.forEach(uuid => {
       // Listen for position updates
