@@ -48,7 +48,7 @@ export default function ChatPanel() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: 'Hello commander. I am DARK AI, your spacecraft assistant. How can I help you navigate today?',
+      content: "gm - let's fly. where should we go?",
       sender: 'ai',
       timestamp: new Date()
     }
@@ -66,7 +66,7 @@ export default function ChatPanel() {
     },
     {
       role: 'assistant',
-      content: 'Hello commander. I am DARK AI, your spacecraft assistant. How can I help you navigate today?'
+      content: "gm - let's fly. where should we go?"
     }
   ]);
   
@@ -217,7 +217,13 @@ export default function ChatPanel() {
             }} />
             <span style={{ color: '#fafafa', fontSize: '14px', fontWeight: '600' }}>Chat</span>
           </div>
-          <span style={{ color: '#fafafa', fontSize: '14px' }}>▲</span>
+          <span style={{ 
+            color: '#fafafa', 
+            fontSize: '14px', 
+            fontWeight: '300',
+            width: '14px',
+            textAlign: 'center' 
+          }}>▲</span>
         </div>
       </div>
     );
@@ -266,7 +272,13 @@ export default function ChatPanel() {
           }} />
           <span style={{ color: '#fafafa', fontSize: '14px', fontWeight: '600' }}>Chat</span>
         </div>
-        <span style={{ color: '#fafafa', fontSize: '14px' }}>▼</span>
+        <span style={{ 
+          color: '#fafafa', 
+          fontSize: '14px', 
+          fontWeight: '300',
+          width: '14px',
+          textAlign: 'center' 
+        }}>−</span>
       </div>
       
       {/* Messages Area */}
