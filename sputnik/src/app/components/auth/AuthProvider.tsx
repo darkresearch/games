@@ -135,7 +135,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         provider: 'twitter',
         options: {
           redirectTo: typeof window !== 'undefined' 
-            ? `${window.location.origin}/auth/callback` // Explicitly use our callback route
+            ? `https://sputnik.darkresearch.ai/auth/callback` // Explicitly use our callback route
             : undefined,
           skipBrowserRedirect: false,
           scopes: 'email',
