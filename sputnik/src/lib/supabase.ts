@@ -16,7 +16,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Create a Supabase client for client-side (public) operations
 export const supabaseClient = createClient<Database>(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-anon-key'
+  supabaseAnonKey || 'placeholder-anon-key',
+  {
+    auth: {
+      flowType: 'implicit',
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
+    }
+  }
 );
 
 // Create an admin client for server-side operations (API routes only)

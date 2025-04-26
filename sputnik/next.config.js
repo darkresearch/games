@@ -8,6 +8,10 @@ const nextConfig = {
   },
   // Needed when using a custom server
   poweredByHeader: false,
+  // Allow Twitter image domains
+  images: {
+    domains: ['pbs.twimg.com', 'abs.twimg.com'],
+  },
 };
 
 module.exports = nextConfig; 

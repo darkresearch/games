@@ -291,14 +291,45 @@ app.prepare().then(() => {
         
         console.log(`Client ${socket.id} registered as spaceship ${spaceshipUuid}`);
         
-        // Send initial position for this spaceship
         try {
+          // Check if this Sputnik already exists in Redis
+          const exists = await pubClient.exists(`sputnik:${spaceshipUuid}:state`);
+          
+          // Initialize the sputnik state in Redis if it doesn't exist
+          if (!exists) {
+            console.log(`Initializing new sputnik ${spaceshipUuid} in Redis`);
+            
+            // Add to active sputniks set
+            await pubClient.sAdd('sputniks:active', spaceshipUuid);
+            
+            // Generate random starting position (not at origin)
+            const randomPosition = [
+              Math.random() * 100 - 50,
+              Math.random() * 100 - 50,
+              Math.random() * 100 - 50
+            ];
+            
+            // Create initial state
+            const initialState = {
+              position: JSON.stringify(randomPosition),
+              velocity: JSON.stringify([0, 0, 0]),
+              destination: '',
+              timestamp: Date.now().toString(),
+              fuel: '100'
+            };
+            
+            // Save initial state to Redis
+            await pubClient.hSet(`sputnik:${spaceshipUuid}:state`, initialState);
+            console.log(`New sputnik ${spaceshipUuid} initialized with position:`, randomPosition);
+          }
+          
+          // Send initial position for this spaceship
           const position = await getSpaceshipPosition(pubClient, spaceshipUuid);
           if (position) {
             socket.emit(`spaceship:${spaceshipUuid}:position`, position);
           }
         } catch (error) {
-          console.error(`Error sending initial position to client for spaceship ${spaceshipUuid}:`, error);
+          console.error(`Error initializing or retrieving sputnik ${spaceshipUuid}:`, error);
         }
       } else {
         console.warn(`Client ${socket.id} attempted to register without a UUID`);

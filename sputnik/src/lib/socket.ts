@@ -2,8 +2,10 @@ import { io, Socket } from 'socket.io-client';
 
 // Create a singleton Socket.io instance that can be shared across components
 let socket: Socket | null = null;
+let registeredUuid: string | null = null;
 
-export const getSocket = (): Socket => {
+// Allow passing a custom UUID for registration
+export const getSocket = (customUuid?: string): Socket => {
   if (!socket) {
     // Determine if we're in production
     const isProduction = process.env.NODE_ENV === 'production';
@@ -37,13 +39,13 @@ export const getSocket = (): Socket => {
     socket.on('connect', () => {
       console.log('🚀 SPUTNIK SOCKET: Connected to server with ID:', socket?.id);
       
-      // Register with the UUID from environment variables
-      const uuid = process.env.NEXT_PUBLIC_SPUTNIK_UUID;
-      if (uuid) {
-        console.log(`🚀 SPUTNIK SOCKET: Registering with UUID: ${uuid}`);
-        socket?.emit('register', { uuid });
+      // Use only the provided UUID
+      if (customUuid) {
+        console.log(`🚀 SPUTNIK SOCKET: Registering with UUID: ${customUuid}`);
+        socket?.emit('register', { uuid: customUuid });
+        registeredUuid = customUuid;
       } else {
-        console.error('🚀 SPUTNIK SOCKET: No UUID found in environment variables');
+        console.log('🚀 SPUTNIK SOCKET: No UUID provided, waiting for authentication');
       }
     });
     
@@ -61,6 +63,11 @@ export const getSocket = (): Socket => {
         url
       });
     });
+  } else if (customUuid && customUuid !== registeredUuid && socket.connected) {
+    // If socket exists but we need to register with a different UUID
+    console.log(`🚀 SPUTNIK SOCKET: Updating registration to UUID: ${customUuid}`);
+    socket.emit('register', { uuid: customUuid });
+    registeredUuid = customUuid;
   }
   
   return socket;
@@ -71,5 +78,6 @@ export const cleanupSocket = (): void => {
   if (socket) {
     socket.disconnect();
     socket = null;
+    registeredUuid = null;
   }
 }; 

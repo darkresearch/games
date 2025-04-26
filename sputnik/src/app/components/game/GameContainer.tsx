@@ -16,6 +16,7 @@ import SpaceshipPanel from './panels/spaceship';
 import Image from 'next/image';
 import * as THREE from 'three';
 import { getSocket } from '@/lib/socket';
+import { useAuth } from '@/app/components/auth';
 
 // Component to track camera position and update coordinates
 function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
@@ -273,8 +274,9 @@ export default function GameContainer() {
   const [isLoading, setIsLoading] = useState(true); // Track if initial state is loaded
   const [isFullyInitialized, setIsFullyInitialized] = useState(false); // Track if camera is positioned
   const [currentFuel, setCurrentFuel] = useState(100); // Track fuel level
-  // User's sputnik UUID from environment variable
-  const userSputnikUuid = process.env.NEXT_PUBLIC_SPUTNIK_UUID || "";
+  const { userSputnikUuid } = useAuth();
+  // No fallback - the UUID must come from authentication
+  const sputnikUuid = userSputnikUuid || "";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
   
@@ -566,7 +568,7 @@ export default function GameContainer() {
             setIsFullyInitialized={setIsFullyInitialized}
             controlsRef={controlsRef}
             easeInOutCubic={easeInOutCubic}
-            userSputnikUuid={userSputnikUuid}
+            userSputnikUuid={sputnikUuid}
           />
           
           <FlyControls
@@ -591,6 +593,7 @@ export default function GameContainer() {
           <Sputniks 
             onUserSputnikPositionUpdate={handleSpaceshipPositionUpdate}
             onUserSputnikFuelUpdate={handleSpaceshipFuelUpdate}
+            userSputnikUuid={sputnikUuid}
           />
           
           {/* Add post-processing effects */}
@@ -607,7 +610,7 @@ export default function GameContainer() {
             isActive={followSpaceship}
             spaceshipPosition={spaceshipPosition}
             controlsRef={controlsRef}
-            userSputnikUuid={userSputnikUuid}
+            userSputnikUuid={sputnikUuid}
           />
         </Suspense>
       </Canvas>
