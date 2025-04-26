@@ -126,17 +126,20 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     try {
       console.log('Initiating Twitter sign-in flow...');
       
-      // Get the current URL for debugging
-      const currentUrl = typeof window !== 'undefined' ? window.location.href : 'unknown';
-      console.log('Current URL before auth:', currentUrl);
+      // Determine the appropriate redirect URL based on environment
+      let redirectUrl: string | undefined;
+      if (typeof window !== 'undefined') {
+        // Always use production URL to rule out hostname detection issues
+        redirectUrl = 'https://sputnik.darkresearch.ai/auth/callback';
+      }
+      
+      console.log('Using redirect URL:', redirectUrl);
 
       // Configure Supabase to allow minimal profile without email requirement
       const { data, error } = await supabaseClient.auth.signInWithOAuth({
         provider: 'twitter',
         options: {
-          redirectTo: typeof window !== 'undefined' 
-            ? `https://sputnik.darkresearch.ai/auth/callback` // Explicitly use our callback route
-            : undefined,
+          redirectTo: redirectUrl,
           skipBrowserRedirect: false,
           scopes: 'email',
           queryParams: {
