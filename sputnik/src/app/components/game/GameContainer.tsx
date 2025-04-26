@@ -13,6 +13,7 @@ import NavPanel from './panels/nav';
 import HelpPanel from './panels/help';
 import PlanetPanel from './panels/planet';
 import SpaceshipPanel from './panels/spaceship';
+import ChatPanel from './panels/chat';
 import Image from 'next/image';
 import * as THREE from 'three';
 import { getSocket } from '@/lib/socket';
@@ -353,6 +354,8 @@ export default function GameContainer() {
   // Handle speed control with keyboard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Commenting out movement controls temporarily
+      /*
       // Disable followSpaceship and transitions when any movement key is pressed
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         setFollowSpaceship(false);
@@ -366,6 +369,7 @@ export default function GameContainer() {
           startTime: Date.now()
         };
       }
+      */
       
       // Increase speed with T key
       if (e.code === 'KeyT') {
@@ -384,6 +388,8 @@ export default function GameContainer() {
     };
     
     const handleKeyUp = (e: KeyboardEvent) => {
+      // Commenting out movement controls temporarily
+      /*
       // Reset arrow key state
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         keyStates.current[e.code as keyof typeof keyStates.current] = {
@@ -391,6 +397,7 @@ export default function GameContainer() {
           startTime: 0
         };
       }
+      */
     };
     
     window.addEventListener('keydown', handleKeyDown);
@@ -423,6 +430,8 @@ export default function GameContainer() {
         // Override the default update method to add custom acceleration
         const originalUpdate = controls.update;
         controls.update = (delta: number) => {
+          // Commenting out movement controls temporarily
+          /*
           // Calculate acceleration based on how long keys have been pressed
           const currentTime = Date.now();
           const BASE_ROTATION = 0.2;
@@ -463,6 +472,7 @@ export default function GameContainer() {
             // Update rotation quaternion with current state
             controls.updateRotationVector();
           }
+          */
           
           // Call the original update method
           originalUpdate.call(controls, delta);
@@ -516,7 +526,7 @@ export default function GameContainer() {
     const timer = setTimeout(() => {
       // Set initial camera position behind Sputnik
       if (controlsRef.current) {
-        controlsRef.current.enabled = false;
+        controlsRef.current.enabled = false; // Disable controls 
       }
       // Force transition to complete
       setIsTransitioning(true);
@@ -635,8 +645,8 @@ export default function GameContainer() {
           
           <FlyControls
             ref={controlsRef}
-            movementSpeed={flightSpeed}
-            rollSpeed={rotationSpeed} // Base rotation speed
+            movementSpeed={0} // Set to 0 to disable movement
+            rollSpeed={0} // Set to 0 to disable rotation
             dragToLook={true}
             autoForward={false}
           />
@@ -682,6 +692,7 @@ export default function GameContainer() {
       {/* <HelpPanel /> */}
       <PlanetPanel selectedPlanet={selectedPlanet} onClose={handleClosePlanetPanel} />
       <LogoPanel followSpaceship={followSpaceship} handleFollowSpaceship={handleFollowSpaceship} />
+      <ChatPanel />
     </>
   );
 } 
