@@ -302,11 +302,12 @@ app.prepare().then(() => {
             // Add to active sputniks set
             await pubClient.sAdd('sputniks:active', spaceshipUuid);
             
-            // Generate random starting position (not at origin)
+            // Generate random starting position across the entire universe (radius of 10000)
+            const universeRadius = 10000;
             const randomPosition = [
-              Math.random() * 100 - 50,
-              Math.random() * 100 - 50,
-              Math.random() * 100 - 50
+              Math.random() * 2 * universeRadius - universeRadius,  // Range: -10000 to 10000
+              Math.random() * 2 * universeRadius - universeRadius,  // Range: -10000 to 10000
+              Math.random() * 2 * universeRadius - universeRadius   // Range: -10000 to 10000
             ];
             
             // Create initial state

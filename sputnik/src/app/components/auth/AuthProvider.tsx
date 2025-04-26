@@ -10,6 +10,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userSputnikUuid, setUserSputnikUuid] = useState<string | null>(null);
+  const [sputnikCreationNumber, setSputnikCreationNumber] = useState<number | null>(null);
 
   useEffect(() => {
     // Get initial session
@@ -85,6 +86,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           setSession(null);
           setUser(null);
           setUserSputnikUuid(null);
+          setSputnikCreationNumber(null);
         }
       }
     );
@@ -99,7 +101,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     try {
       const { data, error } = await supabaseClient
         .from('user_sputniks')
-        .select('sputnik_uuid')
+        .select('sputnik_uuid, sputnik_creation_number')
         .eq('user_id', userId)
         .single();
         
@@ -107,13 +109,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         console.error('Error fetching user sputnik:', error);
         // No fallback, set to null
         setUserSputnikUuid(null);
+        setSputnikCreationNumber(null);
       } else if (data) {
         setUserSputnikUuid(data.sputnik_uuid);
+        setSputnikCreationNumber(data.sputnik_creation_number);
       }
     } catch (error) {
       console.error('Error in sputnik fetch:', error);
       // No fallback, set to null
       setUserSputnikUuid(null);
+      setSputnikCreationNumber(null);
     }
   };
 
@@ -158,6 +163,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       await supabaseClient.auth.signOut();
       // Set to null on sign out
       setUserSputnikUuid(null);
+      setSputnikCreationNumber(null);
     } catch (error) {
       console.error('Error signing out:', error);
     }
@@ -170,6 +176,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         session,
         isLoading,
         userSputnikUuid,
+        sputnikCreationNumber,
         isAuthenticated: !!user,
         signInWithTwitter,
         signOut

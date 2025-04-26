@@ -48,6 +48,7 @@ export interface Database {
           sputnik_uuid: string;
           created_at: string;
           display_name: string | null;
+          sputnik_creation_number: number | null;
         };
         Insert: {
           id?: string;
@@ -55,6 +56,7 @@ export interface Database {
           sputnik_uuid: string;
           created_at?: string;
           display_name?: string | null;
+          sputnik_creation_number?: number | null;
         };
         Update: {
           id?: string;
@@ -62,6 +64,7 @@ export interface Database {
           sputnik_uuid?: string;
           created_at?: string;
           display_name?: string | null;
+          sputnik_creation_number?: number | null;
         };
       };
     };

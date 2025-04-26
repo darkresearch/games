@@ -8,6 +8,7 @@ type AuthContextType = {
   session: Session | null;
   isLoading: boolean;
   userSputnikUuid: string | null;
+  sputnikCreationNumber: number | null;
   isAuthenticated: boolean;
   signInWithTwitter: () => Promise<void>;
   signOut: () => Promise<void>;

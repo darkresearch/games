@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useAuth } from '@/app/components/auth/AuthContext';
 
 // Use the types from our API
 type ChatMessage = {
@@ -44,6 +45,7 @@ const formatTimestamp = (date: Date): string => {
 };
 
 export default function ChatPanel() {
+  const { sputnikCreationNumber } = useAuth();
   const [isExpanded, setIsExpanded] = useState(true);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -140,17 +142,28 @@ export default function ChatPanel() {
       
       const data = await response.json();
       
+      // Replace [NUMBER] with actual sputnik number if available
+      let content = data.message.content;
+      if (content.includes('[NUMBER]') && sputnikCreationNumber !== null) {
+        content = content.replace('[NUMBER]', `${sputnikCreationNumber}`);
+      }
+      
       // Add AI response to UI
       const aiMessage: Message = {
         id: Date.now().toString(),
-        content: data.message.content,
+        content: content,
         sender: 'ai',
         timestamp: new Date()
       };
       
-      // Add AI response to conversation history
+      // Add AI response to conversation history with the replaced content
+      const aiChatMessage: ChatMessage = {
+        role: 'assistant',
+        content: content
+      };
+      
       setMessages(prev => [...prev, aiMessage]);
-      setConversationHistory(prev => [...prev, data.message]);
+      setConversationHistory(prev => [...prev, aiChatMessage]);
       
     } catch (error) {
       console.error('Error sending message:', error);

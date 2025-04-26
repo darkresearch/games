@@ -26,9 +26,6 @@ export async function POST(req: Request) {
       );
     }
     
-    // TODO: This is where we would call OpenAI's API
-    // For now, we'll simulate a response
-    
     // Extract the last user message
     const lastUserMessage = body.messages.filter(m => m.role === 'user').pop();
     
@@ -39,18 +36,11 @@ export async function POST(req: Request) {
       );
     }
     
-    // Generate a mock AI response based on the user's message
-    let aiResponse: string;
-    
-    if (lastUserMessage.content.toLowerCase().includes('help')) {
-      aiResponse = "I'm here to help you navigate your spacecraft. You can ask me about nearby planets, fuel status, or navigation advice.";
-    } else if (lastUserMessage.content.toLowerCase().includes('planet')) {
-      aiResponse = "There are several planets in your vicinity. The nearest ones are a water planet at coordinates X: 120, Y: -45, Z: 78 and a fire planet at X: -230, Y: 56, Z: 92.";
-    } else if (lastUserMessage.content.toLowerCase().includes('fuel')) {
-      aiResponse = "Your current fuel level is displayed in the top right of your screen. I recommend refueling when you reach a planet with compatible resources.";
-    } else {
-      aiResponse = `I've processed your message: "${lastUserMessage.content}". As your AI assistant, I'm here to help with navigation and mission objectives. What specific information do you need?`;
-    }
+    // In a real implementation, we would get the sputnik number from the context
+    // For now, we'll use a placeholder that will be filled by the frontend
+    const sputnikNumber = "[NUMBER]";
+
+    let aiResponse = `Welcome to DARK Universe. Your AI is spaceship number #[NUMBER] in this realm. Comms are not fully up yet, but your ship's starting position has been solidified. Standby.`;
     
     // Return the AI response
     return NextResponse.json({
