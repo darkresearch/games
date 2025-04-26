@@ -6,12 +6,13 @@ alwaysApply: true
 # SPUTNIK Game Overview
 
 ## Concept
-SPUTNIK is a space exploration game where an AI agent pilots a spaceship through a procedurally generated universe. The objective is to navigate from a starting planet to a target planet. Human users can assist the AI agent by providing guidance through a chat interface - sharing information about the universe, target locations, navigation advice, and more.
+SPUTNIK is a multiplayer space exploration game where AI agents pilot spaceships through a procedurally generated universe. The objective is for each AI agent to navigate from a starting planet to a target planet. Human users can assist the AI agents by providing guidance through a chat interface - sharing information about the universe, target locations, navigation advice, and more.
 
 ## Core Gameplay Mechanics
-- **AI-Controlled Spaceship**: The central gameplay revolves around an AI agent piloting a spacecraft
-- **Resource Management**: The spaceship has limited fuel that depletes during flight
-- **Planet Interactions**: The agent can land on planets to recharge fuel
+- **AI-Controlled Spaceships**: Multiple AI agents pilot their own spacecraft simultaneously in a shared universe
+- **Multiplayer Experience**: Players can see and interact with other spaceships in the same universe
+- **Resource Management**: Each spaceship has limited fuel that depletes during flight
+- **Planet Interactions**: Agents can land on planets to recharge fuel
 - **User Assistance**: Players communicate with the AI through chat to help guide its journey
 - **Exploration**: Navigate through a vast universe containing numerous planets of different types
 
@@ -20,6 +21,7 @@ SPUTNIK is a space exploration game where an AI agent pilots a spaceship through
 - Planet types include: fire, water, earth, air, jupiter, and wif
 - Each planet has unique characteristics that affect gameplay
 - Planets are positioned in 3D space with massive distance between them
+- All players share the same universe state
 
 ## Technical Stack
 - **Frontend Framework**: Next.js 15.3.0 with React 19
@@ -28,15 +30,20 @@ SPUTNIK is a space exploration game where an AI agent pilots a spaceship through
 - **Post-processing**: @react-three/postprocessing for visual effects
 - **Styling**: TailwindCSS for UI components
 - **Build Tools**: TypeScript, Turbopack
+- **Multiplayer Connectivity**: Socket.io for real-time communication
+- **State Management**: Redis for shared universe state and spaceship positions
 
 ## Key Components
 - `GameContainer.tsx`: Main game component that sets up the 3D scene
 - `PlanetarySystem.tsx`: Manages the universe and planet generation
 - `SimplePlanet.tsx`: Individual planet implementation
+- `Sputniks.tsx`: Manages all spaceships in the universe, including multiplayer sync
 - `FlyControls`: User camera movement system
+- `server.js`: Central server for multiplayer coordination and state broadcasting
 - Navigation panel: Shows current position in 3D space
 - Planet panel: Displays information about selected planets
 - Help panel: Provides game instructions
+- Spaceship panel: Shows spaceship status and controls
 
 ## Game Controls
 - WASD/Arrow keys for spaceship movement
@@ -44,18 +51,28 @@ SPUTNIK is a space exploration game where an AI agent pilots a spaceship through
 - Click on planets to view information
 - ESC to close planet information panel
 
+## Multiplayer Architecture
+- **Socket.io Communication**: Real-time position and state updates between clients and server
+- **Redis Backend**: Central state storage for all spaceships and game elements
+- **Broadcast System**: Server regularly broadcasts position updates to all connected clients
+- **Player Identification**: Each spaceship has a unique UUID for identification
+- **State Synchronization**: Interpolation system ensures smooth movement of remote spaceships
+
 ## AI Agent Implementation (Planned)
-- The AI agent will need to:
+- The AI agents will need to:
   - Process user chat messages for guidance
   - Navigate through 3D space with pathfinding capabilities
   - Manage fuel consumption and plan refueling stops
   - Make decisions about route planning and target identification
   - Adapt to changing conditions and new information
-  - Communicate its status, plans, and needs to the user
+  - Communicate their status, plans, and needs to users
+  - Be aware of other spaceships in the shared universe
 
 ## Project Structure
 - `/src/app`: Main application code
 - `/src/app/components/game`: Core game components
 - `/src/app/components/game/planets`: Planet-related components
+- `/src/app/components/game/spaceship`: Spaceship and multiplayer components
 - `/src/app/components/game/panels`: UI panels and information displays
 - `/src/app/components/game/assets`: Game assets like star fields
+- `/src/lib`: Shared utilities, including socket connection handling
