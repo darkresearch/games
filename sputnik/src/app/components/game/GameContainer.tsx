@@ -1,7 +1,7 @@
 'use client';
 
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef, useContext } from 'react';
 import { FlyControls } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import StarField from './assets/StarField';
@@ -17,6 +17,7 @@ import Image from 'next/image';
 import * as THREE from 'three';
 import { getSocket } from '@/lib/socket';
 import { useAuth } from '@/app/components/auth';
+import React from 'react';
 
 // Component to track camera position and update coordinates
 function CameraPositionTracker({ setPosition }: { setPosition: (position: Position) => void }) {
@@ -248,16 +249,77 @@ type Position = {
 };
 
 // Logo component
-function LogoPanel() {
+function LogoPanel({ followSpaceship, handleFollowSpaceship }: { 
+  followSpaceship: boolean; 
+  handleFollowSpaceship: () => void;
+}) {
+  const { user, signOut } = useAuth();
+  const [showButtons, setShowButtons] = useState(false);
+  
   return (
-    <div className="absolute top-[27px] left-[28px] z-10">
-      <Image 
-        src="/logo.png" 
-        alt="DARK Logo" 
-        width={40} 
-        height={20} 
-        priority
-      />
+    <div className="absolute top-[27px] left-[28px] z-10 flex flex-col gap-2">
+      {/* Profile picture that toggles buttons visibility */}
+      <div 
+        className="cursor-pointer hover:opacity-80 transition-opacity self-start"
+        onClick={() => setShowButtons(!showButtons)}
+      >
+        {user?.user_metadata?.avatar_url ? (
+          <Image 
+            src={user.user_metadata.avatar_url} 
+            alt={user.user_metadata.name || 'User'} 
+            width={40} 
+            height={40} 
+            className="rounded-full"
+            priority
+          />
+        ) : (
+          <Image 
+            src="/logo.png" 
+            alt="DARK Logo" 
+            width={40} 
+            height={20} 
+            priority
+          />
+        )}
+      </div>
+      
+      {/* Buttons that slide down */}
+      <div 
+        className={`flex flex-col gap-2 overflow-hidden transition-all duration-300 ease-in-out ${
+          showButtons ? 'max-h-[120px] opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        {/* Follow SPUTNIK Button */}
+        <button 
+          onClick={() => {
+            handleFollowSpaceship();
+            setShowButtons(false);
+          }}
+          className={`px-2 py-1 text-white text-xs whitespace-nowrap rounded-md transition-colors text-center border shadow-md ${
+            followSpaceship 
+              ? 'bg-[#1E3A8A] border-blue-500 hover:bg-blue-800' 
+              : 'bg-[#131313] border-gray-700 hover:bg-gray-800'
+          }`}
+          style={{
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 0 10px rgba(0,0,0,0.3)'
+          }}
+        >
+          {followSpaceship ? '👁️ Following' : 'Follow SPUTNIK'}
+        </button>
+        
+        {/* Sign Out Button */}
+        <button 
+          onClick={signOut}
+          className="px-2 py-1 bg-[#131313] text-white text-xs whitespace-nowrap rounded-md hover:bg-red-600 transition-colors text-center border border-gray-700 shadow-md"
+          style={{
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 0 10px rgba(0,0,0,0.3)'
+          }}
+        >
+          Sign Out
+        </button>
+      </div>
     </div>
   );
 }
@@ -616,16 +678,10 @@ export default function GameContainer() {
       </Canvas>
       
       {/* UI Panels - only show when fully initialized */}
-      {isFullyInitialized && <NavPanel position={position} />}
-      <HelpPanel />
+      {isFullyInitialized && <NavPanel position={position} spaceshipPosition={spaceshipPosition} currentFuel={currentFuel} />}
+      {/* <HelpPanel /> */}
       <PlanetPanel selectedPlanet={selectedPlanet} onClose={handleClosePlanetPanel} />
-      <SpaceshipPanel 
-        onFollowSpaceship={handleFollowSpaceship} 
-        isFollowing={followSpaceship}
-        currentPosition={spaceshipPosition}
-        currentFuel={currentFuel}
-      />
-      <LogoPanel />
+      <LogoPanel followSpaceship={followSpaceship} handleFollowSpaceship={handleFollowSpaceship} />
     </>
   );
 } 

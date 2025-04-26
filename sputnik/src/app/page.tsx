@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, UserProfile } from './components/auth';
+import { useAuth } from './components/auth';
 
 // Dynamically import the game component with no SSR to avoid server-side rendering issues with Three.js
 const GameContainer = dynamic(
@@ -54,9 +54,6 @@ export default function Home() {
   // Show game container when authenticated
   return (
     <>
-      <div className="absolute top-4 right-4 z-10">
-        <UserProfile />
-      </div>
       <GameContainer />
     </>
   );
