@@ -1,129 +1,194 @@
-import React from 'react';
-import { PlanetInfo } from '../planets/SimplePlanet';
+'use client';
 
-// Get planet type color helper
-const getPlanetColor = (type: string): string => {
-  switch (type) {
-    case 'fire': return '#ff5500';
-    case 'water': return '#0066ff';
-    case 'earth': return '#338855';
-    case 'air': return '#ddddff';
-    default: return '#ffffff';
-  }
-};
+import React from 'react';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
+import { getPanelBaseStyles, mergeStyles, panelStyles, touchFriendlyStyles } from '@/lib/styles/responsive';
+
+// Import Planet info type
+import { PlanetInfo, PlanetType } from '../planets/SimplePlanet';
 
 type PlanetPanelProps = {
   selectedPlanet: PlanetInfo | null;
   onClose: () => void;
 };
 
+// Function to get planet color based on type
+const getPlanetColor = (type: PlanetType): string => {
+  switch (type) {
+    case 'fire': return '#ff5500';
+    case 'water': return '#0088ff';
+    case 'earth': return '#55aa77';
+    case 'air': return '#aabbff';
+    case 'jupiter': return '#ffaa44';
+    case 'wif': return '#cc77ee';
+    default: return '#ffffff';
+  }
+};
+
 export default function PlanetPanel({ selectedPlanet, onClose }: PlanetPanelProps) {
-  if (!selectedPlanet) return null;
+  const isMobile = useIsMobile();
   
-  const typeColor = getPlanetColor(selectedPlanet.type);
-  const typeColorValues = selectedPlanet.type === 'air' ? '185,185,255' : 
-                           selectedPlanet.type === 'fire' ? '255,85,0' : 
-                           selectedPlanet.type === 'water' ? '0,102,255' : '51,136,85';
+  if (!selectedPlanet) {
+    return null;
+  }
   
+  // Choose style variant based on device
+  const variant = isMobile ? 'mobile' : 'desktop';
+  
+  // Get responsive styles
+  const containerStyles = mergeStyles(
+    getPanelBaseStyles(variant),
+    panelStyles.planet[variant]
+  );
+  
+  // Get planet color
+  const planetColor = getPlanetColor(selectedPlanet.type);
+  
+  // Close button style adjustments for mobile
+  const closeButtonStyles = {
+    position: 'absolute' as const,
+    top: isMobile ? '16px' : '12px',
+    right: isMobile ? '16px' : '12px',
+    cursor: 'pointer',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    color: '#fff',
+    borderRadius: '50%',
+    width: isMobile ? '44px' : '28px',
+    height: isMobile ? '44px' : '28px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: isMobile ? '24px' : '18px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    zIndex: 10,
+  };
+
   return (
-    <div style={{
-      position: 'absolute',
-      bottom: '20px',
-      left: '20px',
-      height: '345px',
-      width: '280px',
-      color: 'white',
-      background: '#131313',
-      backdropFilter: 'blur(10px)',
-      padding: '16px 20px',
-      borderRadius: '12px',
-      fontSize: '15px',
-      letterSpacing: '0.3px',
-      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
-      border: `1px solid rgba(${typeColorValues},0.4)`,
-      boxShadow: `0 0 30px rgba(${typeColorValues},0.2)`,
-      zIndex: 1000,
-      pointerEvents: 'auto',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between'
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+    <div style={containerStyles}>
+      {/* Planet Header with gradient matching planet type */}
+      <div style={{
+        padding: isMobile ? '24px 20px' : '16px',
+        background: `linear-gradient(to bottom, ${planetColor}33, transparent)`,
+        position: 'relative',
+        borderTopLeftRadius: isMobile ? '0' : '8px',
+        borderTopRightRadius: isMobile ? '0' : '8px',
+      }}>
+        {/* Close button */}
+        <div 
+          style={closeButtonStyles}
+          onClick={onClose}
+        >
+          ×
+        </div>
+        
         <h2 style={{ 
-          color: typeColor,
-          margin: '0',
-          fontSize: '22px',
-          fontWeight: '600',
-          textShadow: `0 0 8px ${typeColor}`
+          margin: '0', 
+          color: planetColor, 
+          fontSize: isMobile ? '28px' : '24px',
+          fontWeight: '600'
         }}>
           Planet {selectedPlanet.id}
         </h2>
-        <button 
-          onClick={onClose}
-          style={{
-            background: 'rgba(0,0,0,0.2)',
-            border: 'none',
-            color: 'white',
-            fontSize: '16px',
-            cursor: 'pointer',
-            width: '26px',
-            height: '26px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'background 0.2s ease',
-            padding: 0
-          }}
-          onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
-          onMouseOut={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.2)'}
-        >
-          ✕
-        </button>
+        
+        <p style={{ 
+          margin: '4px 0 0', 
+          opacity: 0.8,
+          fontSize: isMobile ? '16px' : '14px',
+        }}>
+          Type: {selectedPlanet.type}
+        </p>
       </div>
       
-      <div style={{ display: 'flex', marginBottom: '10px', alignItems: 'center' }}>
-        <div style={{ flex: 1 }}>
-          <p style={{ margin: '3px 0', fontSize: '14px', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'rgba(255,255,255,0.7)' }}>Type:</span> 
-            <span style={{ color: typeColor, fontWeight: '500' }}>
-              {selectedPlanet.type.charAt(0).toUpperCase() + selectedPlanet.type.slice(1)}
-            </span>
-          </p>
-          <p style={{ margin: '3px 0', fontSize: '14px', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'rgba(255,255,255,0.7)' }}>Size:</span>
-            <span style={{ fontWeight: '500' }}>{selectedPlanet.size}</span>
+      {/* Planet Details */}
+      <div style={{ 
+        padding: isMobile ? '20px' : '16px',
+        fontSize: isMobile ? '16px' : '14px',
+        lineHeight: '1.6',
+        maxHeight: isMobile ? 'calc(100vh - 180px)' : '300px',
+        overflowY: 'auto'
+      }}>
+        <div style={{ marginBottom: '16px' }}>
+          <h3 style={{ 
+            margin: '0 0 8px', 
+            color: planetColor,
+            fontSize: isMobile ? '18px' : '16px',
+          }}>
+            Distance
+          </h3>
+          <p style={{ margin: '0' }}>
+            <span style={{ opacity: 0.7 }}>X:</span> {selectedPlanet.position[0].toFixed(2)}{' '}
+            <span style={{ opacity: 0.7 }}>Y:</span> {selectedPlanet.position[1].toFixed(2)}{' '}
+            <span style={{ opacity: 0.7 }}>Z:</span> {selectedPlanet.position[2].toFixed(2)}
           </p>
         </div>
-        <div style={{ 
-          width: '50px',
-          height: '50px',
-          borderRadius: '50%',
-          backgroundColor: typeColor,
-          opacity: 0.7,
-          marginLeft: '15px',
-          boxShadow: `0 0 20px ${typeColor}`,
-          border: `2px solid rgba(255,255,255,0.1)`
-        }} />
+        
+        <div style={{ marginBottom: '16px' }}>
+          <h3 style={{ 
+            margin: '0 0 8px', 
+            color: planetColor,
+            fontSize: isMobile ? '18px' : '16px',
+          }}>
+            Size
+          </h3>
+          <p style={{ margin: '0' }}>
+            {selectedPlanet.size} units
+          </p>
+        </div>
+        
+        <div>
+          <h3 style={{ 
+            margin: '0 0 8px', 
+            color: planetColor,
+            fontSize: isMobile ? '18px' : '16px',
+          }}>
+            Description
+          </h3>
+          <p style={{ 
+            margin: '0',
+            lineHeight: '1.6',
+          }}>
+            {selectedPlanet.type.charAt(0).toUpperCase() + selectedPlanet.type.slice(1)} planet with unique properties.
+          </p>
+        </div>
       </div>
       
+      {/* Action buttons */}
       <div style={{ 
-        background: 'linear-gradient(to right, rgba(0,0,0,0.3), rgba(20,20,20,0.1))', 
-        padding: '8px 12px', 
-        borderRadius: '8px',
-        marginTop: '10px',
-        borderLeft: `2px solid ${typeColor}`
+        padding: isMobile ? '20px' : '16px',
+        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '10px'
       }}>
-        <p style={{ margin: '0 0 6px 0', fontWeight: '500', color: 'rgba(255,255,255,0.9)', fontSize: '14px' }}>Coordinates:</p>
-        <p style={{ margin: '4px 0', fontSize: '14px' }}>
-          <span style={{ color: '#63B3ED', width: '20px', display: 'inline-block' }}>X:</span> {selectedPlanet.position[0].toFixed(1)}
-        </p>
-        <p style={{ margin: '4px 0', fontSize: '14px' }}>
-          <span style={{ color: '#63B3ED', width: '20px', display: 'inline-block' }}>Y:</span> {selectedPlanet.position[1].toFixed(1)}
-        </p>
-        <p style={{ margin: '4px 0', fontSize: '14px' }}>
-          <span style={{ color: '#63B3ED', width: '20px', display: 'inline-block' }}>Z:</span> {selectedPlanet.position[2].toFixed(1)}
-        </p>
+        <button 
+          onClick={onClose}
+          style={mergeStyles({
+            backgroundColor: '#3B3B3B',
+            color: '#FFFFFF',
+            border: 'none',
+            borderRadius: '4px',
+            padding: '8px 16px',
+            cursor: 'pointer',
+            fontSize: isMobile ? '16px' : '14px',
+            fontWeight: '500',
+          }, isMobile ? touchFriendlyStyles : {})}
+        >
+          Close
+        </button>
+        <button 
+          style={mergeStyles({
+            backgroundColor: planetColor,
+            color: '#FFFFFF',
+            border: 'none',
+            borderRadius: '4px',
+            padding: '8px 16px',
+            cursor: 'pointer',
+            fontSize: isMobile ? '16px' : '14px',
+            fontWeight: '500',
+          }, isMobile ? touchFriendlyStyles : {})}
+        >
+          Set Target
+        </button>
       </div>
     </div>
   );
