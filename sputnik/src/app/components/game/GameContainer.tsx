@@ -18,6 +18,8 @@ import Image from 'next/image';
 import * as THREE from 'three';
 import { getSocket } from '@/lib/socket';
 import { useAuth } from '@/app/components/auth';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
+import { getPanelBaseStyles, mergeStyles, panelStyles, touchFriendlyStyles } from '@/lib/styles/responsive';
 import React from 'react';
 
 // Component to track camera position and update coordinates
@@ -256,20 +258,49 @@ function LogoPanel({ followSpaceship, handleFollowSpaceship }: {
 }) {
   const { user, signOut } = useAuth();
   const [showButtons, setShowButtons] = useState(false);
+  const isMobile = useIsMobile();
+  
+  // Choose style variant based on device
+  const variant = isMobile ? 'mobile' : 'desktop';
+  
+  // Get responsive styles
+  const containerStyles = mergeStyles(
+    panelStyles.logo[variant]
+  );
+  
+  // Adjust button styles for mobile
+  const buttonStyle = {
+    px: '2',
+    py: '1',
+    bg: followSpaceship ? '#1E3A8A' : '#131313',
+    borderColor: followSpaceship ? 'blue.500' : 'gray.700',
+    color: 'white',
+    fontSize: isMobile ? '12px' : 'xs',
+    whiteSpace: 'nowrap',
+    rounded: 'md',
+    hover: followSpaceship ? 'bg-blue-800' : 'bg-gray-800',
+    transition: 'colors',
+    textAlign: 'center',
+    border: '1px solid',
+    shadow: 'md',
+    backdropFilter: 'blur(10px)',
+    boxShadow: '0 0 10px rgba(0,0,0,0.3)',
+  };
   
   return (
-    <div className="absolute top-[27px] left-[28px] z-10 flex flex-col gap-2">
+    <div style={containerStyles} className="flex flex-col gap-2">
       {/* Profile picture that toggles buttons visibility */}
       <div 
         className="cursor-pointer hover:opacity-80 transition-opacity self-start"
         onClick={() => setShowButtons(!showButtons)}
+        style={isMobile ? { padding: '4px' } : {}}
       >
         {user?.user_metadata?.avatar_url ? (
           <Image 
             src={user.user_metadata.avatar_url} 
             alt={user.user_metadata.name || 'User'} 
-            width={40} 
-            height={40} 
+            width={isMobile ? 36 : 40} 
+            height={isMobile ? 36 : 40} 
             className="rounded-full"
             priority
           />
@@ -277,8 +308,8 @@ function LogoPanel({ followSpaceship, handleFollowSpaceship }: {
           <Image 
             src="/logo.png" 
             alt="DARK Logo" 
-            width={40} 
-            height={20} 
+            width={isMobile ? 36 : 40} 
+            height={isMobile ? 18 : 20} 
             priority
           />
         )}
@@ -301,10 +332,15 @@ function LogoPanel({ followSpaceship, handleFollowSpaceship }: {
               ? 'bg-[#1E3A8A] border-blue-500 hover:bg-blue-800' 
               : 'bg-[#131313] border-gray-700 hover:bg-gray-800'
           }`}
-          style={{
-            backdropFilter: 'blur(10px)',
-            boxShadow: '0 0 10px rgba(0,0,0,0.3)'
-          }}
+          style={mergeStyles(
+            {
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 0 10px rgba(0,0,0,0.3)',
+              fontSize: isMobile ? '12px' : 'inherit',
+              minHeight: isMobile ? '44px' : 'auto',
+            },
+            isMobile ? touchFriendlyStyles : {}
+          )}
         >
           {followSpaceship ? '👁️ Following' : 'Follow SPUTNIK'}
         </button>
@@ -313,10 +349,15 @@ function LogoPanel({ followSpaceship, handleFollowSpaceship }: {
         <button 
           onClick={signOut}
           className="px-2 py-1 bg-[#131313] text-white text-xs whitespace-nowrap rounded-md hover:bg-red-600 transition-colors text-center border border-gray-700 shadow-md"
-          style={{
-            backdropFilter: 'blur(10px)',
-            boxShadow: '0 0 10px rgba(0,0,0,0.3)'
-          }}
+          style={mergeStyles(
+            {
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 0 10px rgba(0,0,0,0.3)',
+              fontSize: isMobile ? '12px' : 'inherit',
+              minHeight: isMobile ? '44px' : 'auto',
+            },
+            isMobile ? touchFriendlyStyles : {}
+          )}
         >
           Sign Out
         </button>
@@ -350,6 +391,9 @@ export default function GameContainer() {
     ArrowLeft: { pressed: false, startTime: 0 },
     ArrowRight: { pressed: false, startTime: 0 }
   });
+  
+  // Import the useIsMobile hook at the top of the component
+  const isMobile = useIsMobile();
   
   // Handle speed control with keyboard
   useEffect(() => {
@@ -610,12 +654,16 @@ export default function GameContainer() {
     );
   }
 
+  // Adjust camera FOV and far plane based on device type
+  const cameraFOV = isMobile ? 60 : 45; // Wider FOV on mobile for better visibility
+  const cameraFar = 100000; // Far clipping plane
+
   return (
     <>
       <Canvas
         camera={{ 
-          fov: 45,
-          far: 100000, // Increased far clipping plane to see distant objects
+          fov: cameraFOV,
+          far: cameraFar, 
           near: 0.1
         }}
         gl={{ 
@@ -643,6 +691,7 @@ export default function GameContainer() {
             userSputnikUuid={sputnikUuid}
           />
           
+          {/* Control sensitivity based on device type */}
           <FlyControls
             ref={controlsRef}
             movementSpeed={0} // Set to 0 to disable movement
@@ -652,7 +701,7 @@ export default function GameContainer() {
           />
           
           {/* Star field with stars */}
-          <StarField count={25000} radius={20000} />
+          <StarField count={isMobile ? 15000 : 25000} radius={20000} />
           
           {/* Planetary system */}
           <PlanetarySystem 
@@ -668,10 +717,10 @@ export default function GameContainer() {
             userSputnikUuid={sputnikUuid}
           />
           
-          {/* Add post-processing effects */}
+          {/* Add post-processing effects - reduce on mobile for performance */}
           <EffectComposer>
             <Bloom 
-              intensity={0.8}
+              intensity={isMobile ? 0.6 : 0.8}
               luminanceThreshold={0.1}
               luminanceSmoothing={0.9}
             />

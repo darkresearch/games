@@ -1,5 +1,9 @@
+'use client';
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/components/auth/AuthContext';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
+import { getPanelBaseStyles, mergeStyles, panelStyles, touchFriendlyStyles } from '@/lib/styles/responsive';
 
 // Use the types from our API
 type ChatMessage = {
@@ -46,6 +50,7 @@ const formatTimestamp = (date: Date): string => {
 
 export default function ChatPanel() {
   const { sputnikCreationNumber } = useAuth();
+  const isMobile = useIsMobile();
   const [isExpanded, setIsExpanded] = useState(true);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -191,32 +196,53 @@ export default function ChatPanel() {
     }
   };
   
+  // Choose style variant based on device
+  const variant = isMobile ? 'mobile' : 'desktop';
+  
+  // Get responsive base container styles
+  const containerBaseStyles = mergeStyles(
+    getPanelBaseStyles(variant),
+    panelStyles.chat[variant]
+  );
+  
+  // Update header styles for mobile
+  const headerStyles = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: isMobile ? '16px' : '12px 16px',
+    borderBottom: 'none',
+    cursor: 'pointer',
+    height: isMobile ? '56px' : '52px',
+    background: 'rgba(0, 0, 0, 0.5)',
+  };
+  
+  // Update input area styles for mobile
+  const inputAreaStyles = {
+    padding: isMobile ? '14px 16px' : '12px 16px',
+    borderTop: '1px solid rgba(250, 250, 250, 0.1)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    background: '#000000',
+  };
+  
   // If minimized, show just the header
   if (!isExpanded) {
     return (
-      <div style={{
-        position: 'absolute',
-        bottom: '0',
-        right: '20px',
-        background: 'rgba(0, 0, 0, 0.5)', // Black with 50% transparency
-        borderRadius: '8px 8px 0 0',
-        boxShadow: '0 0 20px rgba(0,0,0,0.5), 0 0 5px rgba(66, 153, 225, 0.3)',
-        border: '1px solid rgba(250, 250, 250, 0.2)',
-        borderBottom: 'none',
-        overflow: 'hidden',
-        width: '400px',
-        height: '52px',
-        zIndex: 1000,
-      }}>
+      <div style={mergeStyles(
+        containerBaseStyles,
+        { 
+          height: isMobile ? '56px' : '52px', 
+          maxHeight: isMobile ? '56px' : '52px' 
+        }
+      )}>
         <div 
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '12px 16px',
-            cursor: 'pointer',
-            height: '100%',
-          }}
+          style={mergeStyles(
+            headerStyles,
+            isMobile ? touchFriendlyStyles : {},
+            { height: '100%' }
+          )}
           onClick={toggleExpanded}
         >
           <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -242,36 +268,24 @@ export default function ChatPanel() {
     );
   }
   
+  // Full expanded chat panel
+  const expandedHeightStyles = {
+    height: isMobile ? '35vh' : '530px',
+    maxHeight: isMobile ? '35vh' : '530px',
+  };
+  
   return (
-    <div style={{
-      position: 'absolute',
-      bottom: '0',
-      right: '20px',
-      background: 'rgba(0, 0, 0, 0.5)', // 50% transparency for main container
-      borderRadius: '8px 8px 0 0',
-      boxShadow: '0 0 20px rgba(0,0,0,0.5), 0 0 5px rgba(66, 153, 225, 0.3)',
-      border: '1px solid rgba(250, 250, 250, 0.2)',
-      borderBottom: 'none',
-      overflow: 'hidden',
-      width: '400px',
-      height: '530px',
-      display: 'flex',
-      flexDirection: 'column',
-      zIndex: 1000,
-      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
-    }}>
+    <div style={mergeStyles(
+      containerBaseStyles,
+      expandedHeightStyles,
+      { display: 'flex', flexDirection: 'column' }
+    )}>
       {/* Chat Header */}
       <div 
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '12px 16px',
-          borderBottom: 'none', // Removed border
-          cursor: 'pointer',
-          height: '52px',
-          background: 'rgba(0, 0, 0, 0.5)', // Black with 50% transparency
-        }}
+        style={mergeStyles(
+          headerStyles,
+          isMobile ? touchFriendlyStyles : {}
+        )}
         onClick={toggleExpanded}
       >
         <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -302,7 +316,7 @@ export default function ChatPanel() {
         display: 'flex',
         flexDirection: 'column',
         gap: '14px',
-        background: 'transparent', // Make transparent to show parent's background
+        background: 'transparent',
       }}>
         {messages.map((message, index) => {
           // Check if we should show timestamp (first message or new day)
@@ -326,9 +340,9 @@ export default function ChatPanel() {
                   borderRadius: message.sender === 'user' 
                     ? '18px 18px 4px 18px' // User bubbles: only bottom-right is straight
                     : '18px 18px 18px 4px', // AI bubbles: only bottom-left is straight
-                  maxWidth: '80%',
+                  maxWidth: isMobile ? '85%' : '80%',
                   wordBreak: 'break-word',
-                  fontSize: '14px',
+                  fontSize: isMobile ? '15px' : '14px',
                   lineHeight: 1.4,
                   position: 'relative',
                 }}>
@@ -389,14 +403,7 @@ export default function ChatPanel() {
       </div>
       
       {/* Input Area */}
-      <div style={{
-        padding: '12px 16px',
-        borderTop: '1px solid rgba(250, 250, 250, 0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        background: '#000000', // Solid black background for the input area
-      }}>
+      <div style={mergeStyles(inputAreaStyles)}>
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -432,12 +439,13 @@ export default function ChatPanel() {
               outline: 'none',
               backgroundColor: 'transparent',
               color: '#fafafa',
-              fontSize: '14px',
+              fontSize: isMobile ? '16px' : '14px', // Larger font for mobile
               resize: 'none',
               overflow: 'hidden',
-              minHeight: '24px',
+              minHeight: isMobile ? '26px' : '24px',
               maxHeight: '96px', // Approx 4 lines
               fontFamily: 'inherit',
+              paddingTop: isMobile ? '4px' : '0',
             }}
             ref={textareaRef}
           />
@@ -446,8 +454,8 @@ export default function ChatPanel() {
           <div 
             onClick={input.trim() && !isLoading ? handleSendMessage : undefined}
             style={{
-              width: '28px',
-              height: '28px',
+              width: isMobile ? '36px' : '28px',
+              height: isMobile ? '36px' : '28px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -456,7 +464,7 @@ export default function ChatPanel() {
               marginLeft: '4px',
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width={isMobile ? '22' : '18'} height={isMobile ? '22' : '18'} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M4 12L20 4L12 20L10 14L4 12Z" fill="currentColor"/>
             </svg>
           </div>
