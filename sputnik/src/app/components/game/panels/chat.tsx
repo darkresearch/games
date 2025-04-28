@@ -220,6 +220,7 @@ export default function ChatPanel() {
   // Update input area styles for mobile
   const inputAreaStyles = {
     padding: isMobile ? '14px 16px' : '12px 16px',
+    paddingBottom: isMobile ? `calc(14px + env(safe-area-inset-bottom, 0px))` : '12px 16px',
     borderTop: '1px solid rgba(250, 250, 250, 0.1)',
     display: 'flex',
     alignItems: 'center',
@@ -270,8 +271,8 @@ export default function ChatPanel() {
   
   // Full expanded chat panel
   const expandedHeightStyles = {
-    height: isMobile ? '35vh' : '530px',
-    maxHeight: isMobile ? '35vh' : '530px',
+    height: isMobile ? 'calc(35vh + env(safe-area-inset-bottom, 0px))' : '530px',
+    maxHeight: isMobile ? 'calc(35vh + env(safe-area-inset-bottom, 0px))' : '530px',
   };
   
   return (
