@@ -9,7 +9,8 @@ import { MOBILE_BREAKPOINT } from '../hooks/useIsMobile';
 export type StyleVariant = 'desktop' | 'mobile';
 
 // Utility to merge multiple style objects with proper precedence
-export const mergeStyles = (...styles: CSSProperties[]): CSSProperties => 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const mergeStyles = (...styles: any[]): CSSProperties => 
   Object.assign({}, ...styles);
 
 // Generate media query string for CSS-in-JS
@@ -66,6 +67,7 @@ export const panelStyles = {
       maxHeight: '35vh',
       borderRadius: '8px 8px 0 0',
       zIndex: 1000,
+      paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     } as CSSProperties,
   },
   
@@ -81,7 +83,7 @@ export const panelStyles = {
     } as CSSProperties,
     mobile: {
       position: 'absolute',
-      top: '10px',
+      top: 'calc(10px + env(safe-area-inset-top, 0px))',
       right: '10px',
       width: '160px',
       padding: '8px 10px',
@@ -103,10 +105,10 @@ export const panelStyles = {
     } as CSSProperties,
     mobile: {
       position: 'absolute',
-      top: '0',
+      top: 'env(safe-area-inset-top, 0px)',
       left: '0',
       width: '100%',
-      height: '100%',
+      height: 'calc(100% - env(safe-area-inset-bottom, 0px))',
       maxWidth: '100%',
       maxHeight: '100%',
       borderRadius: '0',
@@ -124,7 +126,7 @@ export const panelStyles = {
     } as CSSProperties,
     mobile: {
       position: 'absolute',
-      top: '10px',
+      top: 'calc(10px + env(safe-area-inset-top, 0px))',
       left: '10px',
       zIndex: 900,
     } as CSSProperties,
