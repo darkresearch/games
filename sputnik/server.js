@@ -4,6 +4,7 @@ const next = require('next');
 const { Server } = require('socket.io');
 const { createClient } = require('redis');
 const { createAdapter } = require('@socket.io/redis-adapter');
+const { SectorManager, getSectorIdFromPosition } = require('./src/server/sectorManager');
 
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
@@ -16,6 +17,9 @@ const connectedClients = new Map();
 const connectionAttempts = new Map();
 const MAX_CONNECTIONS_PER_MINUTE = 60;
 const RATE_LIMIT_RESET_INTERVAL = 60000; // 1 minute
+
+// Global reference to the sector manager
+let sectorManager = null;
 
 // Helper to get IP address from request
 const getIpAddress = (req) => {
@@ -136,6 +140,12 @@ app.prepare().then(() => {
       console.log('Connected to Redis, setting up adapter');
       io.adapter(createAdapter(pubClient, subClient));
       
+      // Initialize the sector manager
+      console.log('Initializing Sector Manager...');
+      sectorManager = new SectorManager(io, pubClient);
+      await sectorManager.initialize();
+      console.log('Sector Manager initialized');
+      
       // Setup position broadcasting with rate limiting
       let lastBroadcastTime = 0;
       const BROADCAST_INTERVAL = 50; // 20 updates per second
@@ -174,11 +184,30 @@ app.prepare().then(() => {
               console.error('Error broadcasting active sputniks:', error);
             }
             
-            // Broadcast position for each spaceship
+            // Broadcast position for each spaceship (now sector-aware)
             for (const uuid of uuids) {
               const position = await getSpaceshipPosition(pubClient, uuid);
               if (position) {
-                io.emit(`spaceship:${uuid}:position`, position);
+                // Process sector updates for this position
+                if (sectorManager) {
+                  const sectorChanged = await sectorManager.processPositionUpdate(uuid, position);
+                  
+                  // If sector changed, it will be handled by the sector manager
+                  // otherwise, send position update to the sector subscribers
+                  if (!sectorChanged) {
+                    const sectorId = sectorManager.spaceshipSectors.get(uuid);
+                    if (sectorId) {
+                      // Emit position only to subscribers of this sector
+                      io.to(`sector:${sectorId}`).emit(`spaceship:${uuid}:position`, position);
+                    } else {
+                      // Fallback to global broadcast if sector is unknown
+                      io.emit(`spaceship:${uuid}:position`, position);
+                    }
+                  }
+                } else {
+                  // Fallback to global broadcast if sector manager isn't available
+                  io.emit(`spaceship:${uuid}:position`, position);
+                }
               }
               
               // Also broadcast full state less frequently (every 5th update)
@@ -197,15 +226,27 @@ app.prepare().then(() => {
                     uuid: uuid  // Include the UUID in the state object
                   };
                   
-                  // Broadcast full state
-                  io.emit(`spaceship:${uuid}:state`, parsedState);
+                  // Get the sector for this spaceship
+                  let sectorId = null;
+                  if (sectorManager) {
+                    sectorId = sectorManager.spaceshipSectors.get(uuid);
+                  }
+                  
+                  if (sectorId) {
+                    // Emit state only to subscribers of this sector
+                    io.to(`sector:${sectorId}`).emit(`spaceship:${uuid}:state`, parsedState);
+                  } else {
+                    // Fallback to global broadcast
+                    io.emit(`spaceship:${uuid}:state`, parsedState);
+                  }
                 }
               }
             }
             
-            // Log occasionally
+            // Log occasionally with sector stats
             if (Math.random() < 0.01) {
-              console.log(`Broadcasting state for ${uuids.length} spaceships to ${clientCount} clients`);
+              const stats = sectorManager ? sectorManager.getStats() : { totalSectors: 0, totalTrackedSpaceships: 0 };
+              console.log(`Broadcasting state for ${uuids.length} spaceships across ${stats.totalSectors} sectors`);
             }
             
             lastBroadcastTime = now;
@@ -322,12 +363,31 @@ app.prepare().then(() => {
             // Save initial state to Redis
             await pubClient.hSet(`sputnik:${spaceshipUuid}:state`, initialState);
             console.log(`New sputnik ${spaceshipUuid} initialized with position:`, randomPosition);
+            
+            // Initialize sector for this new sputnik
+            if (sectorManager) {
+              await sectorManager.processPositionUpdate(spaceshipUuid, {
+                x: randomPosition[0],
+                y: randomPosition[1],
+                z: randomPosition[2]
+              });
+            }
           }
           
           // Send initial position for this spaceship
           const position = await getSpaceshipPosition(pubClient, spaceshipUuid);
           if (position) {
             socket.emit(`spaceship:${spaceshipUuid}:position`, position);
+            
+            // If sector manager exists, suggest initial sectors to subscribe to
+            if (sectorManager) {
+              // Get the sector for this position
+              const sectorId = sectorManager.spaceshipSectors.get(spaceshipUuid);
+              if (sectorId) {
+                // Notify the client of its current sector
+                socket.emit('sector:current', sectorId);
+              }
+            }
           }
         } catch (error) {
           console.error(`Error initializing or retrieving sputnik ${spaceshipUuid}:`, error);
@@ -357,6 +417,32 @@ app.prepare().then(() => {
       }
     });
     
+    // Handle sector subscription
+    socket.on('sector:subscribe', (sectorId) => {
+      if (sectorManager) {
+        sectorManager.subscribeSector(socket, sectorId);
+      } else {
+        console.warn(`Sector subscribe request from ${socket.id} but sector manager not initialized`);
+      }
+    });
+    
+    // Handle sector unsubscription
+    socket.on('sector:unsubscribe', (sectorId) => {
+      if (sectorManager) {
+        sectorManager.unsubscribeSector(socket, sectorId);
+      }
+    });
+    
+    // Add a new socket event handler for sector stats
+    socket.on('sector:stats', () => {
+      if (sectorManager) {
+        const stats = sectorManager.getStats();
+        socket.emit('sector:stats:result', stats);
+      } else {
+        socket.emit('sector:stats:result', { error: 'Sector manager not initialized' });
+      }
+    });
+    
     // Update last seen time on ping events
     socket.conn.on('packet', (packet) => {
       if (packet.type === 'ping') {
@@ -373,6 +459,12 @@ app.prepare().then(() => {
     
     socket.on('disconnect', (reason) => {
       connectedClients.delete(socket.id);
+      
+      // Clean up sector subscriptions
+      if (sectorManager) {
+        sectorManager.handleSocketDisconnect(socket);
+      }
+      
       console.log(`Client disconnected: ${socket.id} - Reason: ${reason} - Clients: ${io.engine.clientsCount}`);
     });
     
