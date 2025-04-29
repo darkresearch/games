@@ -121,45 +121,6 @@ export default function Sputniks({
     const socket = getSocket(userSputnikUuid);
     socketRef.current = socket;
     
-    // Listen for active sputniks broadcasts (now sector-specific)
-    socket.on('spaceships:active', (result: string[]) => {
-      if (isMounted) {
-        // console.log('🚀 SPUTNIKS: Active sputniks:', result.length);
-        setActiveSputniks(prevActive => {
-          // Combine existing with new, avoiding duplicates
-          const combined = Array.from(new Set([...prevActive, ...result]));
-          return combined;
-        });
-        
-        // Initialize physics systems for each sputnik
-        result.forEach(uuid => {
-          // Skip if we already have a physics system for this UUID
-          if (physicsSystemsRef.current[uuid]) return;
-          
-          physicsSystemsRef.current[uuid] = new PhysicsSystem(
-            { x: 0, y: 0, z: 0 },  // Initial position
-            { x: 0, y: 0, z: 0 },  // Initial velocity
-            2000,                  // Max speed
-            0.1                    // Interpolation factor
-          );
-          directionsRef.current[uuid] = new THREE.Vector3(0, 0, 1);
-          
-          // Initialize state
-          setSputnikStates(prev => ({
-            ...prev,
-            [uuid]: {
-              uuid,
-              position: { x: 0, y: 0, z: 0 },
-              destination: null,
-              velocity: null,
-              fuel: 100,
-              sector: '' // Will be updated with position updates
-            }
-          }));
-        });
-      }
-    });
-    
     // Listen for sector-specific active sputniks broadcasts
     socket.on('sector:spaceships', (sectorId: string, sputnikUuids: string[]) => {
       if (isMounted) {
@@ -228,7 +189,6 @@ export default function Sputniks({
       
       if (socketRef.current) {
         // Remove listeners
-        socket.off('spaceships:active');
         socket.off('sector:spaceships');
         socket.off('sector:sputnik:leave');
         
@@ -331,6 +291,25 @@ export default function Sputniks({
       });
     };
   }, [activeSputniks, onUserSputnikFuelUpdate, userSputnikUuid]);
+  
+  // When user's sputnik first loads or the UUID changes, subscribe to the initial sector
+  useEffect(() => {
+    if (!userSputnikUuid) return;
+    
+    // Get the socket
+    const socket = socketRef.current;
+    if (!socket) return;
+    
+    // Request current position for the user's sputnik
+    socket.emit('getSpaceshipPosition', { uuid: userSputnikUuid });
+    
+    // Listen for the response
+    socket.once(`spaceship:${userSputnikUuid}:position`, (position: Vector3Position) => {
+      // When we get the position, immediately subscribe to the sectors
+      manageSectorSubscriptions(position);
+    });
+    
+  }, [userSputnikUuid]);
   
   // Update visuals each frame
   useFrame((state, delta) => {

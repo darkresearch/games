@@ -171,18 +171,8 @@ app.prepare().then(() => {
               return match ? match[1] : null;
             }).filter(uuid => uuid);
             
-            // Broadcast active sputniks list
-            try {
-              const activeSputniks = await pubClient.sMembers('sputniks:active');
-              io.emit('spaceships:active', activeSputniks);
-              
-              // Log occasionally
-              if (Math.random() < 0.01) {
-                console.log(`Broadcasting active sputniks: ${activeSputniks.length}`);
-              }
-            } catch (error) {
-              console.error('Error broadcasting active sputniks:', error);
-            }
+            // We're removing the global broadcast to avoid sending ALL spaceships to EVERY client
+            // Instead, we'll rely on sector-specific messages only
             
             // Broadcast position for each spaceship (now sector-aware)
             for (const uuid of uuids) {
@@ -458,11 +448,25 @@ app.prepare().then(() => {
     });
     
     socket.on('disconnect', (reason) => {
+      // Get the UUID associated with this socket
+      const clientData = connectedClients.get(socket.id);
+      const clientUuid = clientData?.uuid;
+      
+      // Clean up client data
       connectedClients.delete(socket.id);
       
       // Clean up sector subscriptions
       if (sectorManager) {
         sectorManager.handleSocketDisconnect(socket);
+        
+        // If this socket had a spaceship, notify other clients in the same sector
+        if (clientUuid) {
+          const sectorId = sectorManager.spaceshipSectors.get(clientUuid);
+          if (sectorId) {
+            // Notify others that this spaceship is gone
+            io.to(`sector:${sectorId}`).emit('sector:sputnik:leave', sectorId, clientUuid);
+          }
+        }
       }
       
       console.log(`Client disconnected: ${socket.id} - Reason: ${reason} - Clients: ${io.engine.clientsCount}`);

@@ -177,6 +177,22 @@ class SectorManager {
   sendSectorSpaceships(socket, sectorId) {
     const spaceships = Array.from(this.sectorSpaceships.get(sectorId) || []);
     socket.emit('sector:spaceships', sectorId, spaceships);
+    
+    // Send detailed data for each spaceship in this sector
+    // This ensures the client has complete information about all spaceships
+    spaceships.forEach(uuid => {
+      // Emit position events for each spaceship to the new subscriber
+      this.redis.get(`spaceship:${uuid}:data`).then(data => {
+        if (data) {
+          const spaceshipData = JSON.parse(data);
+          if (spaceshipData.position) {
+            socket.emit(`spaceship:${uuid}:position`, spaceshipData.position);
+          }
+        }
+      }).catch(err => {
+        console.error(`Error fetching data for spaceship ${uuid}:`, err);
+      });
+    });
   }
 
   /**
