@@ -2,11 +2,14 @@
 Resource for representing the Sputnik spaceship state
 """
 
+import logging
 from typing import Optional
 
 from pydantic import BaseModel, Field
 
 from ..app import app, get_api_client
+
+logger = logging.getLogger("sputnik_mcp.resources.spaceship")
 
 
 class Vector3(BaseModel):
@@ -40,48 +43,60 @@ async def spaceship_state(sputnik_id: str) -> SpaceshipState:
     Args:
         sputnik_id: Optional ID of the spaceship to get status for
     """
-    client = get_api_client()
-    result = await client.get_status(sputnik_id)
-    state_data = result["state"]
-    
-    # Create the position vector
-    position = Vector3(
-        x=state_data["position"][0],
-        y=state_data["position"][1],
-        z=state_data["position"][2]
-    )
-    
-    # Create the velocity vector
-    velocity = Vector3(
-        x=state_data["velocity"][0],
-        y=state_data["velocity"][1],
-        z=state_data["velocity"][2]
-    )
-    
-    # Create the rotation vector
-    rotation = Vector3(
-        x=state_data["rotation"][0],
-        y=state_data["rotation"][1],
-        z=state_data["rotation"][2]
-    )
-    
-    # Create destination vector if it exists
-    destination = None
-    if state_data.get("destination"):
-        destination = Vector3(
-            x=state_data["destination"][0],
-            y=state_data["destination"][1],
-            z=state_data["destination"][2]
+    logger.info(f"Received request for spaceship state with ID: {sputnik_id}")
+    try:
+        client = get_api_client()
+        logger.debug(f"Using API client with base URL: {client.base_url}")
+        
+        logger.info(f"Requesting status from API for spaceship: {sputnik_id}")
+        result = await client.get_status(sputnik_id)
+        logger.debug(f"Received API response: {result}")
+        
+        state_data = result["state"]
+        
+        # Create the position vector
+        position = Vector3(
+            x=state_data["position"][0],
+            y=state_data["position"][1],
+            z=state_data["position"][2]
         )
-    
-    # Return the full spaceship state
-    return SpaceshipState(
-        sputnik_id=result.get("uuid"),
-        position=position,
-        velocity=velocity,
-        rotation=rotation,
-        fuel=state_data["fuel"],
-        is_moving=state_data["isMoving"],
-        destination=destination,
-        target_planet=state_data.get("targetPlanet")
-    ) 
+        
+        # Create the velocity vector
+        velocity = Vector3(
+            x=state_data["velocity"][0],
+            y=state_data["velocity"][1],
+            z=state_data["velocity"][2]
+        )
+        
+        # Create the rotation vector
+        rotation = Vector3(
+            x=state_data["rotation"][0],
+            y=state_data["rotation"][1],
+            z=state_data["rotation"][2]
+        )
+        
+        # Create destination vector if it exists
+        destination = None
+        if state_data.get("destination"):
+            destination = Vector3(
+                x=state_data["destination"][0],
+                y=state_data["destination"][1],
+                z=state_data["destination"][2]
+            )
+        
+        # Return the full spaceship state
+        spaceship_state = SpaceshipState(
+            sputnik_id=result.get("uuid"),
+            position=position,
+            velocity=velocity,
+            rotation=rotation,
+            fuel=state_data["fuel"],
+            is_moving=state_data["isMoving"],
+            destination=destination,
+            target_planet=state_data.get("targetPlanet")
+        )
+        logger.info(f"Successfully created spaceship state for {sputnik_id}")
+        return spaceship_state
+    except Exception as e:
+        logger.error(f"Error getting spaceship state: {e}", exc_info=True)
+        raise 

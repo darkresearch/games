@@ -3,10 +3,20 @@ FastMCP application configuration for Sputnik MCP
 """
 
 from contextlib import asynccontextmanager
+import logging
+import sys
 
 from fastmcp import FastMCP
 
 from .client import create_client, SputnikAPIClient
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger("sputnik_mcp")
 
 # API client instance that will be initialized during startup
 api_client = None
@@ -22,6 +32,7 @@ def get_api_client() -> SputnikAPIClient:
     """
     global api_client
     if not api_client:
+        logger.error("API client not initialized. Application might not have started yet.")
         raise RuntimeError("API client not initialized. Application might not have started yet.")
     return api_client
 
@@ -34,12 +45,15 @@ async def lifespan(app: FastMCP):
     """
     # Initialize API client on startup
     global api_client
+    logger.info("Initializing API client")
     api_client = create_client()
+    logger.info(f"API client initialized with URL: {api_client.base_url}")
     
     yield
     
     # Clean up on shutdown
     if api_client:
+        logger.info("Closing API client")
         await api_client.close()
         api_client = None
 
