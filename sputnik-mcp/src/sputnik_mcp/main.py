@@ -22,9 +22,5 @@ if __name__ == "__main__":
     logger.info(f"Connected to Sputnik API at {os.getenv('SPUTNIK_API_URL', 'http://localhost:3000')}")
     logger.info(f"Python version: {os.sys.version}")
     
-    # Log all registered resources
-    resources = app.get_registered_resources()
-    logger.info(f"Registered resources: {resources}")
-    
     # Use the built-in run method with SSE transport (supports host/port)
     app.run(transport='sse', host=host, port=port) 
