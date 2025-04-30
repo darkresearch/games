@@ -19,6 +19,7 @@ class Vector3(BaseModel):
 
 class SpaceshipState(BaseModel):
     """The current state of the Sputnik spaceship"""
+    sputnik_id: Optional[str] = Field(None, description="ID of the spaceship (for multiplayer mode)")
     position: Vector3 = Field(..., description="Current position in 3D space")
     velocity: Vector3 = Field(..., description="Current velocity vector")
     rotation: Vector3 = Field(..., description="Current rotation in degrees")
@@ -36,13 +37,19 @@ def get_api_client() -> SputnikAPIClient:
 
 
 @resource
-async def spaceship_state() -> SpaceshipState:
+async def spaceship_state(sputnik_id: Optional[str] = None) -> SpaceshipState:
     """
     Current state of the Sputnik spaceship including position, velocity,
     rotation, fuel level, and movement status.
+    
+    In multiplayer mode, you can specify which spaceship to query by providing a sputnik_id.
+    If no sputnik_id is provided, the default spaceship will be queried.
+    
+    Args:
+        sputnik_id: Optional ID of the spaceship to get status for
     """
     client = get_api_client()
-    result = await client.get_status()
+    result = await client.get_status(sputnik_id)
     state_data = result["state"]
     
     # Create the position vector
@@ -77,6 +84,7 @@ async def spaceship_state() -> SpaceshipState:
     
     # Return the full spaceship state
     return SpaceshipState(
+        sputnik_id=result.get("uuid"),
         position=position,
         velocity=velocity,
         rotation=rotation,

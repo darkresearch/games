@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getInterpolator } from '../interpolator';
+import { getSputnikUuid } from '@/lib/redis-streams';
 
 // API key for authentication (should be in environment variables)
 const API_KEY = process.env.SPACESHIP_CONTROL_API_KEY || '1234';
@@ -19,14 +20,18 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Get the interpolator to access Redis
-    const interpolator = await getInterpolator();
+    // Extract UUID from query parameters if provided
+    const { searchParams } = new URL(request.url);
+    const uuid = searchParams.get('uuid') || getSputnikUuid();
+    
+    // Get the interpolator for the specific sputnik
+    const interpolator = await getInterpolator(uuid);
     
     // Get current state from Redis
     const currentState = await interpolator.getState();
     if (!currentState) {
       return NextResponse.json(
-        { error: 'Failed to retrieve current spaceship state from Redis' }, 
+        { error: `Failed to retrieve state for Sputnik ${uuid} from Redis` }, 
         { status: 500 }
       );
     }
@@ -37,6 +42,7 @@ export async function GET(request: NextRequest) {
     // Return the status response
     return NextResponse.json({
       success: true,
+      uuid: uuid,
       state: {
         position: currentState.position,
         velocity: currentState.velocity,
