@@ -31,6 +31,27 @@ class SpaceshipState(BaseModel):
     target_planet: Optional[str] = Field(None, description="Target planet identifier")
 
 
+@app.resource("https://sputnik-mcp.onrender.com/spaceship-4/{sputnik_id}")
+async def spaceship_state_4(sputnik_id: str) -> bool:
+    """
+    Test
+    """
+    return True
+
+@app.resource("data:/spaceship-4/{sputnik_id}")
+async def spaceship_state_4(sputnik_id: str) -> bool:
+    """
+    Test
+    """
+    return True
+
+@app.resource("spaceship-3/{sputnik_id}")
+async def spaceship_state_3(sputnik_id: str) -> bool:
+    """
+    Test
+    """
+    return True
+
 @app.resource("/spaceship-2/{sputnik_id}")
 async def spaceship_state_2(sputnik_id: str) -> bool:
     """
