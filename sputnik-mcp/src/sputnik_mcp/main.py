@@ -20,5 +20,5 @@ if __name__ == "__main__":
     print(f"Starting Sputnik MCP server on {host}:{port}")
     print(f"Connected to Sputnik API at {os.getenv('SPUTNIK_API_URL', 'http://localhost:3000')}")
     
-    # Use the built-in run method to properly handle the ASGI app
-    app.run(host=host, port=port) 
+    # Use the built-in run method with SSE transport (supports host/port)
+    app.run(transport='sse', host=host, port=port) 
