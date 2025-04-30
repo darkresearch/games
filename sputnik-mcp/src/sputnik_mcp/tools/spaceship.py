@@ -5,10 +5,9 @@ Tools for controlling the Sputnik spaceship
 from typing import Any, Dict, Optional
 
 import httpx
-from fastmcp import tool
 from pydantic import BaseModel, Field
 
-from ..api_client import SputnikAPIClient
+from ..app import app, get_api_client
 
 
 # Input model for move_spaceship tool
@@ -30,14 +29,7 @@ class MoveResult(BaseModel):
     sputnik_id: Optional[str] = Field(None, description="ID of the spaceship that was moved")
 
 
-# Get API client from context
-def get_api_client() -> SputnikAPIClient:
-    """Get the API client from FastMCP context"""
-    from ..main import get_api_client
-    return get_api_client()
-
-
-@tool
+@app.tool()
 async def move_spaceship(request: MoveRequest) -> MoveResult:
     """
     Command the spaceship to move to the specified coordinates.

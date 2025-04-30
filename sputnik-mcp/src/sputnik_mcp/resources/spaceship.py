@@ -4,10 +4,9 @@ Resource for representing the Sputnik spaceship state
 
 from typing import Optional
 
-from fastmcp import resource
 from pydantic import BaseModel, Field
 
-from ..api_client import SputnikAPIClient
+from ..app import app, get_api_client
 
 
 class Vector3(BaseModel):
@@ -29,14 +28,7 @@ class SpaceshipState(BaseModel):
     target_planet: Optional[str] = Field(None, description="Target planet identifier")
 
 
-# Get API client from context
-def get_api_client() -> SputnikAPIClient:
-    """Get the API client from FastMCP context"""
-    from ..main import get_api_client
-    return get_api_client()
-
-
-@resource
+@app.resource()
 async def spaceship_state(sputnik_id: Optional[str] = None) -> SpaceshipState:
     """
     Current state of the Sputnik spaceship including position, velocity,

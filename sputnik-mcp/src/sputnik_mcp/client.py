@@ -2,7 +2,8 @@
 API client for interacting with the Sputnik API
 """
 
-from typing import Dict, List, Optional, TypedDict, Union, Any
+import os
+from typing import Dict, Any, Optional
 
 import httpx
 
@@ -82,4 +83,17 @@ class SputnikAPIClient:
         
     async def close(self) -> None:
         """Close the HTTP client"""
-        await self._client.aclose() 
+        await self._client.aclose()
+
+
+# Factory function to create a client from environment variables
+def create_client() -> SputnikAPIClient:
+    """
+    Create a new API client using environment variables
+    
+    Returns:
+        Configured SputnikAPIClient instance
+    """
+    sputnik_url = os.getenv("SPUTNIK_API_URL", "http://localhost:3000")
+    sputnik_api_key = os.getenv("SPUTNIK_API_KEY", "1234")
+    return SputnikAPIClient(sputnik_url, sputnik_api_key) 
