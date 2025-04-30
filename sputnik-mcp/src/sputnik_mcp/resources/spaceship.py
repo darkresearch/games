@@ -28,7 +28,7 @@ class SpaceshipState(BaseModel):
     target_planet: Optional[str] = Field(None, description="Target planet identifier")
 
 
-@app.resource()
+@app.resource("spaceship://{sputnik_id?}")
 async def spaceship_state(sputnik_id: Optional[str] = None) -> SpaceshipState:
     """
     Current state of the Sputnik spaceship including position, velocity,
