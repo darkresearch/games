@@ -29,7 +29,7 @@ class SpaceshipState(BaseModel):
 
 
 @app.resource("spaceship://{sputnik_id}")
-async def spaceship_state(sputnik_id: Optional[str] = None) -> SpaceshipState:
+async def spaceship_state(sputnik_id: str) -> SpaceshipState:
     """
     Current state of the Sputnik spaceship including position, velocity,
     rotation, fuel level, and movement status.
