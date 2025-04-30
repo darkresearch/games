@@ -67,9 +67,6 @@ function CameraTransition({
   // Store the initial camera position and rotation when transition starts
   const startPosRef = useRef<THREE.Vector3 | null>(null);
   const startQuatRef = useRef<THREE.Quaternion | null>(null);
-
-  // Default direction if we can't get actual thruster direction
-  const defaultDirection = new THREE.Vector3(0, 0, -1);
   
   useFrame((state, delta) => {
     if (!isTransitioning) return;
@@ -92,26 +89,27 @@ function CameraTransition({
     // Use our stored start position
     const startPos = startPosRef.current || camera.position;
     
-    // Find the spaceship in the scene to get its thruster direction
+    // Find the spaceship in the scene
     const spaceship = scene.getObjectByName(`Spaceship-${userSputnikUuid}`);
-    let thrusterDirection = defaultDirection;
+    
+    // Default to a backward direction if spaceship not found
+    let backwardDirection = new THREE.Vector3(-1, 0, 0);
     
     if (spaceship) {
-      // @ts-expect-error - Access the custom property we added
-      if (spaceship.thrusterDirection) {
-        // @ts-expect-error - Access the custom property we added
-        thrusterDirection = spaceship.thrusterDirection;
-      }
+      // Get the backward direction in world space from the ship's orientation
+      // Using negative X-axis as backward because the model is rotated with [0, Math.PI/2, 0]
+      backwardDirection = new THREE.Vector3(-1, 0, 0);
+      backwardDirection.applyQuaternion(spaceship.quaternion);
     }
     
-    // Distance behind the thrusters
+    // Distance behind the ship
     const cameraDistance = 15;
     
-    // Calculate target position directly behind thrusters
+    // Calculate target position directly behind ship
     const targetPosition = new THREE.Vector3(
-      spaceshipPosition.x + (thrusterDirection.x * cameraDistance),
-      spaceshipPosition.y + (thrusterDirection.y * cameraDistance),
-      spaceshipPosition.z + (thrusterDirection.z * cameraDistance)
+      spaceshipPosition.x + (backwardDirection.x * cameraDistance),
+      spaceshipPosition.y + (backwardDirection.y * cameraDistance),
+      spaceshipPosition.z + (backwardDirection.z * cameraDistance)
     );
     
     // Calculate target rotation (looking at spaceship)
@@ -189,35 +187,29 @@ function CameraFollowSpaceship({
 }) {
   const { camera, scene } = useThree();
   
-  // Default direction if we can't get actual thruster direction
-  const defaultDirection = new THREE.Vector3(0, 0, -1);
-  
   useFrame(() => {
     if (!isActive || !controlsRef.current) return;
     
     // Disable controls while in follow mode
     controlsRef.current.enabled = false;
     
-    // Find the spaceship in the scene to get its thruster direction
+    // Find the spaceship in the scene
     const spaceship = scene.getObjectByName(`Spaceship-${userSputnikUuid}`);
-    let thrusterDirection = defaultDirection;
+    if (!spaceship) return;
     
-    if (spaceship) {
-      // @ts-expect-error - Access the custom property we added
-      if (spaceship.thrusterDirection) {
-        // @ts-expect-error - Access the custom property we added
-        thrusterDirection = spaceship.thrusterDirection;
-      }
-    }
+    // Get the backward direction in world space
+    // Using negative X-axis as backward because the model is rotated with [0, Math.PI/2, 0]
+    const backwardDirection = new THREE.Vector3(-1, 0, 0);
+    backwardDirection.applyQuaternion(spaceship.quaternion);
     
-    // Distance behind the thrusters
+    // Distance behind the ship
     const cameraDistance = 15;
     
-    // Position camera directly behind thrusters
+    // Position camera using this reliable direction
     const cameraPosition = new THREE.Vector3(
-      spaceshipPosition.x + (thrusterDirection.x * cameraDistance),
-      spaceshipPosition.y + (thrusterDirection.y * cameraDistance),
-      spaceshipPosition.z + (thrusterDirection.z * cameraDistance)
+      spaceshipPosition.x + (backwardDirection.x * cameraDistance),
+      spaceshipPosition.y + (backwardDirection.y * cameraDistance),
+      spaceshipPosition.z + (backwardDirection.z * cameraDistance)
     );
     
     // Update camera position
