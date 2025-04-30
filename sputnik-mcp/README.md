@@ -4,11 +4,11 @@ A Model Context Protocol (MCP) server for controlling the Sputnik spaceship.
 
 ## Overview
 
-This MCP server provides a standardized interface for AI agents to control Sputnik, a spaceship navigating through space to reach a target planet. The server exposes tools for sending commands to the spaceship and provides resources that give real-time information about the spaceship's current state.
+This MCP server provides a standardized interface for AI agents to control Sputnik, a spaceship navigating through space to reach a target planet. The server exposes tools for sending commands to the spaceship and for retrieving real-time information about the spaceship's current state.
 
 ## Features
 
-- Real-time spaceship status as a resource
+- Real-time spaceship status as a tool
 - Command to move the spaceship to specified coordinates
 - Proper error handling for when the spaceship is already moving
 - Clean API design following FastMCP best practices
@@ -57,10 +57,8 @@ The server will start on the configured host and port (default: http://0.0.0.0:8
 
 The server exposes an MCP interface that AI agents can connect to. It provides:
 
-1. **Resources**: 
-   - `spaceship_state`: Real-time information about the spaceship's position, velocity, etc.
-
-2. **Tools**:
+1. **Tools**:
+   - `get_spaceship_state`: Get real-time information about the spaceship's position, velocity, etc.
    - `move_spaceship`: Move the spaceship to specified x, y, z coordinates
 
 ## Development
@@ -83,8 +81,7 @@ isort src tests
 The server follows a clean architecture:
 
 - `api_client.py`: Handles communication with the Sputnik API
-- `resources/spaceship.py`: Defines the spaceship state resource
-- `tools/spaceship.py`: Implements the spaceship control tools
+- `tools/spaceship.py`: Implements the spaceship models, control tools, and status tools
 - `main.py`: Server entry point and configuration
 
 ## License

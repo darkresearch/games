@@ -66,7 +66,5 @@ app = FastMCP(
     lifespan=lifespan
 )
 
-# Import tools and resources - these will register automatically
-# via the decorators once imported
-from .tools.spaceship import move_spaceship  # noqa
-from .resources.spaceship import spaceship_state  # noqa 
+# Import tools - these will register automatically via the decorators once imported
+from .tools.spaceship import move_spaceship, get_spaceship_state  # noqa 
