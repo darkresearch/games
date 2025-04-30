@@ -31,6 +31,14 @@ class SpaceshipState(BaseModel):
     target_planet: Optional[str] = Field(None, description="Target planet identifier")
 
 
+@app.resource("/spaceship-2/{sputnik_id}")
+async def spaceship_state_2(sputnik_id: str) -> bool:
+    """
+    Test
+    """
+    return True
+
+
 @app.resource("spaceship/{sputnik_id}")
 async def spaceship_state(sputnik_id: str) -> SpaceshipState:
     """
